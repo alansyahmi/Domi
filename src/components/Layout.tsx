@@ -38,73 +38,63 @@ export default function Layout({ agent, children, demoMode, notice, onLogout }: 
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="flex items-center gap-4">
-          <div className="brand-mark">D</div>
-          <div>
-            <div className="text-2xl font-extrabold leading-tight text-[#041627]">Domi</div>
-            <div className="text-sm text-slate-600">{agent.plan}</div>
-          </div>
-        </div>
-
-        <nav className="mt-16 grid gap-2">
-          {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
-              <item.icon size={25} aria-hidden="true" />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
-        </nav>
-
-        <div className="mt-auto grid gap-5">
-          <Link to="/report-generator" className="primary-button w-full">
-            <Plus size={20} aria-hidden="true" />
-            New Property Report
+      <header className="topbar">
+        <div className="topbar-container">
+          {/* Left: Brand logo & name */}
+          <Link to="/dashboard" className="brand-group">
+            <div className="brand-mark">D</div>
+            <div className="brand-info">
+              <span className="brand-name">Domi</span>
+              <span className="brand-plan">Domi Habere</span>
+            </div>
           </Link>
-          <div className="border-t border-slate-300 pt-5 flex items-center gap-3">
-            <div className="avatar small topbar-avatar">{agent.avatarInitials}</div>
-            <div className="min-w-0">
-              <div className="font-extrabold truncate">{agent.fullName}</div>
-              <div className="text-sm text-slate-600 truncate">{agent.email}</div>
-            </div>
-          </div>
-        </div>
-      </aside>
 
-      <div className="main-area">
-        <header className="topbar">
-          <div className="flex items-center gap-3">
-            <BarChart3 size={24} className="text-[#041627] md:hidden" aria-hidden="true" />
-            <div>
-              <h1 className="m-0 text-2xl md:text-3xl font-extrabold text-[#041627]">Domi</h1>
-              <p className="m-0 text-sm text-slate-500 md:hidden">{activeLabel}</p>
+          {/* Middle: Navigation Links (Desktop) */}
+          <nav className="topbar-nav" aria-label="Desktop navigation">
+            {navItems.map((item) => (
+              <NavLink key={item.to} to={item.to} className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
+                <item.icon size={18} aria-hidden="true" />
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+          </nav>
+
+          {/* Right: Actions, Search, Avatar */}
+          <div className="topbar-actions">
+            <div className="search-container">
+              <Search size={18} className="search-icon" aria-hidden="true" />
+              <span className="search-placeholder">Search...</span>
             </div>
-          </div>
-          <div className="hidden lg:flex items-center gap-2 w-[28rem] rounded-full border border-slate-300 bg-white px-4 py-2">
-            <Search size={20} className="text-slate-500" aria-hidden="true" />
-            <span className="text-slate-500">Search leads, properties...</span>
-          </div>
-          <div className="topbar-actions flex items-center gap-2">
-            {demoMode ? <span className="tag tag-blue demo-pill">Demo mode</span> : null}
+
+            {demoMode ? <span className="tag tag-blue demo-pill">Demo</span> : null}
+
             <button className="icon-button" aria-label="Notifications">
-              <Bell size={22} aria-hidden="true" />
+              <Bell size={20} aria-hidden="true" />
             </button>
             <button className="icon-button desktop-action" aria-label="Help">
-              <HelpCircle size={22} aria-hidden="true" />
+              <HelpCircle size={20} aria-hidden="true" />
             </button>
             <button className="icon-button desktop-action" aria-label="Sign out" onClick={() => void onLogout()}>
-              <LogOut size={21} aria-hidden="true" />
+              <LogOut size={20} aria-hidden="true" />
             </button>
-            <div className="avatar small">{agent.avatarInitials}</div>
-          </div>
-        </header>
 
-        {notice ? (
-          <div className="mx-auto max-w-[92rem] px-4 md:px-10 pt-4">
-            <div className="card border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">{notice}</div>
+            <div className="profile-group">
+              <div className="avatar small topbar-avatar">{agent.avatarInitials}</div>
+              <div className="profile-info">
+                <div className="profile-name">{agent.fullName}</div>
+              </div>
+            </div>
           </div>
-        ) : null}
+        </div>
+      </header>
 
+      {notice ? (
+        <div className="mx-auto max-w-[92rem] px-4 md:px-10 pt-4">
+          <div className="card border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">{notice}</div>
+        </div>
+      ) : null}
+
+      <div className="main-area">
         {children}
       </div>
 
