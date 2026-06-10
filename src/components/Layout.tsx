@@ -86,7 +86,7 @@ export default function Layout({ agent, children, demoMode, notice, onLogout }: 
       </header>
 
       {notice ? (
-        <div className="mx-auto max-w-[92rem] px-4 md:px-10 pt-4">
+        <div className="mx-auto max-w-368 px-4 md:px-10 pt-4">
           <div className="card border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">{notice}</div>
         </div>
       ) : null}

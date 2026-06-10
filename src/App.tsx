@@ -1,3 +1,4 @@
+import { useAuth } from "@workos-inc/authkit-react";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { buildReportDraft } from "./domain/reports";
@@ -39,6 +40,7 @@ function buildLocalReport(input: PropertyReportInput, agentId: string): Property
 }
 
 export default function App() {
+  const { isLoading: authLoading, user: authUser, signIn, signOut: authSignOut } = useAuth();
   const [data, setData] = useState<AppData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -114,7 +116,38 @@ export default function App() {
       setNotice("Demo mode does not have an active WorkOS session.");
       return;
     }
+    // Clear server-side session first
     await logoutApi(data.csrfToken);
+    // Then sign out from AuthKit client-side
+    authSignOut();
+  }
+
+  // Show AuthKit loading state
+  if (authLoading) {
+    return (
+      <main className="min-h-screen grid place-items-center bg-[#f7f9fb]">
+        <div className="card p-8 text-center">
+          <div className="brand-mark mx-auto mb-4">D</div>
+          <p className="text-slate-600">Authenticating...</p>
+        </div>
+      </main>
+    );
+  }
+
+  // Show sign-in if not authenticated via AuthKit
+  if (!authUser) {
+    return (
+      <main className="min-h-screen grid place-items-center p-6">
+        <section className="card max-w-xl p-8 text-center">
+          <div className="brand-mark mx-auto mb-4">D</div>
+          <h1 className="section-title">Welcome to Domi</h1>
+          <p className="mt-4 text-slate-600">Sign in to access your real estate workspace</p>
+          <button className="primary-button mt-6" onClick={() => signIn()} type="button">
+            Sign in with WorkOS
+          </button>
+        </section>
+      </main>
+    );
   }
 
   if (error) {
@@ -123,9 +156,9 @@ export default function App() {
         <section className="card max-w-xl p-8 text-center">
           <h1 className="section-title">Domi could not start</h1>
           <p className="mt-4 text-slate-600">{error}</p>
-          <a className="primary-button mt-6" href="/login">
+          <button className="primary-button mt-6" onClick={() => signIn()} type="button">
             Sign in with WorkOS
-          </a>
+          </button>
         </section>
       </main>
     );
