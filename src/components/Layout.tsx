@@ -40,7 +40,7 @@ export default function Layout({ agent, children, demoMode, notice, onLogout }: 
     <div className="app-shell">
       <header className="topbar">
         <div className="topbar-container">
-          {/* Left: Brand logo & name */}
+          {/* Left: Brand logo & motto */}
           <Link to="/dashboard" className="brand-group">
             <div className="brand-mark">D</div>
             <div className="brand-info">
@@ -49,11 +49,10 @@ export default function Layout({ agent, children, demoMode, notice, onLogout }: 
             </div>
           </Link>
 
-          {/* Middle: Navigation Links (Desktop) */}
+          {/* Center: Navigation Links (Desktop) */}
           <nav className="topbar-nav" aria-label="Desktop navigation">
             {navItems.map((item) => (
               <NavLink key={item.to} to={item.to} className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
-                <item.icon size={18} aria-hidden="true" />
                 <span>{item.label}</span>
               </NavLink>
             ))}
@@ -65,8 +64,6 @@ export default function Layout({ agent, children, demoMode, notice, onLogout }: 
               <Search size={18} className="search-icon" aria-hidden="true" />
               <span className="search-placeholder">Search...</span>
             </div>
-
-            {demoMode ? <span className="tag tag-blue demo-pill">Demo</span> : null}
 
             <button className="icon-button" aria-label="Notifications">
               <Bell size={20} aria-hidden="true" />

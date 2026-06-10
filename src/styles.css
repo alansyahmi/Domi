@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;600;700;900&display=swap");
 @import "tailwindcss";
 
 html {
@@ -7,24 +8,30 @@ html {
 
 @media (min-width: 901px) {
   html {
-    font-size: 13px; /* 20% smaller desktop baseline (including 1080p) */
+    font-size: 13px;
+    /* 20% smaller desktop baseline (including 1080p) */
   }
 }
 
 @media (min-width: 2560px) {
   html {
-    font-size: 17px; /* 20% smaller 2K scaling */
+    font-size: 17px;
+    /* 20% smaller 2K scaling */
   }
 }
 
 @media (min-width: 3840px) {
   html {
-    font-size: 23px; /* 20% smaller 4K scaling */
+    font-size: 23px;
+    /* 20% smaller 4K scaling */
   }
 }
 
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-display: "Zen Old Mincho", LibreBaskerville, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-display-condense: 0.96;
+  font-family: var(--font-sans);
   color: #071421;
   background: #f7f9fb;
   font-synthesis: none;
@@ -84,24 +91,26 @@ button {
 }
 
 .topbar {
-  height: 5.5rem;
-  border-bottom: 1px solid var(--line);
+  margin: 1.25rem auto 0;
+  width: calc(100% - 3rem);
+  max-width: 92rem;
+  height: 4.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   position: sticky;
-  top: 0;
+  top: 1.25rem;
   z-index: 30;
   display: flex;
   align-items: center;
-  width: 100%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
 }
 
 .topbar-container {
   width: 100%;
-  max-width: 92rem;
-  margin: 0 auto;
-  padding: 0 2.5rem;
+  padding: 0 1.75rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -141,10 +150,13 @@ button {
 
 .brand-name {
   font-size: 1.25rem;
-  font-weight: 850;
+  font-weight: 600;
   color: var(--navy);
   line-height: 1.1;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
+  font-family: var(--font-display);
+  transform: scaleX(var(--font-display-condense));
+  transform-origin: left center;
 }
 
 .brand-plan {
@@ -172,7 +184,7 @@ button {
   color: var(--muted);
   text-decoration: none;
   font-size: 0.92rem;
-  font-weight: 600;
+  font-weight: 400;
   transition: all 140ms ease;
   border-right: none;
 }
@@ -185,30 +197,33 @@ button {
 .nav-link.active {
   background: var(--navy);
   color: white;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .topbar-actions {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .search-container {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  width: 14rem;
+  width: 12rem;
+  /* Compact layout search bar on the right */
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: white;
+  background: #f1f4f7;
   padding: 0.45rem 1rem;
   cursor: pointer;
-  transition: border-color 140ms ease, box-shadow 140ms ease;
+  transition: all 140ms ease;
 }
 
 .search-container:hover {
   border-color: #9aa7b5;
+  background: #e9edf2;
 }
 
 .search-icon {
@@ -359,9 +374,20 @@ button {
 .section-title {
   font-size: clamp(1.8rem, 3vw, 2.6rem);
   line-height: 1.15;
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: 0;
   margin: 0;
+  font-family: var(--font-display);
+  transform: scaleX(var(--font-display-condense));
+  transform-origin: left center;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  transform: scaleX(var(--font-display-condense));
+  transform-origin: left center;
 }
 
 .eyebrow {
@@ -485,10 +511,6 @@ button {
   display: none;
 }
 
-.demo-pill {
-  display: inline-flex;
-}
-
 .dashboard-section-header {
   display: flex;
   flex-wrap: wrap;
@@ -509,7 +531,12 @@ button {
   }
 
   .topbar {
-    height: 4.5rem;
+    height: 4rem;
+    margin: 0.5rem auto 0;
+    width: calc(100% - 1rem);
+    border-radius: 999px;
+    top: 0.5rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
   }
 
   .topbar-container {
@@ -518,6 +545,10 @@ button {
   }
 
   .topbar-nav {
+    display: none;
+  }
+
+  .topbar-center {
     display: none;
   }
 
@@ -546,7 +577,6 @@ button {
     min-height: 2.25rem;
   }
 
-  .topbar .demo-pill,
   .topbar .desktop-action,
   .topbar .topbar-avatar {
     display: none;
