@@ -45,7 +45,7 @@ export default function Layout({ agent, children, demoMode, notice, onLogout }: 
             <div className="brand-mark">S</div>
             <div className="brand-info">
               <span className="brand-name">Signatis</span>
-              <span className="brand-plan">Amanah Workspace</span>
+              <span className="brand-plan">Signatis Tabulis</span>
             </div>
           </Link>
 
