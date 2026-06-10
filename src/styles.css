@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;600;700;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Zen+Old+Mincho:wght@400;600;700;900&display=swap");
 @import "tailwindcss";
 
 html {
@@ -28,9 +28,9 @@ html {
 }
 
 :root {
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-sans: "Zen Kaku Gothic New", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   --font-display: "Zen Old Mincho", LibreBaskerville, Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-display-condense: 0.96;
+  --font-display-condense: 0.88;
   font-family: var(--font-sans);
   color: #071421;
   background: #f7f9fb;
@@ -76,6 +76,34 @@ button {
   cursor: pointer;
 }
 
+.app-shell svg[aria-hidden="true"] {
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  filter:
+    drop-shadow(0.045rem 0.025rem 0 currentColor) drop-shadow(-0.018rem 0.02rem 0 currentColor);
+  rotate: -1.5deg;
+  transform-origin: 50% 52%;
+}
+
+.app-shell button:hover svg[aria-hidden="true"],
+.app-shell a:hover svg[aria-hidden="true"] {
+  rotate: 1.5deg;
+  scale: 1.04;
+}
+
+.app-shell .nav-link:nth-child(even) svg[aria-hidden="true"],
+.app-shell article:nth-child(even) svg[aria-hidden="true"],
+.app-shell li:nth-child(even) svg[aria-hidden="true"] {
+  rotate: 1.25deg;
+}
+
+.app-shell .brand-mark svg[aria-hidden="true"] {
+  filter:
+    drop-shadow(0.04rem 0.02rem 0 currentColor) drop-shadow(-0.015rem 0.018rem 0 currentColor);
+}
+
 .app-shell {
   min-height: 100vh;
   background: #f7f9fb;
@@ -91,20 +119,40 @@ button {
 }
 
 .topbar {
-  margin: 1.25rem auto 0;
+  margin: 0;
   width: calc(100% - 3rem);
   max-width: 92rem;
   height: 4.75rem;
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  position: sticky;
+  background: transparent;
+  backdrop-filter: blur(0);
+  -webkit-backdrop-filter: blur(0);
+  position: fixed;
   top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 30;
   display: flex;
   align-items: center;
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    backdrop-filter 160ms ease,
+    -webkit-backdrop-filter 160ms ease;
+}
+
+.topbar-spacer {
+  height: calc(1.25rem + 4.75rem);
+}
+
+.topbar.scrolled {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
 }
 
@@ -131,12 +179,16 @@ button {
   border-radius: 0.6rem;
   display: grid;
   place-items: center;
-  background: var(--navy);
+  background: #050505;
   color: white;
   font-weight: 800;
   font-size: 1.4rem;
   letter-spacing: 0;
   transition: transform 0.2s ease;
+}
+
+.brand-mark svg[aria-hidden="true"] {
+  stroke-width: 2.45;
 }
 
 .brand-group:hover .brand-mark {
@@ -172,10 +224,13 @@ button {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  position: relative;
 }
 
 .nav-link {
   height: 2.5rem;
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -184,20 +239,33 @@ button {
   color: var(--muted);
   text-decoration: none;
   font-size: 0.92rem;
-  font-weight: 400;
-  transition: all 140ms ease;
+  font-weight: 405;
+  transition: color 140ms ease, background 140ms ease;
   border-right: none;
 }
 
-.nav-link:hover {
+.nav-link:not(.active):hover {
   background: rgba(0, 0, 0, 0.04);
   color: var(--navy);
 }
 
 .nav-link.active {
-  background: var(--navy);
   color: white;
-  font-weight: 500;
+  font-weight: 700;
+}
+
+.nav-active-pill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  z-index: 0;
+  height: 2.5rem;
+  border-radius: 999px;
+  background: var(--navy);
+  transform: translateY(-50%);
+  transition:
+    transform 260ms ease-in-out,
+    width 260ms ease-in-out;
 }
 
 .topbar-actions {
@@ -286,8 +354,8 @@ button {
   transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, opacity 0.2s ease;
 }
 
-.primary-button > span,
-.secondary-button > span {
+.primary-button>span,
+.secondary-button>span {
   transition: filter 0.2s ease;
 }
 
@@ -296,8 +364,8 @@ button {
   opacity: 0.9;
 }
 
-.primary-button.saving > span,
-.secondary-button.saving > span {
+.primary-button.saving>span,
+.secondary-button.saving>span {
   filter: blur(2px);
 }
 
@@ -366,9 +434,17 @@ button {
 }
 
 @keyframes glowing {
-  0% { background-position: 0 0; }
-  50% { background-position: 400% 0; }
-  100% { background-position: 0 0; }
+  0% {
+    background-position: 0 0;
+  }
+
+  50% {
+    background-position: 400% 0;
+  }
+
+  100% {
+    background-position: 0 0;
+  }
 }
 
 /* Rainbow glow override for buttons without loading (reverted to brand gradient) */
@@ -380,7 +456,8 @@ button {
 /* Active click glow state (keeps it exposed for 0.8s then ease out over 0.4s) */
 .glow-on-hover.active-glow::before {
   animation: glowing 20s linear infinite, exposeGlow 1.2s ease-out forwards;
-  opacity: 0.85; /* override hover opacity */
+  opacity: 0.85;
+  /* override hover opacity */
 }
 
 /* Hide the mask background when clicked to expose full gradient inside the button */
@@ -398,9 +475,12 @@ button {
   0% {
     opacity: 1;
   }
+
   66% {
-    opacity: 1; /* 66% of 1.2s is 0.8s */
+    opacity: 1;
+    /* 66% of 1.2s is 0.8s */
   }
+
   100% {
     opacity: 0;
   }
@@ -506,6 +586,7 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display);
+  font-weight: 900;
   transform: scaleX(var(--font-display-condense));
   transform-origin: left center;
 }
@@ -652,11 +733,14 @@ h3 {
 
   .topbar {
     height: 4rem;
-    margin: 0.5rem auto 0;
     width: calc(100% - 1rem);
     border-radius: 999px;
     top: 0.5rem;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+    box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+  }
+
+  .topbar-spacer {
+    height: calc(0.5rem + 4rem);
   }
 
   .topbar-container {
@@ -749,7 +833,8 @@ h3 {
   position: absolute;
   inset: -2px;
   border-radius: 0.5rem;
-  border: 2px solid #a7f3d0; /* Pastel green */
+  border: 2px solid #a7f3d0;
+  /* Pastel green */
   box-shadow: 0 0 15px rgba(167, 243, 208, 0.65), inset 0 0 8px rgba(167, 243, 208, 0.3);
   pointer-events: none;
   z-index: 40;
@@ -766,20 +851,24 @@ h3 {
 }
 
 .success-border-glow.fail {
-  border: 2px solid #fca5a5; /* Soft pastel red/pink */
+  border: 2px solid #fca5a5;
+  /* Soft pastel red/pink */
   box-shadow: 0 0 15px rgba(252, 165, 165, 0.65), inset 0 0 8px rgba(252, 165, 165, 0.3);
 }
 
 .success-border-glow.animate {
-  animation: engulfGlow 1.2s cubic-bezier(0.25, 1, 0.5, 1) forwards; /* Instant burst, snappy finish */
+  animation: engulfGlow 1.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  /* Instant burst, snappy finish */
 }
 
 .success-border-glow.ease-in-out.animate {
-  animation: engulfGlowEaseInOut 1.6s ease-in-out forwards; /* Smooth ease in and out for larger elements */
+  animation: engulfGlowEaseInOut 1.6s ease-in-out forwards;
+  /* Smooth ease in and out for larger elements */
 }
 
 .success-border-glow.fail.animate {
-  animation: engulfGlowFail 2.2s cubic-bezier(0.25, 1, 0.5, 1) forwards; /* 2x pulse, stays longer when fully glowed */
+  animation: engulfGlowFail 2.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  /* 2x pulse, stays longer when fully glowed */
 }
 
 @keyframes engulfGlow {
@@ -787,10 +876,12 @@ h3 {
     clip-path: circle(10% at var(--glow-x) var(--glow-y));
     opacity: 1;
   }
+
   75% {
     clip-path: circle(130% at var(--glow-x) var(--glow-y));
     opacity: 1;
   }
+
   100% {
     clip-path: circle(150% at var(--glow-x) var(--glow-y));
     opacity: 0;
@@ -803,31 +894,39 @@ h3 {
     opacity: 1;
     box-shadow: 0 0 15px rgba(252, 165, 165, 0.6), inset 0 0 8px rgba(252, 165, 165, 0.3);
   }
+
   25% {
     clip-path: circle(130% at var(--glow-x) var(--glow-y));
     opacity: 1;
-    box-shadow: 0 0 45px rgba(252, 165, 165, 1), inset 0 0 20px rgba(252, 165, 165, 0.6); /* Intensified red glow (pulse 1) */
+    box-shadow: 0 0 45px rgba(252, 165, 165, 1), inset 0 0 20px rgba(252, 165, 165, 0.6);
+    /* Intensified red glow (pulse 1) */
   }
+
   45% {
     clip-path: circle(130% at var(--glow-x) var(--glow-y));
     opacity: 1;
     box-shadow: 0 0 45px rgba(252, 165, 165, 1), inset 0 0 20px rgba(252, 165, 165, 0.6);
   }
+
   55% {
     clip-path: circle(130% at var(--glow-x) var(--glow-y));
     opacity: 0.4;
     box-shadow: 0 0 20px rgba(252, 165, 165, 0.6), inset 0 0 10px rgba(252, 165, 165, 0.3);
   }
+
   65% {
     clip-path: circle(130% at var(--glow-x) var(--glow-y));
     opacity: 1;
-    box-shadow: 0 0 45px rgba(252, 165, 165, 1), inset 0 0 20px rgba(252, 165, 165, 0.6); /* Intensified red glow (pulse 2) */
+    box-shadow: 0 0 45px rgba(252, 165, 165, 1), inset 0 0 20px rgba(252, 165, 165, 0.6);
+    /* Intensified red glow (pulse 2) */
   }
+
   85% {
     clip-path: circle(130% at var(--glow-x) var(--glow-y));
     opacity: 1;
     box-shadow: 0 0 45px rgba(252, 165, 165, 1), inset 0 0 20px rgba(252, 165, 165, 0.6);
   }
+
   100% {
     clip-path: circle(150% at var(--glow-x) var(--glow-y));
     opacity: 0;
@@ -840,14 +939,17 @@ h3 {
     clip-path: circle(10% at var(--glow-x) var(--glow-y));
     opacity: 0;
   }
+
   20% {
     clip-path: circle(50% at var(--glow-x) var(--glow-y));
     opacity: 1;
   }
+
   80% {
     clip-path: circle(130% at var(--glow-x) var(--glow-y));
     opacity: 1;
   }
+
   100% {
     clip-path: circle(150% at var(--glow-x) var(--glow-y));
     opacity: 0;
