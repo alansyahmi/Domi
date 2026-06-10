@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Report Generator - RealEstate Insights</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "tertiary-fixed": "#feddb5",
+                      "on-surface": "#191c1e",
+                      "secondary-fixed": "#ffe088",
+                      "tertiary-fixed-dim": "#e1c29b",
+                      "on-secondary-fixed": "#241a00",
+                      "secondary-fixed-dim": "#e9c349",
+                      "secondary": "#735c00",
+                      "sentiment-negative": "#DC2626",
+                      "on-secondary": "#ffffff",
+                      "sentiment-positive": "#059669",
+                      "surface-container-lowest": "#ffffff",
+                      "tertiary-container": "#38260b",
+                      "on-tertiary": "#ffffff",
+                      "status-success": "#10B981",
+                      "on-primary-container": "#8192a7",
+                      "status-muted": "#94A3B8",
+                      "error": "#ba1a1a",
+                      "on-background": "#191c1e",
+                      "sentiment-neutral": "#64748B",
+                      "surface-container-high": "#e6e8ea",
+                      "primary": "#041627",
+                      "on-primary": "#ffffff",
+                      "data-slate-light": "#E2E8F0",
+                      "primary-container": "#1a2b3c",
+                      "on-secondary-fixed-variant": "#574500",
+                      "tertiary": "#211200",
+                      "on-primary-fixed": "#0b1d2d",
+                      "inverse-on-surface": "#eff1f3",
+                      "inverse-primary": "#b7c8de",
+                      "surface-variant": "#e0e3e5",
+                      "secondary-container": "#fed65b",
+                      "background": "#f7f9fb",
+                      "surface-container-highest": "#e0e3e5",
+                      "on-tertiary-fixed-variant": "#584326",
+                      "outline": "#74777d",
+                      "on-error-container": "#93000a",
+                      "on-secondary-container": "#745c00",
+                      "surface-dim": "#d8dadc",
+                      "data-slate-deep": "#334155",
+                      "primary-fixed-dim": "#b7c8de",
+                      "on-primary-fixed-variant": "#38485a",
+                      "surface-tint": "#4f6073",
+                      "outline-variant": "#c4c6cd",
+                      "surface-container": "#eceef0",
+                      "on-tertiary-container": "#a88c69",
+                      "on-tertiary-fixed": "#281802",
+                      "error-container": "#ffdad6",
+                      "primary-fixed": "#d2e4fb",
+                      "surface": "#f7f9fb",
+                      "inverse-surface": "#2d3133",
+                      "surface-bright": "#f7f9fb",
+                      "on-surface-variant": "#44474c",
+                      "surface-container-low": "#f2f4f6",
+                      "on-error": "#ffffff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "stack-md": "16px",
+                      "stack-sm": "8px",
+                      "gutter": "24px",
+                      "margin-desktop": "40px",
+                      "container-max": "1440px",
+                      "stack-lg": "32px",
+                      "margin-mobile": "16px"
+              },
+              "fontFamily": {
+                      "headline-lg": [
+                              "Inter"
+                      ],
+                      "label-uppercase": [
+                              "Inter"
+                      ],
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "display-binary": [
+                              "Inter"
+                      ],
+                      "data-tabular": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "headline-lg-mobile": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-uppercase": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "display-binary": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "data-tabular": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<style>
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.on-surface');
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        /* Custom scrollbar for sidebar */
+        .sidebar-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .sidebar-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .sidebar-scroll::-webkit-scrollbar-thumb {
+            background-color: theme('colors.outline-variant');
+            border-radius: 4px;
+        }
+        
+        /* Input focus rings */
+        .input-ring:focus-within {
+            box-shadow: 0 0 0 2px theme('colors.primary-container');
+            border-color: theme('colors.primary-container');
+        }
+    </style>
+</head>
+<body class="flex bg-background min-h-screen text-on-surface font-body-md overflow-x-hidden">
+<!-- SideNavBar -->
+<nav class="hidden md:flex flex-col h-screen fixed left-0 top-0 py-6 bg-surface dark:bg-inverse-surface border-r border-outline-variant dark:border-outline docked left-0 h-full w-64 z-50">
+<div class="px-6 mb-8 flex flex-col gap-4">
+<div class="flex items-center gap-3">
+<img alt="User profile avatar" class="w-12 h-12 rounded-full object-cover border border-data-slate-light" data-alt="A professional headshot of a real estate agent wearing a modern dark navy suit, smiling confidently against a minimal bright studio background. Soft, even lighting highlights trust and professionalism, aligning perfectly with a clean corporate UI aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDJFHXBdXpe6RydT9am4qm1s5B1A9MBTPg72FNhiTDkKmdbq0_3Tml4C64X4bf9RWIsl0YlpSlnixuPuwF1c0w7jUCr3tNlcsjQV4D0ioPFfcMiJilGLQjQjmYWTxp0gF9sx0WxD1Jo-pylVstJPxA6QAPNsAVx49_sLHyfuZfHgPLYUZ4CbvrGyd08d6KXYzUWJktPhQ_o_6_Bwv8FxB8xq0J96ObQiZtrCUEgIbjakgR8oOLBqcsV-IiBF9foKtl8ehXqJGeXUHJV"/>
+<div>
+<h2 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed text-[16px] leading-tight">Zitouni Maliki</h2>
+<p class="font-body-md text-body-md text-status-muted text-[14px]">Premium Agent</p>
+</div>
+</div>
+<button class="w-full bg-primary-container text-on-primary py-2 px-4 rounded-lg font-data-tabular hover:bg-primary transition-colors flex items-center justify-center gap-2 shadow-[0_4px_14px_0_rgba(26,43,60,0.1)]">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                New Property Report
+            </button>
+</div>
+<div class="flex-1 overflow-y-auto sidebar-scroll px-4 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors scale-98 active:opacity-80 transition-all font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-primary dark:text-primary-fixed font-bold border-r-4 border-primary dark:border-primary-fixed bg-surface-container-low hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors scale-98 active:opacity-80 transition-all font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">maps_home_work</span>
+                Report Generator
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors scale-98 active:opacity-80 transition-all font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">person_search</span>
+                Lead Management
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors scale-98 active:opacity-80 transition-all font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">settings</span>
+                Settings
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors scale-98 active:opacity-80 transition-all font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">gavel</span>
+                Legal &amp; Support
+            </a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col md:ml-64 min-h-screen">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center h-16 w-full px-6 sticky top-0 z-40 bg-surface/80 backdrop-blur-md border-b border-outline-variant dark:border-outline">
+<div class="flex items-center gap-4">
+<h1 class="font-headline-md text-headline-md font-extrabold text-primary dark:text-primary-fixed tracking-tight">RealEstate Insights</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-high rounded-full p-2 transition-opacity active:opacity-70">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-high rounded-full p-2 transition-opacity active:opacity-70">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<div class="w-px h-6 bg-outline-variant mx-2"></div>
+<img alt="Agent profile picture" class="w-8 h-8 rounded-full border border-data-slate-light ml-2" data-alt="A small circular avatar showing a professional real estate agent headshot, clean lighting, dark navy suit, bright minimal background. Fits perfectly into a modern dashboard utility bar." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBFq3oWD_OFWBUgvKaW9jj7LB6PHMTGhsilI7_px__VGDknrkU9hHcyMjottbyhye8zdfPeuVV7HN_E0Bw7jyULw0kp6iOEMLDEfWrRSAFQE6xxXjMHWgpEszZ3CCIKxBC_DB9Vv5sr-jusnySJ5ET1lHHQPBMlky3CLIheh24c-nljLxJtwjz-CUNaFP_ZJUjRXEVH9oTeXT9W0dL5OrRJcjlSUPredv2VGvvW_POgOlF5ow3OrzFBzWiPPgfNnPKJalq8GhRHn4vm"/>
+</div>
+</header>
+<!-- Canvas -->
+<main class="flex-1 p-6 md:p-10 w-full max-w-container-max mx-auto">
+<div class="mb-8">
+<h2 class="font-headline-lg text-headline-lg text-primary mb-2">Generate Property Report</h2>
+<p class="font-body-lg text-body-lg text-status-muted">Complete the parameters below to generate a comprehensive predictive analysis.</p>
+</div>
+<!-- Progress Indicator -->
+<div class="mb-stack-lg relative">
+<div class="flex justify-between items-center relative z-10">
+<div class="flex flex-col items-center gap-2 w-1/3">
+<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-label-uppercase text-label-uppercase shadow-[0_4px_14px_0_rgba(26,43,60,0.1)]">1</div>
+<span class="font-data-tabular text-data-tabular text-primary font-semibold">Property Details</span>
+</div>
+<div class="flex flex-col items-center gap-2 w-1/3">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center font-label-uppercase text-label-uppercase border border-outline-variant">2</div>
+<span class="font-data-tabular text-data-tabular text-status-muted">Market Parameters</span>
+</div>
+<div class="flex flex-col items-center gap-2 w-1/3">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center font-label-uppercase text-label-uppercase border border-outline-variant">3</div>
+<span class="font-data-tabular text-data-tabular text-status-muted">Social Sentiment</span>
+</div>
+</div>
+<!-- Track -->
+<div class="absolute top-4 left-0 w-full h-1 bg-surface-container-highest -z-0"></div>
+<!-- Fill -->
+<div class="absolute top-4 left-0 w-1/6 h-1 bg-primary-container -z-0 transition-all duration-500"></div>
+</div>
+<!-- Form Container -->
+<div class="bg-surface-container-lowest border border-data-slate-light rounded-xl p-8 shadow-sm">
+<!-- Step 1: Property Details -->
+<div class="space-y-stack-lg" id="step-1">
+<div class="flex items-center gap-3 border-b border-data-slate-light pb-4 mb-6">
+<span class="material-symbols-outlined text-primary-container text-[28px]">home_work</span>
+<h3 class="font-headline-md text-headline-md text-primary">Property Details</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<!-- Address -->
+<div class="col-span-1 md:col-span-2 space-y-2">
+<label class="block font-data-tabular text-data-tabular text-on-surface" for="address">Property Address <span class="text-sentiment-negative">*</span></label>
+<div class="relative rounded-md shadow-sm input-ring rounded-lg border border-outline-variant bg-white overflow-hidden flex items-center transition-shadow">
+<div class="pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-status-muted">location_on</span>
+</div>
+<input class="block w-full border-0 py-3 pl-2 text-on-surface font-body-md text-body-md placeholder:text-status-muted focus:ring-0 sm:leading-6 bg-transparent" id="address" name="address" placeholder="Start typing address..." type="text"/>
+</div>
+</div>
+<!-- Property Type -->
+<div class="space-y-2">
+<label class="block font-data-tabular text-data-tabular text-on-surface" for="property-type">Property Type</label>
+<div class="relative rounded-md shadow-sm input-ring rounded-lg border border-outline-variant bg-white overflow-hidden flex items-center transition-shadow">
+<select class="block w-full border-0 py-3 pl-3 pr-10 text-on-surface font-body-md text-body-md focus:ring-0 sm:leading-6 bg-transparent appearance-none" id="property-type" name="property-type">
+<option>Single Family Residential</option>
+<option>Multi-Family</option>
+<option>Condominium</option>
+<option>Townhouse</option>
+<option>Commercial</option>
+</select>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+<span class="material-symbols-outlined text-status-muted">arrow_drop_down</span>
+</div>
+</div>
+</div>
+<!-- Square Footage -->
+<div class="space-y-2">
+<label class="block font-data-tabular text-data-tabular text-on-surface" for="sqft">Total Square Footage</label>
+<div class="relative rounded-md shadow-sm input-ring rounded-lg border border-outline-variant bg-white overflow-hidden flex items-center transition-shadow">
+<div class="pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-status-muted">square_foot</span>
+</div>
+<input class="block w-full border-0 py-3 pl-2 text-on-surface font-body-md text-body-md placeholder:text-status-muted focus:ring-0 sm:leading-6 bg-transparent" id="sqft" name="sqft" placeholder="e.g., 2500" type="number"/>
+</div>
+</div>
+<!-- Beds/Baths -->
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-2">
+<label class="block font-data-tabular text-data-tabular text-on-surface" for="beds">Bedrooms</label>
+<div class="relative rounded-md shadow-sm input-ring rounded-lg border border-outline-variant bg-white overflow-hidden flex items-center transition-shadow">
+<input class="block w-full border-0 py-3 pl-3 text-on-surface font-body-md text-body-md placeholder:text-status-muted focus:ring-0 sm:leading-6 bg-transparent" id="beds" name="beds" placeholder="0" type="number"/>
+</div>
+</div>
+<div class="space-y-2">
+<label class="block font-data-tabular text-data-tabular text-on-surface" for="baths">Bathrooms</label>
+<div class="relative rounded-md shadow-sm input-ring rounded-lg border border-outline-variant bg-white overflow-hidden flex items-center transition-shadow">
+<input class="block w-full border-0 py-3 pl-3 text-on-surface font-body-md text-body-md placeholder:text-status-muted focus:ring-0 sm:leading-6 bg-transparent" id="baths" name="baths" placeholder="0.0" step="0.5" type="number"/>
+</div>
+</div>
+</div>
+<!-- Year Built -->
+<div class="space-y-2">
+<label class="block font-data-tabular text-data-tabular text-on-surface" for="year">Year Built</label>
+<div class="relative rounded-md shadow-sm input-ring rounded-lg border border-outline-variant bg-white overflow-hidden flex items-center transition-shadow">
+<div class="pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-status-muted">calendar_today</span>
+</div>
+<input class="block w-full border-0 py-3 pl-2 text-on-surface font-body-md text-body-md placeholder:text-status-muted focus:ring-0 sm:leading-6 bg-transparent" id="year" name="year" placeholder="YYYY" type="number"/>
+</div>
+</div>
+</div>
+<!-- Action Bar -->
+<div class="flex justify-end pt-6 border-t border-data-slate-light mt-8">
+<button class="bg-primary-container text-on-primary py-3 px-8 rounded-lg font-data-tabular hover:bg-primary transition-colors flex items-center gap-2 shadow-[0_4px_14px_0_rgba(26,43,60,0.1)]">
+                            Next Step
+                            <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

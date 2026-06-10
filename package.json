@@ -1,0 +1,34 @@
+{
+  "name": "domi-real-estate-saas",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 58234",
+    "preview": "node scripts/serve-dist.mjs 58233",
+    "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@netlify/functions": "^4.2.6",
+    "@netlify/vite-plugin": "^2.0.3",
+    "@tailwindcss/vite": "^4.1.18",
+    "@tursodatabase/serverless": "^1.0.11",
+    "@workos-inc/node": "^7.75.0",
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-router-dom": "^7.11.0",
+    "tailwindcss": "^4.1.18"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.0.16"
+  }
+}

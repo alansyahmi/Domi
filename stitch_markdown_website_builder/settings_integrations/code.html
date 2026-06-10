@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Settings &amp; Integrations - RealEstate Insights</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed": "#feddb5",
+                        "on-surface": "#191c1e",
+                        "secondary-fixed": "#ffe088",
+                        "tertiary-fixed-dim": "#e1c29b",
+                        "on-secondary-fixed": "#241a00",
+                        "secondary-fixed-dim": "#e9c349",
+                        "secondary": "#735c00",
+                        "sentiment-negative": "#DC2626",
+                        "on-secondary": "#ffffff",
+                        "sentiment-positive": "#059669",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#38260b",
+                        "on-tertiary": "#ffffff",
+                        "status-success": "#10B981",
+                        "on-primary-container": "#8192a7",
+                        "status-muted": "#94A3B8",
+                        "error": "#ba1a1a",
+                        "on-background": "#191c1e",
+                        "sentiment-neutral": "#64748B",
+                        "surface-container-high": "#e6e8ea",
+                        "primary": "#041627",
+                        "on-primary": "#ffffff",
+                        "data-slate-light": "#E2E8F0",
+                        "primary-container": "#1a2b3c",
+                        "on-secondary-fixed-variant": "#574500",
+                        "tertiary": "#211200",
+                        "on-primary-fixed": "#0b1d2d",
+                        "inverse-on-surface": "#eff1f3",
+                        "inverse-primary": "#b7c8de",
+                        "surface-variant": "#e0e3e5",
+                        "secondary-container": "#fed65b",
+                        "background": "#f7f9fb",
+                        "surface-container-highest": "#e0e3e5",
+                        "on-tertiary-fixed-variant": "#584326",
+                        "outline": "#74777d",
+                        "on-error-container": "#93000a",
+                        "on-secondary-container": "#745c00",
+                        "surface-dim": "#d8dadc",
+                        "data-slate-deep": "#334155",
+                        "primary-fixed-dim": "#b7c8de",
+                        "on-primary-fixed-variant": "#38485a",
+                        "surface-tint": "#4f6073",
+                        "outline-variant": "#c4c6cd",
+                        "surface-container": "#eceef0",
+                        "on-tertiary-container": "#a88c69",
+                        "on-tertiary-fixed": "#281802",
+                        "error-container": "#ffdad6",
+                        "primary-fixed": "#d2e4fb",
+                        "surface": "#f7f9fb",
+                        "inverse-surface": "#2d3133",
+                        "surface-bright": "#f7f9fb",
+                        "on-surface-variant": "#44474c",
+                        "surface-container-low": "#f2f4f6",
+                        "on-error": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "stack-md": "16px",
+                        "stack-sm": "8px",
+                        "gutter": "24px",
+                        "margin-desktop": "40px",
+                        "container-max": "1440px",
+                        "stack-lg": "32px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter"],
+                        "label-uppercase": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "display-binary": ["Inter"],
+                        "data-tabular": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "label-uppercase": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "display-binary": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "data-tabular": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: theme('colors.background');
+            color: theme('colors.on-background');
+        }
+    </style>
+</head>
+<body class="flex bg-background text-on-background min-h-screen">
+<!-- SideNavBar -->
+<nav class="hidden md:flex flex-col h-screen fixed left-0 top-0 py-6 bg-surface dark:bg-inverse-surface border-r border-outline-variant dark:border-outline docked left-0 h-full w-64 z-50">
+<div class="px-6 mb-8 flex items-center space-x-3">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container">
+<img alt="User profile avatar" class="w-full h-full object-cover" data-alt="A professional headshot of a confident male real estate agent wearing a modern navy suit. The lighting is soft and flattering, set against a clean, minimalist white background. The corporate style is crisp and trustworthy, emphasizing stability and success in the real estate market." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCmBDBasyQ1dmp5r-zrGkGpA-iH7lcwBaSAVHcJ4A7KYHKfsSEAlM8w1aSPbE_SPz8yJW0Nifz4xrN1WHyG_IVcVuaLTFaFEiB2YoIDtcMRrF9edINEN5oMmf0XEcTCAaZ6YpBlrajeu_FfvIbdyTLy3Kcwy6BaDozwpXmQAtM_7CLDGN8X8mSY_uJ2jKE347WsogAfYSIqEOuazWrUXkNijgsTAubkJk0tDTxlLqc-if08tiKmZiKPlWKXRKG6ma26VkWAsf0wprIE"/>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed text-base leading-tight">Zitouni Maliki</h2>
+<p class="font-body-md text-body-md text-on-surface-variant dark:text-surface-variant text-sm">Premium Agent</p>
+</div>
+</div>
+<ul class="flex-1 px-4 space-y-2">
+<li>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors scale-98 active:opacity-80 transition-all font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span>Dashboard</span>
+</a>
+</li>
+<li>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors scale-98 active:opacity-80 transition-all font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" data-icon="maps_home_work">maps_home_work</span>
+<span>Report Generator</span>
+</a>
+</li>
+<li>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors scale-98 active:opacity-80 transition-all font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" data-icon="person_search">person_search</span>
+<span>Lead Management</span>
+</a>
+</li>
+<li>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary dark:text-primary-fixed font-bold border-r-4 border-primary dark:border-primary-fixed hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors scale-98 active:opacity-80 transition-all font-body-md text-body-md bg-surface-container-low" href="#">
+<span class="material-symbols-outlined" data-icon="settings" style="font-variation-settings: 'FILL' 1;">settings</span>
+<span>Settings</span>
+</a>
+</li>
+<li>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-lg text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors scale-98 active:opacity-80 transition-all font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" data-icon="gavel">gavel</span>
+<span>Legal &amp; Support</span>
+</a>
+</li>
+</ul>
+<div class="px-6 mt-auto">
+<button class="w-full py-3 px-4 bg-primary text-on-primary rounded-lg font-data-tabular text-data-tabular font-semibold shadow-sm hover:bg-primary-container transition-colors flex items-center justify-center space-x-2">
+<span class="material-symbols-outlined text-[18px]">add</span>
+<span>New Property Report</span>
+</button>
+</div>
+</nav>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col md:ml-64 min-w-0">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center h-16 w-full pl-6 md:pl-10 pr-6 md:pr-10 sticky top-0 z-40 bg-surface/80 backdrop-blur-md border-b border-outline-variant dark:border-outline docked full-width top-0 bg-surface dark:bg-inverse-surface">
+<div class="flex items-center">
+<h1 class="font-headline-md text-headline-md font-extrabold text-primary dark:text-primary-fixed tracking-tight">RealEstate Insights</h1>
+</div>
+<div class="flex items-center space-x-4">
+<button class="text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-high rounded-full p-2 Active: opacity-70 transition-opacity">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-surface-container-high rounded-full p-2 Active: opacity-70 transition-opacity">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+<div class="md:hidden w-8 h-8 rounded-full overflow-hidden bg-surface-container ml-2">
+<img alt="Agent profile picture" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBgMhcY1H1NG-0U8yINLRKww7PoNCnHw6R3A1wy_6TOW_toX4UbozDYJR--M5moyPxvVDguXRPGJtZndFQCytVWRJfZgxM-H92JNrRpHCoqIb2HYuBC5t_C68-6ynY-8gAvZ689olYyKom36bKWnfmn7r8v3lKS8dGKoZDdPMWdbUYBuVPwUd2wxB_UTQtAMwPnG8KIBqK3T1F9wDMAGMj_N_SQkjiiG8pIxcOWIi5fjbycMPNeiCq4WpArbK6uI6pxYTB5iiP8b0gn"/>
+</div>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="flex-1 p-margin-mobile md:p-margin-desktop overflow-y-auto">
+<div class="max-w-container-max mx-auto space-y-stack-lg">
+<header class="mb-8">
+<h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-background mb-2">Settings &amp; Integrations</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Manage your account preferences, billing, and automated data pipelines.</p>
+</header>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Left Column: Profile & Subscription -->
+<div class="lg:col-span-4 space-y-stack-lg">
+<!-- Profile Card -->
+<section class="bg-surface-container-lowest border border-data-slate-light rounded-xl p-6 shadow-sm">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-6 border-b border-data-slate-light pb-4">Profile Information</h3>
+<form class="space-y-stack-md">
+<div>
+<label class="block font-label-uppercase text-label-uppercase text-on-surface-variant mb-2">Full Name</label>
+<input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body-md text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" type="text" value="Zitouni Maliki"/>
+</div>
+<div>
+<label class="block font-label-uppercase text-label-uppercase text-on-surface-variant mb-2">Email Address</label>
+<input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body-md text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" type="email" value="z.maliki@realestateinsights.com"/>
+</div>
+<div>
+<label class="block font-label-uppercase text-label-uppercase text-on-surface-variant mb-2">Phone Number</label>
+<input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 font-body-md text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" type="tel" value="+1 (555) 019-8472"/>
+</div>
+<div class="pt-4">
+<button class="px-6 py-2 bg-primary text-on-primary rounded-lg font-data-tabular text-data-tabular font-medium hover:bg-primary-container transition-colors w-full" type="button">Save Changes</button>
+</div>
+</form>
+</section>
+<!-- Subscription Card -->
+<section class="bg-surface-container-lowest border border-data-slate-light rounded-xl p-6 shadow-sm">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-6 border-b border-data-slate-light pb-4">Subscription Plan</h3>
+<div class="bg-surface-container-low rounded-lg p-4 border border-outline-variant mb-6">
+<div class="flex justify-between items-start mb-2">
+<div>
+<span class="font-label-uppercase text-label-uppercase text-primary tracking-wider font-bold">Current Plan</span>
+<h4 class="font-headline-md text-[20px] font-semibold text-on-surface mt-1">Premium Agent</h4>
+</div>
+<span class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full font-data-tabular text-[12px] font-bold">Active</span>
+</div>
+<p class="font-data-tabular text-data-tabular text-on-surface-variant mb-4">$149.00 / month</p>
+<div class="flex items-center text-sm font-data-tabular text-on-surface-variant mb-1">
+<span class="material-symbols-outlined text-[16px] mr-2 text-status-success">check_circle</span>
+                                    Unlimited Property Reports
+                                </div>
+<div class="flex items-center text-sm font-data-tabular text-on-surface-variant mb-1">
+<span class="material-symbols-outlined text-[16px] mr-2 text-status-success">check_circle</span>
+                                    Real-time Lead Scoring
+                                </div>
+<div class="flex items-center text-sm font-data-tabular text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] mr-2 text-status-success">check_circle</span>
+                                    Priority Support API
+                                </div>
+</div>
+<button class="px-6 py-2 bg-surface text-primary border border-primary rounded-lg font-data-tabular text-data-tabular font-medium hover:bg-surface-container transition-colors w-full" type="button">Manage Billing</button>
+</section>
+</div>
+<!-- Right Column: Integrations & Lead Ingestion -->
+<div class="lg:col-span-8 space-y-stack-lg">
+<!-- Lead Ingestion Setup -->
+<section class="bg-surface-container-lowest border border-data-slate-light rounded-xl shadow-sm overflow-hidden flex flex-col h-full">
+<div class="p-6 border-b border-data-slate-light bg-surface-container-low/50">
+<div class="flex items-center justify-between">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-1">Lead Ingestion Pipeline</h3>
+<p class="font-body-md text-sm text-on-surface-variant">Automate lead capture via secure email forwarding.</p>
+</div>
+<span class="material-symbols-outlined text-[32px] text-primary opacity-50">mail_lock</span>
+</div>
+</div>
+<div class="p-6 flex-1 flex flex-col">
+<div class="mb-8">
+<label class="block font-label-uppercase text-label-uppercase text-on-surface-variant mb-3">Your Unique Ingestion Address</label>
+<div class="flex items-center">
+<code class="flex-1 bg-surface-container border border-outline-variant rounded-l-lg px-4 py-3 font-data-tabular text-data-tabular text-primary-container select-all">inbound+zm8472@leads.realestateinsights.com</code>
+<button class="bg-primary text-on-primary px-4 py-3 rounded-r-lg hover:bg-primary-container transition-colors flex items-center border border-primary" onclick="alert('Copied to clipboard!')">
+<span class="material-symbols-outlined text-[18px] mr-2">content_copy</span>
+                                            Copy
+                                        </button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+<!-- Zillow Setup -->
+<div class="bg-surface rounded-lg p-5 border border-outline-variant hover:border-primary transition-colors cursor-default">
+<div class="flex items-center mb-4">
+<div class="w-8 h-8 bg-[#006AFF] rounded mr-3 flex items-center justify-center text-white font-bold text-lg">Z</div>
+<h4 class="font-headline-md text-[18px] text-on-surface">Zillow Premier Agent</h4>
+</div>
+<ol class="list-decimal list-inside space-y-2 font-body-md text-[14px] text-on-surface-variant">
+<li>Log into your Zillow Agent Hub.</li>
+<li>Navigate to <strong>Settings &gt; Lead Routing</strong>.</li>
+<li>Select <strong>Add Forwarding Email</strong>.</li>
+<li>Paste your unique ingestion address above.</li>
+</ol>
+</div>
+<!-- Realtor.com Setup -->
+<div class="bg-surface rounded-lg p-5 border border-outline-variant hover:border-primary transition-colors cursor-default">
+<div class="flex items-center mb-4">
+<div class="w-8 h-8 bg-[#D92228] rounded mr-3 flex items-center justify-center text-white font-bold text-lg">R</div>
+<h4 class="font-headline-md text-[18px] text-on-surface">Realtor.com Pro</h4>
+</div>
+<ol class="list-decimal list-inside space-y-2 font-body-md text-[14px] text-on-surface-variant">
+<li>Open the Realtor.com Pro dashboard.</li>
+<li>Go to <strong>Account Settings &gt; Lead Settings</strong>.</li>
+<li>Locate the <strong>Email Parsing</strong> section.</li>
+<li>Add your unique ingestion address and save.</li>
+</ol>
+</div>
+</div>
+<div class="mt-auto bg-primary-fixed/20 border border-primary-fixed rounded-lg p-4 flex items-start">
+<span class="material-symbols-outlined text-primary mr-3 mt-0.5">info</span>
+<p class="font-body-md text-[14px] text-on-surface-variant">
+                                        Once configured, new lead notifications from these platforms will automatically sync to your <a class="text-primary font-medium hover:underline" href="#">Lead Management</a> dashboard and undergo immediate binary scoring analysis.
+                                    </p>
+</div>
+</div>
+</section>
+<!-- Integration Status -->
+<section class="bg-surface-container-lowest border border-data-slate-light rounded-xl p-6 shadow-sm">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-6 border-b border-data-slate-light pb-4">Active Integrations</h3>
+<div class="space-y-4">
+<!-- Status Row 1 -->
+<div class="flex items-center justify-between p-4 bg-surface rounded-lg border border-outline-variant">
+<div class="flex items-center">
+<div class="w-10 h-10 bg-surface-container rounded-full flex items-center justify-center mr-4">
+<span class="material-symbols-outlined text-on-surface-variant">calendar_auto</span>
+</div>
+<div>
+<h4 class="font-data-tabular font-semibold text-[16px] text-on-surface">Google Calendar</h4>
+<p class="font-body-md text-[13px] text-on-surface-variant">Syncs property showings and client meetings.</p>
+</div>
+</div>
+<div class="flex items-center">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-status-success/10 text-status-success mr-4">
+<span class="w-2 h-2 mr-1.5 bg-status-success rounded-full"></span>
+                                            Connected
+                                        </span>
+<button class="text-on-surface-variant hover:text-error transition-colors">
+<span class="material-symbols-outlined text-[20px]">link_off</span>
+</button>
+</div>
+</div>
+<!-- Status Row 2 -->
+<div class="flex items-center justify-between p-4 bg-surface rounded-lg border border-outline-variant">
+<div class="flex items-center">
+<div class="w-10 h-10 bg-surface-container rounded-full flex items-center justify-center mr-4">
+<span class="material-symbols-outlined text-on-surface-variant">real_estate_agent</span>
+</div>
+<div>
+<h4 class="font-data-tabular font-semibold text-[16px] text-on-surface">MLS Data Feed (IDX)</h4>
+<p class="font-body-md text-[13px] text-on-surface-variant">Live property data for Report Generator.</p>
+</div>
+</div>
+<div class="flex items-center">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-status-success/10 text-status-success mr-4">
+<span class="w-2 h-2 mr-1.5 bg-status-success rounded-full"></span>
+                                            Connected
+                                        </span>
+<button class="text-on-surface-variant hover:text-error transition-colors">
+<span class="material-symbols-outlined text-[20px]">link_off</span>
+</button>
+</div>
+</div>
+<!-- Add Integration Action -->
+<button class="w-full py-4 border-2 border-dashed border-outline-variant text-on-surface-variant rounded-lg font-data-tabular font-medium hover:border-primary hover:text-primary transition-colors flex items-center justify-center bg-surface-container-lowest">
+<span class="material-symbols-outlined mr-2">add_circle</span>
+                                    Connect New Integration
+                                </button>
+</div>
+</section>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>
