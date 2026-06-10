@@ -1,6 +1,6 @@
 import type { Config } from "@netlify/functions";
 import { WorkOS } from "@workos-inc/node";
-import { createCsrfToken, requireSession } from "../../src/server/auth";
+import { createCsrfToken, requireSession, verifyWorkosToken, type SessionResult } from "../../src/server/auth";
 import {
   createSignatisDb,
   createReport,
@@ -11,6 +11,8 @@ import {
   getLeads,
   getReports,
   updateAgentSettings,
+  connectIntegration,
+  disconnectIntegration,
 } from "../../src/server/db";
 import { getRuntimeEnv } from "../../src/server/runtime-env";
 import { validateReportInput } from "../../src/domain/reports";
@@ -59,11 +61,31 @@ async function authenticatedContext(req: Request): Promise<
 > {
   const runtimeEnv = getRuntimeEnv();
   const responseHeaders = new Headers();
-  const session = await requireSession({
-    cookieHeader: req.headers.get("cookie"),
-    workos: getWorkos(),
-    env: runtimeEnv,
-  });
+  const authHeader = req.headers.get("Authorization");
+  const workos = getWorkos();
+
+  let session: SessionResult | null = null;
+
+  if (authHeader && authHeader.startsWith("Bearer ") && workos) {
+    const token = authHeader.substring(7);
+    try {
+      const verifiedUser = await verifyWorkosToken(token, workos, runtimeEnv.WORKOS_CLIENT_ID ?? "");
+      session = {
+        authenticated: true,
+        user: verifiedUser,
+      };
+    } catch (error) {
+      console.error("Bearer token verification failed:", error);
+    }
+  }
+
+  if (!session || !session.authenticated) {
+    session = await requireSession({
+      cookieHeader: req.headers.get("cookie"),
+      workos,
+      env: runtimeEnv,
+    });
+  }
 
   if (!session.authenticated) {
     return {
@@ -77,7 +99,44 @@ async function authenticatedContext(req: Request): Promise<
   }
 
   const db = createSignatisDb(runtimeEnv);
-  const agent = await ensureAgentWorkspace(db, session.user);
+
+  let sessionUser = session.user;
+  if (!sessionUser.email) {
+    try {
+      const existing = await db.execute<Record<string, unknown>>({
+        sql: "SELECT email, full_name FROM agents WHERE workos_user_id = ? LIMIT 1",
+        args: [sessionUser.id],
+      });
+      if (existing.rows[0]) {
+        const row = existing.rows[0];
+        const fullName = String(row.full_name);
+        sessionUser = {
+          id: sessionUser.id,
+          email: String(row.email),
+          firstName: fullName.split(" ")[0],
+          lastName: fullName.split(" ").slice(1).join(" ") || null,
+        };
+      } else if (workos) {
+        const workosUser = await workos.userManagement.getUser(sessionUser.id);
+        sessionUser = {
+          id: workosUser.id,
+          email: workosUser.email,
+          firstName: workosUser.firstName,
+          lastName: workosUser.lastName,
+        };
+      }
+    } catch (dbOrWorkosError) {
+      console.error("Error retrieving user details:", dbOrWorkosError);
+      sessionUser = {
+        id: sessionUser.id,
+        email: "agent@signatis.app",
+        firstName: "Signatis",
+        lastName: "Agent",
+      };
+    }
+  }
+
+  const agent = await ensureAgentWorkspace(db, sessionUser);
 
   return {
     ok: true,
@@ -140,19 +199,44 @@ export default async (req: Request) => {
     }
 
     if (endpoint === "settings" && req.method === "POST") {
-      const body = await readJson<Pick<Agent, "fullName" | "email" | "phone">>(req);
+      const body = await readJson<Omit<Agent, "id" | "workosUserId" | "plan" | "avatarInitials" | "ingestionAddress">>(req);
       return json(
         {
           agent: await updateAgentSettings(db, agent.id, {
             fullName: body.fullName?.trim() || agent.fullName,
             email: body.email?.trim() || agent.email,
             phone: body.phone?.trim() || agent.phone,
+            renNumber: body.renNumber?.trim() ?? agent.renNumber ?? "",
+            agencyName: body.agencyName?.trim() ?? agent.agencyName ?? "",
+            whatsappNumber: body.whatsappNumber?.trim() ?? agent.whatsappNumber ?? "",
+            avatarUrl: body.avatarUrl?.trim() ?? agent.avatarUrl ?? "",
+            companyLogoUrl: body.companyLogoUrl?.trim() ?? agent.companyLogoUrl ?? "",
+            bio: body.bio?.trim() ?? agent.bio ?? "",
           }),
           integrations: await getIntegrations(db, agent.id),
         },
         { headers: responseHeaders },
       );
     }
+
+    if (endpoint === "integrations/connect" && req.method === "POST") {
+      const body = await readJson<{ id?: string; name?: string; description?: string }>(req);
+      if (!body.id || !body.name) {
+        return json({ error: "Missing integration details." }, { status: 422, headers: responseHeaders });
+      }
+      await connectIntegration(db, agent.id, body.id, body.name, body.description ?? "");
+      return json({ integrations: await getIntegrations(db, agent.id) }, { headers: responseHeaders });
+    }
+
+    if (endpoint === "integrations/disconnect" && req.method === "POST") {
+      const body = await readJson<{ id?: string }>(req);
+      if (!body.id) {
+        return json({ error: "Missing integration id." }, { status: 422, headers: responseHeaders });
+      }
+      await disconnectIntegration(db, agent.id, body.id);
+      return json({ integrations: await getIntegrations(db, agent.id) }, { headers: responseHeaders });
+    }
+
 
     if (endpoint === "support-requests" && req.method === "POST") {
       const body = await readJson<{

@@ -11,6 +11,12 @@ export interface Agent {
   plan: "Premium Agent" | "Starter Agent";
   avatarInitials: string;
   ingestionAddress: string;
+  renNumber?: string;
+  agencyName?: string;
+  whatsappNumber?: string;
+  avatarUrl?: string;
+  companyLogoUrl?: string;
+  bio?: string;
 }
 
 export interface Lead {

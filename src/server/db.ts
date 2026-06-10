@@ -81,6 +81,12 @@ const schemaStatements = [
     plan TEXT NOT NULL,
     avatar_initials TEXT NOT NULL,
     ingestion_address TEXT NOT NULL,
+    ren_number TEXT,
+    agency_name TEXT,
+    whatsapp_number TEXT,
+    avatar_url TEXT,
+    company_logo_url TEXT,
+    bio TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS leads (
@@ -153,6 +159,24 @@ export async function ensureSchema(db: SignatisDbClient): Promise<void> {
   for (const statement of schemaStatements) {
     await db.execute(statement);
   }
+
+  // Migration: Add columns to existing database if they don't exist
+  const newCols = [
+    "ren_number TEXT",
+    "agency_name TEXT",
+    "whatsapp_number TEXT",
+    "avatar_url TEXT",
+    "company_logo_url TEXT",
+    "bio TEXT"
+  ];
+
+  for (const col of newCols) {
+    try {
+      await db.execute(`ALTER TABLE agents ADD COLUMN ${col}`);
+    } catch {
+      // Column already exists, safe to ignore
+    }
+  }
 }
 
 export function mapAgent(row: Record<string, unknown>): Agent {
@@ -165,6 +189,12 @@ export function mapAgent(row: Record<string, unknown>): Agent {
     plan: String(row.plan) as Agent["plan"],
     avatarInitials: String(row.avatar_initials),
     ingestionAddress: String(row.ingestion_address),
+    renNumber: row.ren_number ? String(row.ren_number) : "",
+    agencyName: row.agency_name ? String(row.agency_name) : "",
+    whatsappNumber: row.whatsapp_number ? String(row.whatsapp_number) : "",
+    avatarUrl: row.avatar_url ? String(row.avatar_url) : "",
+    companyLogoUrl: row.company_logo_url ? String(row.company_logo_url) : "",
+    bio: row.bio ? String(row.bio) : "",
   };
 }
 
@@ -261,12 +291,19 @@ export async function ensureAgentWorkspace(
     plan: "Premium Agent",
     avatarInitials: initials || "DA",
     ingestionAddress: `inbound+${agentId.slice(-6).toLowerCase()}@leads.signatis.app`,
+    renNumber: "",
+    agencyName: "",
+    whatsappNumber: "",
+    avatarUrl: "",
+    companyLogoUrl: "",
+    bio: "",
   };
 
   await db.execute({
     sql: `INSERT INTO agents (
-      id, workos_user_id, full_name, email, phone, plan, avatar_initials, ingestion_address
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, workos_user_id, full_name, email, phone, plan, avatar_initials, ingestion_address,
+      ren_number, agency_name, whatsapp_number, avatar_url, company_logo_url, bio
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       agent.id,
       agent.workosUserId,
@@ -276,6 +313,12 @@ export async function ensureAgentWorkspace(
       agent.plan,
       agent.avatarInitials,
       agent.ingestionAddress,
+      agent.renNumber ?? "",
+      agent.agencyName ?? "",
+      agent.whatsappNumber ?? "",
+      agent.avatarUrl ?? "",
+      agent.companyLogoUrl ?? "",
+      agent.bio ?? "",
     ],
   });
 
@@ -455,6 +498,40 @@ export async function getIntegrations(db: SignatisDbClient, agentId: string): Pr
   return result.rows.map(mapIntegration);
 }
 
+export async function connectIntegration(
+  db: SignatisDbClient,
+  agentId: string,
+  integrationId: string,
+  name: string,
+  description: string,
+): Promise<Integration> {
+  await db.execute({
+    sql: `INSERT OR REPLACE INTO integrations (id, agent_id, name, description, status) 
+          VALUES (?, ?, ?, ?, 'connected')`,
+    args: [integrationId, agentId, name, description],
+  });
+
+  return {
+    id: integrationId,
+    agentId,
+    name,
+    description,
+    status: "connected",
+  };
+}
+
+export async function disconnectIntegration(
+  db: SignatisDbClient,
+  agentId: string,
+  integrationId: string,
+): Promise<void> {
+  await db.execute({
+    sql: "DELETE FROM integrations WHERE id = ? AND agent_id = ?",
+    args: [integrationId, agentId],
+  });
+}
+
+
 export async function createReport(
   db: SignatisDbClient,
   agentId: string,
@@ -506,11 +583,32 @@ export async function createReport(
 export async function updateAgentSettings(
   db: SignatisDbClient,
   agentId: string,
-  values: Pick<Agent, "fullName" | "email" | "phone">,
+  values: Omit<Agent, "id" | "workosUserId" | "plan" | "avatarInitials" | "ingestionAddress">,
 ): Promise<Agent> {
   await db.execute({
-    sql: "UPDATE agents SET full_name = ?, email = ?, phone = ? WHERE id = ?",
-    args: [values.fullName, values.email, values.phone, agentId],
+    sql: `UPDATE agents SET 
+      full_name = ?, 
+      email = ?, 
+      phone = ?,
+      ren_number = ?,
+      agency_name = ?,
+      whatsapp_number = ?,
+      avatar_url = ?,
+      company_logo_url = ?,
+      bio = ?
+      WHERE id = ?`,
+    args: [
+      values.fullName,
+      values.email,
+      values.phone,
+      values.renNumber ?? "",
+      values.agencyName ?? "",
+      values.whatsappNumber ?? "",
+      values.avatarUrl ?? "",
+      values.companyLogoUrl ?? "",
+      values.bio ?? "",
+      agentId,
+    ],
   });
 
   const result = await db.execute<Record<string, unknown>>({

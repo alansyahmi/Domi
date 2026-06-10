@@ -9,6 +9,12 @@ export const demoAgent: Agent = {
   plan: "Premium Agent",
   avatarInitials: "ZM",
   ingestionAddress: "inbound+zm8472@leads.signatis.app",
+  renNumber: "REN 58234",
+  agencyName: "Signatis Realty",
+  whatsappNumber: "+60 12-555 8472",
+  avatarUrl: "",
+  companyLogoUrl: "",
+  bio: "Real estate negotiator specializing in residential properties in Klang Valley.",
 };
 
 export const demoLeads: Lead[] = [

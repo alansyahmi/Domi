@@ -1,12 +1,14 @@
+import { useAuth } from "@workos-inc/authkit-react";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { buildReportDraft } from "./domain/reports";
 import {
   createReportApi,
   loadBootstrapData,
-  logoutApi,
   saveSettingsApi,
   submitSupportRequestApi,
+  connectIntegrationApi,
+  disconnectIntegrationApi,
   type BootstrapData,
 } from "./lib/api";
 import Layout from "./components/Layout";
@@ -16,6 +18,7 @@ import LegalSupportPage from "./pages/LegalSupportPage";
 import ReportGeneratorPage from "./pages/ReportGeneratorPage";
 import SettingsPage from "./pages/SettingsPage";
 import type { Agent, Integration, PropertyReport, PropertyReportInput, SupportRequest } from "./types";
+import type { SignatisAuthMode } from "./lib/auth-mode";
 
 export interface AppData extends BootstrapData {}
 
@@ -38,18 +41,48 @@ function buildLocalReport(input: PropertyReportInput, agentId: string): Property
   };
 }
 
-export default function App() {
+function WorkosApp() {
+  const auth = useAuth();
+  return <SignatisWorkspace auth={auth} authMode="workos" />;
+}
+
+export default function App({ authMode }: { authMode: SignatisAuthMode }) {
+  if (authMode === "workos") {
+    return <WorkosApp />;
+  }
+
+  return <SignatisWorkspace authMode="demo" />;
+}
+
+function SignatisWorkspace({
+  authMode,
+  auth,
+}: {
+  authMode: SignatisAuthMode;
+  auth?: ReturnType<typeof useAuth>;
+}) {
   const [data, setData] = useState<AppData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    void loadBootstrapData()
+    if (authMode === "workos" && auth?.isLoading) return;
+    if (authMode === "workos" && !auth?.user) {
+      setData(null);
+      return;
+    }
+
+    setError(null);
+    void loadBootstrapData({
+      authMode,
+      getAccessToken: authMode === "workos" ? auth?.getAccessToken : undefined,
+    })
       .then(setData)
       .catch((loadError: unknown) => {
         setError(loadError instanceof Error ? loadError.message : "Unable to load Signatis.");
       });
-  }, []);
+  }, [authMode, auth?.isLoading, auth?.user, auth?.getAccessToken, retryCount]);
 
   const dashboard = useMemo(() => {
     if (!data) return null;
@@ -68,7 +101,9 @@ export default function App() {
 
   async function createReport(input: PropertyReportInput): Promise<PropertyReport> {
     if (!data) throw new Error("Signatis is still loading.");
-    const report = data.demoMode ? buildLocalReport(input, data.settings.agent.id) : await createReportApi(input);
+    const report = data.demoMode
+      ? buildLocalReport(input, data.settings.agent.id)
+      : await createReportApi(input, auth?.getAccessToken);
     setData({
       ...data,
       reports: [report, ...data.reports],
@@ -81,14 +116,14 @@ export default function App() {
     return report;
   }
 
-  async function saveSettings(input: Pick<Agent, "fullName" | "email" | "phone">): Promise<void> {
+  async function saveSettings(input: Omit<Agent, "id" | "workosUserId" | "plan" | "avatarInitials" | "ingestionAddress">): Promise<void> {
     if (!data) return;
     const result = data.demoMode
       ? {
           agent: { ...data.settings.agent, ...input },
           integrations: data.settings.integrations,
         }
-      : await saveSettingsApi(input);
+      : await saveSettingsApi(input, auth?.getAccessToken);
 
     setData({
       ...data,
@@ -101,10 +136,53 @@ export default function App() {
     setNotice("Settings saved.");
   }
 
+  async function connectIntegration(id: string, name: string, description: string): Promise<void> {
+    if (!data) return;
+    const result = data.demoMode
+      ? {
+          integrations: [
+            ...data.settings.integrations,
+            { id, agentId: data.settings.agent.id, name, description, status: "connected" as const }
+          ]
+        }
+      : await connectIntegrationApi(id, name, description, auth?.getAccessToken);
+
+    setData({
+      ...data,
+      settings: {
+        ...data.settings,
+        integrations: result.integrations,
+      },
+    });
+    setNotice(`${name} connected.`);
+  }
+
+  async function disconnectIntegration(id: string): Promise<void> {
+    if (!data) return;
+    const integration = data.settings.integrations.find((item) => item.id === id);
+    const result = data.demoMode
+      ? {
+          integrations: data.settings.integrations.filter((item) => item.id !== id)
+        }
+      : await disconnectIntegrationApi(id, auth?.getAccessToken);
+
+    setData({
+      ...data,
+      settings: {
+        ...data.settings,
+        integrations: result.integrations,
+      },
+    });
+    if (integration) {
+      setNotice(`${integration.name} disconnected.`);
+    }
+  }
+
+
   async function submitSupport(input: Pick<SupportRequest, "name" | "category" | "subject" | "message">): Promise<void> {
     if (!data) return;
     if (!data.demoMode) {
-      await submitSupportRequestApi(input);
+      await submitSupportRequestApi(input, auth?.getAccessToken);
     }
     setNotice("Support request submitted.");
   }
@@ -114,7 +192,37 @@ export default function App() {
       setNotice("Demo mode does not have an active WorkOS session.");
       return;
     }
-    await logoutApi(data.csrfToken);
+    auth?.signOut({ returnTo: `${window.location.origin}/dashboard` });
+  }
+
+  if (authMode === "workos" && auth?.isLoading) {
+    return (
+      <main className="min-h-screen grid place-items-center bg-[#f7f9fb]">
+        <div className="card p-8 text-center">
+          <div className="brand-mark mx-auto mb-4">S</div>
+          <p className="text-slate-600">Authenticating...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (authMode === "workos" && !auth?.user) {
+    return (
+      <main className="min-h-screen grid place-items-center p-6">
+        <section className="card max-w-xl p-8 text-center">
+          <div className="brand-mark mx-auto mb-4">S</div>
+          <h1 className="section-title">Welcome to Signatis</h1>
+          <p className="mt-4 text-slate-600">Sign in to access your real estate workspace</p>
+          <button
+            className="primary-button mt-6"
+            onClick={() => void auth?.signIn({ state: { returnTo: window.location.pathname } })}
+            type="button"
+          >
+            Sign in with WorkOS
+          </button>
+        </section>
+      </main>
+    );
   }
 
   if (error) {
@@ -123,9 +231,13 @@ export default function App() {
         <section className="card max-w-xl p-8 text-center">
           <h1 className="section-title">Signatis could not start</h1>
           <p className="mt-4 text-slate-600">{error}</p>
-          <a className="primary-button mt-6" href={`/login?returnTo=${encodeURIComponent(window.location.pathname)}`}>
-            Sign in with WorkOS
-          </a>
+          <button
+            className="primary-button mt-6"
+            onClick={() => setRetryCount((prev) => prev + 1)}
+            type="button"
+          >
+            Try Again
+          </button>
         </section>
       </main>
     );
@@ -159,6 +271,8 @@ export default function App() {
               agent={data.settings.agent}
               integrations={data.settings.integrations as Integration[]}
               onSave={saveSettings}
+              onConnectIntegration={connectIntegration}
+              onDisconnectIntegration={disconnectIntegration}
             />
           }
         />

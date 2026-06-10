@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 export const SESSION_COOKIE = "wos-session";
 export const CSRF_COOKIE = "signatis-csrf";
@@ -51,6 +52,8 @@ export interface AuthEnv {
   WORKOS_COOKIE_PASSWORD?: string;
   CSRF_SECRET?: string;
 }
+
+export type VerifyAccessToken = (token: string) => Promise<SessionUser>;
 
 export function parseCookies(cookieHeader = ""): Record<string, string> {
   return cookieHeader
@@ -157,6 +160,37 @@ export async function requireSession({
   }
 }
 
+export async function requireBearerSession({
+  authorizationHeader,
+  verifyAccessToken,
+}: {
+  authorizationHeader: string | null | undefined;
+  verifyAccessToken: VerifyAccessToken;
+}): Promise<SessionResult> {
+  const [scheme, token] = authorizationHeader?.split(/\s+/, 2) ?? [];
+
+  if (scheme !== "Bearer" || !token) {
+    return {
+      authenticated: false,
+      status: 401,
+      reason: "No bearer token.",
+    };
+  }
+
+  try {
+    return {
+      authenticated: true,
+      user: await verifyAccessToken(token),
+    };
+  } catch {
+    return {
+      authenticated: false,
+      status: 401,
+      reason: "Bearer token could not be verified.",
+    };
+  }
+}
+
 export function createCsrfToken(secret: string): string {
   const nonce = randomBytes(18).toString("base64url");
   const signature = createHmac("sha256", secret).update(nonce).digest("base64url");
@@ -173,4 +207,33 @@ export function verifyCsrfToken(token: string | null | undefined, secret: string
   const right = Buffer.from(expected);
 
   return left.length === right.length && timingSafeEqual(left, right);
+}
+
+let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+
+export async function verifyWorkosToken(
+  token: string,
+  workos: { userManagement: { getJwksUrl(clientId: string): string } },
+  clientId: string,
+): Promise<SessionUser> {
+  if (!clientId) {
+    throw new Error("WorkOS client ID is not configured.");
+  }
+  if (!jwks) {
+    const jwksUrl = workos.userManagement.getJwksUrl(clientId);
+    jwks = createRemoteJWKSet(new URL(jwksUrl));
+  }
+
+  const { payload } = await jwtVerify(token, jwks);
+  const userId = payload.sub;
+  if (!userId) {
+    throw new Error("Invalid token: sub claim is missing.");
+  }
+
+  return {
+    id: userId,
+    email: (payload.email as string) || "",
+    firstName: (payload.firstName as string) || null,
+    lastName: (payload.lastName as string) || null,
+  };
 }
