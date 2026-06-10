@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 export const SESSION_COOKIE = "wos-session";
-export const CSRF_COOKIE = "domi-csrf";
+export const CSRF_COOKIE = "signatis-csrf";
 
 export interface SessionUser {
   id: string;

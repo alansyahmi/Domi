@@ -1,7 +1,8 @@
 import type { Config } from "@netlify/functions";
 import { WorkOS } from "@workos-inc/node";
 import { buildCookie, SESSION_COOKIE } from "../../src/server/auth";
-import { createDomiDb, ensureAgentWorkspace } from "../../src/server/db";
+import { createSignatisDb, ensureAgentWorkspace } from "../../src/server/db";
+import { getRuntimeEnv } from "../../src/server/runtime-env";
 
 interface CallbackEnv {
   WORKOS_API_KEY?: string;
@@ -12,12 +13,13 @@ interface CallbackEnv {
 }
 
 function getEnv(): CallbackEnv {
+  const runtimeEnv = getRuntimeEnv();
   return {
-    WORKOS_API_KEY: process.env.WORKOS_API_KEY,
-    WORKOS_CLIENT_ID: process.env.WORKOS_CLIENT_ID,
-    WORKOS_COOKIE_PASSWORD: process.env.WORKOS_COOKIE_PASSWORD,
-    TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL,
-    TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN,
+    WORKOS_API_KEY: runtimeEnv.WORKOS_API_KEY,
+    WORKOS_CLIENT_ID: runtimeEnv.WORKOS_CLIENT_ID,
+    WORKOS_COOKIE_PASSWORD: runtimeEnv.WORKOS_COOKIE_PASSWORD,
+    TURSO_DATABASE_URL: runtimeEnv.TURSO_DATABASE_URL,
+    TURSO_AUTH_TOKEN: runtimeEnv.TURSO_AUTH_TOKEN,
   };
 }
 
@@ -71,7 +73,7 @@ export default async (req: Request) => {
       return Response.redirect("/login", 302);
     }
 
-    const db = createDomiDb(env);
+    const db = createSignatisDb(env);
     await ensureAgentWorkspace(db, {
       id: auth.user.id,
       email: auth.user.email,

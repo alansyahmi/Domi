@@ -6,3 +6,4 @@ dist
 *.log
 .env.local
 .env
+tmp-netlify-home/

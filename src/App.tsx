@@ -49,7 +49,7 @@ export default function App() {
     void loadBootstrapData()
       .then(setData)
       .catch((loadError: unknown) => {
-        setError(loadError instanceof Error ? loadError.message : "Unable to load Domi.");
+        setError(loadError instanceof Error ? loadError.message : "Unable to load Signatis.");
       });
   }, []);
 
@@ -69,7 +69,7 @@ export default function App() {
   }, [data]);
 
   async function createReport(input: PropertyReportInput): Promise<PropertyReport> {
-    if (!data) throw new Error("Domi is still loading.");
+    if (!data) throw new Error("Signatis is still loading.");
     const report = data.demoMode ? buildLocalReport(input, data.settings.agent.id) : await createReportApi(input);
     setData({
       ...data,
@@ -127,7 +127,7 @@ export default function App() {
     return (
       <main className="min-h-screen grid place-items-center bg-[#f7f9fb]">
         <div className="card p-8 text-center">
-          <div className="brand-mark mx-auto mb-4">D</div>
+          <div className="brand-mark mx-auto mb-4">S</div>
           <p className="text-slate-600">Authenticating...</p>
         </div>
       </main>
@@ -140,7 +140,7 @@ export default function App() {
       <main className="min-h-screen grid place-items-center p-6">
         <section className="card max-w-xl p-8 text-center">
           <div className="brand-mark mx-auto mb-4">D</div>
-          <h1 className="section-title">Welcome to Domi</h1>
+          <h1 className="section-title">Welcome to Signatis</h1>
           <p className="mt-4 text-slate-600">Sign in to access your real estate workspace</p>
           <button className="primary-button mt-6" onClick={() => signIn()} type="button">
             Sign in with WorkOS
@@ -154,7 +154,7 @@ export default function App() {
     return (
       <main className="min-h-screen grid place-items-center p-6">
         <section className="card max-w-xl p-8 text-center">
-          <h1 className="section-title">Domi could not start</h1>
+          <h1 className="section-title">Signatis could not start</h1>
           <p className="mt-4 text-slate-600">{error}</p>
           <button className="primary-button mt-6" onClick={() => signIn()} type="button">
             Sign in with WorkOS
@@ -168,8 +168,8 @@ export default function App() {
     return (
       <main className="min-h-screen grid place-items-center bg-[#f7f9fb]">
         <div className="card p-8 text-center">
-          <div className="brand-mark mx-auto mb-4">D</div>
-          <p className="text-slate-600">Loading Domi workspace...</p>
+          <div className="brand-mark mx-auto mb-4">S</div>
+          <p className="text-slate-600">Loading Signatis workspace...</p>
         </div>
       </main>
     );

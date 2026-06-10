@@ -1,10 +1,10 @@
-# Implemented Website Status: Domi Real Estate Agent SaaS
+# Implemented Website Status: Signatis Real Estate Agent SaaS
 
-This document summarizes what is already implemented in the current Domi website, based on the strategic direction in `Strategic Analysis_ Real Estate Agent SaaS.md` and the existing codebase.
+This document summarizes what is already implemented in the current Signatis website, based on the strategic direction in `Strategic Analysis_ Real Estate Agent SaaS.md` and the existing codebase.
 
 ## Current Product Shape
 
-Domi is currently implemented as a focused B2B SaaS web application for real estate agents. It follows the recommended five-page architecture from the strategy document:
+Signatis is currently implemented as a focused B2B SaaS web application for real estate agents. It follows the recommended five-page architecture from the strategy document:
 
 1. Dashboard
 2. Property Report Generator
@@ -114,7 +114,7 @@ The app includes:
 
 - Sticky top navigation.
 - Five primary navigation items matching the planned architecture.
-- Brand identity for Domi.
+- Brand identity for Signatis.
 - Search field placeholder in the top bar.
 - Notification, help, logout, and profile controls.
 - Mobile bottom navigation.

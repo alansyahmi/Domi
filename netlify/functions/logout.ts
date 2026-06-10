@@ -1,5 +1,6 @@
 import type { Config } from "@netlify/functions";
 import { WorkOS } from "@workos-inc/node";
+import { getRuntimeEnv } from "../../src/server/runtime-env";
 import {
   clearCookie,
   parseCookies,
@@ -8,6 +9,7 @@ import {
 } from "../../src/server/auth";
 
 export default async (req: Request) => {
+  const runtimeEnv = getRuntimeEnv();
   if (req.method !== "POST") {
     return new Response("Logout requires POST.", {
       status: 405,
@@ -16,7 +18,7 @@ export default async (req: Request) => {
   }
 
   const csrf = req.headers.get("x-csrf-token");
-  if (!verifyCsrfToken(csrf, process.env.CSRF_SECRET)) {
+  if (!verifyCsrfToken(csrf, runtimeEnv.CSRF_SECRET)) {
     return Response.json({ error: "Invalid CSRF token." }, { status: 403 });
   }
 
@@ -24,22 +26,22 @@ export default async (req: Request) => {
   const headers = new Headers();
   headers.append("Set-Cookie", clearCookie(SESSION_COOKIE));
 
-  if (!sessionData || !process.env.WORKOS_API_KEY || !process.env.WORKOS_CLIENT_ID || !process.env.WORKOS_COOKIE_PASSWORD) {
+  if (!sessionData || !runtimeEnv.WORKOS_API_KEY || !runtimeEnv.WORKOS_CLIENT_ID || !runtimeEnv.WORKOS_COOKIE_PASSWORD) {
     headers.append("Location", "/login");
     return new Response(null, { status: 302, headers });
   }
 
-  const workos = new WorkOS(process.env.WORKOS_API_KEY, {
-    clientId: process.env.WORKOS_CLIENT_ID,
+  const workos = new WorkOS(runtimeEnv.WORKOS_API_KEY, {
+    clientId: runtimeEnv.WORKOS_CLIENT_ID,
   });
 
   try {
     const session = workos.userManagement.loadSealedSession({
       sessionData,
-      cookiePassword: process.env.WORKOS_COOKIE_PASSWORD,
+      cookiePassword: runtimeEnv.WORKOS_COOKIE_PASSWORD,
     });
     const logoutUrl = await session.getLogoutUrl({
-      returnTo: process.env.WORKOS_SIGN_OUT_REDIRECT_URI ?? "/login",
+      returnTo: runtimeEnv.WORKOS_SIGN_OUT_REDIRECT_URI ?? "/login",
     });
     headers.append("Location", logoutUrl);
   } catch {

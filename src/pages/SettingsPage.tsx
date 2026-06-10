@@ -118,12 +118,12 @@ export default function SettingsPage({
                 {
                   name: "Zillow Premier Agent",
                   mark: "Z",
-                  steps: ["Log into your agent hub.", "Navigate to Settings > Lead Routing.", "Select Add Forwarding Email.", "Paste your Domi address."],
+                  steps: ["Log into your agent hub.", "Navigate to Settings > Lead Routing.", "Select Add Forwarding Email.", "Paste your Signatis address."],
                 },
                 {
                   name: "Realtor.com Pro",
                   mark: "R",
-                  steps: ["Open the professional dashboard.", "Go to Account Settings > Lead Settings.", "Locate Email Parsing.", "Add your Domi address and save."],
+                  steps: ["Open the professional dashboard.", "Go to Account Settings > Lead Settings.", "Locate Email Parsing.", "Add your Signatis address and save."],
                 },
               ].map((card) => (
                 <article key={card.name} className="rounded-md border border-slate-300 bg-slate-50 p-6">

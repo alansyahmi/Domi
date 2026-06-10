@@ -13,7 +13,7 @@ const legalDocuments: Array<{ title: string; text: string; icon: LucideIcon }> =
 const faqs = [
   {
     question: "How is the Lead Binary Score calculated?",
-    answer: "Domi combines email opens, report clicks, report views, and inquiry sentiment into a transparent rule-based score.",
+    answer: "Signatis combines email opens, report clicks, report views, and inquiry sentiment into a transparent rule-based score.",
   },
   {
     question: "Can I export my client data?",
@@ -78,7 +78,7 @@ export default function LegalSupportPage({
             <h2 className="m-0 text-3xl font-extrabold">Amanah Principles</h2>
           </div>
           <p className="mt-8 text-lg leading-8 text-slate-200">
-            Domi prioritizes transparent data collection, binary decision clarity, no dark patterns, and user autonomy.
+            Signatis prioritizes transparent data collection, binary decision clarity, no dark patterns, and user autonomy.
           </p>
           <ul className="mt-8 grid gap-5 p-0 list-none font-bold">
             {["Transparent Data Collection", "Binary Decision Clarity", "No Dark Patterns", "User Autonomy First"].map(

@@ -1,5 +1,6 @@
 import type { Config } from "@netlify/functions";
 import { WorkOS } from "@workos-inc/node";
+import { getRuntimeEnv } from "../../src/server/runtime-env";
 
 interface LoginEnv {
   WORKOS_API_KEY?: string;
@@ -8,10 +9,11 @@ interface LoginEnv {
 }
 
 function getEnv(): LoginEnv {
+  const runtimeEnv = getRuntimeEnv();
   return {
-    WORKOS_API_KEY: process.env.WORKOS_API_KEY,
-    WORKOS_CLIENT_ID: process.env.WORKOS_CLIENT_ID,
-    WORKOS_REDIRECT_URI: process.env.WORKOS_REDIRECT_URI,
+    WORKOS_API_KEY: runtimeEnv.WORKOS_API_KEY,
+    WORKOS_CLIENT_ID: runtimeEnv.WORKOS_CLIENT_ID,
+    WORKOS_REDIRECT_URI: runtimeEnv.WORKOS_REDIRECT_URI,
   };
 }
 

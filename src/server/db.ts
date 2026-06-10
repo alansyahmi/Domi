@@ -1,5 +1,6 @@
 import { createClient } from "@tursodatabase/serverless/compat";
 import { buildReportDraft } from "../domain/reports";
+import { getRuntimeEnv } from "./runtime-env";
 import type {
   Agent,
   DashboardData,
@@ -30,7 +31,7 @@ export interface QueryResult<Row = Record<string, unknown>> {
   rows: Row[];
 }
 
-export interface DomiDbClient {
+export interface SignatisDbClient {
   execute<Row = Record<string, unknown>>(
     statement:
       | string
@@ -60,8 +61,14 @@ export function toSqlArgs(values: Array<SqlPrimitive | undefined>): SqlArgs {
   return values.filter((value): value is SqlPrimitive => value !== undefined);
 }
 
-export function createDomiDb(env: DbEnv): DomiDbClient {
-  return createClient(getTursoConfig(env));
+export function createSignatisDb(env: DbEnv): SignatisDbClient {
+  const runtimeEnv = getRuntimeEnv();
+  return createClient(
+    getTursoConfig({
+      TURSO_DATABASE_URL: env.TURSO_DATABASE_URL ?? runtimeEnv.TURSO_DATABASE_URL,
+      TURSO_AUTH_TOKEN: env.TURSO_AUTH_TOKEN ?? runtimeEnv.TURSO_AUTH_TOKEN,
+    }),
+  );
 }
 
 const schemaStatements = [
@@ -142,7 +149,7 @@ const schemaStatements = [
   )`,
 ];
 
-export async function ensureSchema(db: DomiDbClient): Promise<void> {
+export async function ensureSchema(db: SignatisDbClient): Promise<void> {
   for (const statement of schemaStatements) {
     await db.execute(statement);
   }
@@ -223,7 +230,7 @@ export function mapLeadEvent(row: Record<string, unknown>): LeadEvent {
 }
 
 export async function ensureAgentWorkspace(
-  db: DomiDbClient,
+  db: SignatisDbClient,
   user: { id: string; email: string; firstName?: string | null; lastName?: string | null },
 ): Promise<Agent> {
   await ensureSchema(db);
@@ -237,7 +244,7 @@ export async function ensureAgentWorkspace(
   }
 
   const agentId = `agent_${user.id.replace(/[^a-zA-Z0-9]/g, "").slice(-12) || "demo"}`;
-  const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ") || "Domi Agent";
+  const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ") || "Signatis Agent";
   const initials = fullName
     .split(" ")
     .map((part) => part[0])
@@ -253,7 +260,7 @@ export async function ensureAgentWorkspace(
     phone: "+60 12-555 8472",
     plan: "Premium Agent",
     avatarInitials: initials || "DA",
-    ingestionAddress: `inbound+${agentId.slice(-6).toLowerCase()}@leads.domi.app`,
+    ingestionAddress: `inbound+${agentId.slice(-6).toLowerCase()}@leads.signatis.app`,
   };
 
   await db.execute({
@@ -276,7 +283,7 @@ export async function ensureAgentWorkspace(
   return agent;
 }
 
-export async function seedWorkspace(db: DomiDbClient, agentId: string): Promise<void> {
+export async function seedWorkspace(db: SignatisDbClient, agentId: string): Promise<void> {
   const leads = [
     ["lead_1", "Amanda Lee", "amanda.l@example.com", "+60 12-019 8472", "Direct Inquiry", "Downtown condo", "RM 850k", 8, 4, 2, 0.7, "positive", "2026-06-09T10:30:00.000Z"],
     ["lead_2", "Chen Wei Kiat", "cwk_99@test.com", "+60 17-448 2041", "Facebook", "Subang family home", "RM 1.2M", 2, 0, 0, 0.1, "neutral", "2026-06-08T15:20:00.000Z"],
@@ -404,7 +411,7 @@ export async function seedWorkspace(db: DomiDbClient, agentId: string): Promise<
   }
 }
 
-export async function getDashboardData(db: DomiDbClient, agent: Agent): Promise<DashboardData> {
+export async function getDashboardData(db: SignatisDbClient, agent: Agent): Promise<DashboardData> {
   const leads = (await getLeads(db, agent.id)).sort((a, b) => b.score - a.score);
   const reports = await getReports(db, agent.id);
   const averageScore = leads.length
@@ -424,7 +431,7 @@ export async function getDashboardData(db: DomiDbClient, agent: Agent): Promise<
   };
 }
 
-export async function getLeads(db: DomiDbClient, agentId: string): Promise<Lead[]> {
+export async function getLeads(db: SignatisDbClient, agentId: string): Promise<Lead[]> {
   const result = await db.execute<Record<string, unknown>>({
     sql: "SELECT * FROM leads WHERE agent_id = ? ORDER BY created_at DESC",
     args: [agentId],
@@ -432,7 +439,7 @@ export async function getLeads(db: DomiDbClient, agentId: string): Promise<Lead[
   return result.rows.map(mapLead);
 }
 
-export async function getReports(db: DomiDbClient, agentId: string): Promise<PropertyReport[]> {
+export async function getReports(db: SignatisDbClient, agentId: string): Promise<PropertyReport[]> {
   const result = await db.execute<Record<string, unknown>>({
     sql: "SELECT * FROM property_reports WHERE agent_id = ? ORDER BY generated_at DESC",
     args: [agentId],
@@ -440,7 +447,7 @@ export async function getReports(db: DomiDbClient, agentId: string): Promise<Pro
   return result.rows.map(mapReport);
 }
 
-export async function getIntegrations(db: DomiDbClient, agentId: string): Promise<Integration[]> {
+export async function getIntegrations(db: SignatisDbClient, agentId: string): Promise<Integration[]> {
   const result = await db.execute<Record<string, unknown>>({
     sql: "SELECT * FROM integrations WHERE agent_id = ? ORDER BY name ASC",
     args: [agentId],
@@ -449,7 +456,7 @@ export async function getIntegrations(db: DomiDbClient, agentId: string): Promis
 }
 
 export async function createReport(
-  db: DomiDbClient,
+  db: SignatisDbClient,
   agentId: string,
   input: PropertyReportInput,
 ): Promise<PropertyReport> {
@@ -497,7 +504,7 @@ export async function createReport(
 }
 
 export async function updateAgentSettings(
-  db: DomiDbClient,
+  db: SignatisDbClient,
   agentId: string,
   values: Pick<Agent, "fullName" | "email" | "phone">,
 ): Promise<Agent> {
@@ -515,7 +522,7 @@ export async function updateAgentSettings(
 }
 
 export async function createSupportRequest(
-  db: DomiDbClient,
+  db: SignatisDbClient,
   agentId: string,
   input: Omit<SupportRequest, "id" | "agentId" | "createdAt">,
 ): Promise<SupportRequest> {

@@ -42,10 +42,10 @@ export default function Layout({ agent, children, demoMode, notice, onLogout }: 
         <div className="topbar-container">
           {/* Left: Brand logo & motto */}
           <Link to="/dashboard" className="brand-group">
-            <div className="brand-mark">D</div>
+            <div className="brand-mark">S</div>
             <div className="brand-info">
-              <span className="brand-name">Domi</span>
-              <span className="brand-plan">Domi Habere</span>
+              <span className="brand-name">Signatis</span>
+              <span className="brand-plan">Amanah Workspace</span>
             </div>
           </Link>
 

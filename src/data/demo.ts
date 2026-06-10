@@ -4,11 +4,11 @@ export const demoAgent: Agent = {
   id: "agent_demo",
   workosUserId: "user_demo",
   fullName: "Zitouni Maliki",
-  email: "z.maliki@domi.app",
+  email: "z.maliki@signatis.app",
   phone: "+60 12-555 8472",
   plan: "Premium Agent",
   avatarInitials: "ZM",
-  ingestionAddress: "inbound+zm8472@leads.domi.app",
+  ingestionAddress: "inbound+zm8472@leads.signatis.app",
 };
 
 export const demoLeads: Lead[] = [

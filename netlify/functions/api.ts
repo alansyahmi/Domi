@@ -2,7 +2,7 @@ import type { Config } from "@netlify/functions";
 import { WorkOS } from "@workos-inc/node";
 import { createCsrfToken, requireSession } from "../../src/server/auth";
 import {
-  createDomiDb,
+  createSignatisDb,
   createReport,
   createSupportRequest,
   ensureAgentWorkspace,
@@ -12,6 +12,7 @@ import {
   getReports,
   updateAgentSettings,
 } from "../../src/server/db";
+import { getRuntimeEnv } from "../../src/server/runtime-env";
 import { validateReportInput } from "../../src/domain/reports";
 import type { Agent, PropertyReportInput } from "../../src/types";
 
@@ -32,12 +33,13 @@ function getEndpoint(req: Request): string {
 }
 
 function getWorkos() {
-  if (!process.env.WORKOS_API_KEY || !process.env.WORKOS_CLIENT_ID) {
+  const runtimeEnv = getRuntimeEnv();
+  if (!runtimeEnv.WORKOS_API_KEY || !runtimeEnv.WORKOS_CLIENT_ID) {
     return null;
   }
 
-  return new WorkOS(process.env.WORKOS_API_KEY, {
-    clientId: process.env.WORKOS_CLIENT_ID,
+  return new WorkOS(runtimeEnv.WORKOS_API_KEY, {
+    clientId: runtimeEnv.WORKOS_CLIENT_ID,
   });
 }
 
@@ -50,16 +52,17 @@ async function authenticatedContext(req: Request): Promise<
   | {
       ok: true;
       agent: Agent;
-      db: ReturnType<typeof createDomiDb>;
+      db: ReturnType<typeof createSignatisDb>;
       responseHeaders: Headers;
     }
   | { ok: false; response: Response }
 > {
+  const runtimeEnv = getRuntimeEnv();
   const responseHeaders = new Headers();
   const session = await requireSession({
     cookieHeader: req.headers.get("cookie"),
     workos: getWorkos(),
-    env: process.env,
+    env: runtimeEnv,
   });
 
   if (!session.authenticated) {
@@ -73,7 +76,7 @@ async function authenticatedContext(req: Request): Promise<
     responseHeaders.append("Set-Cookie", session.setCookie);
   }
 
-  const db = createDomiDb(process.env);
+  const db = createSignatisDb(runtimeEnv);
   const agent = await ensureAgentWorkspace(db, session.user);
 
   return {
@@ -88,10 +91,11 @@ export default async (req: Request) => {
   const endpoint = getEndpoint(req);
 
   if (endpoint === "csrf-token") {
-    if (!process.env.CSRF_SECRET) {
+    const runtimeEnv = getRuntimeEnv();
+    if (!runtimeEnv.CSRF_SECRET) {
       return json({ error: "CSRF_SECRET is not configured." }, { status: 500 });
     }
-    return json({ csrfToken: createCsrfToken(process.env.CSRF_SECRET) });
+    return json({ csrfToken: createCsrfToken(runtimeEnv.CSRF_SECRET) });
   }
 
   const context = await authenticatedContext(req);

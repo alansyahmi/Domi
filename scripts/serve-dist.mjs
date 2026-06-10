@@ -34,5 +34,5 @@ createServer((request, response) => {
   });
   createReadStream(filePath).pipe(response);
 }).listen(port, "127.0.0.1", () => {
-  console.log(`Domi dist server listening on http://127.0.0.1:${port}`);
+  console.log(`Signatis dist server listening on http://127.0.0.1:${port}`);
 });
