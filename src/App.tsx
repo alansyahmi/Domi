@@ -1,6 +1,6 @@
 import { useAuth } from "@workos-inc/authkit-react";
 import { useEffect, useMemo, useState } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { buildReportDraft } from "./domain/reports";
 import {
   createReportApi,
@@ -61,6 +61,7 @@ function SignatisWorkspace({
   authMode: SignatisAuthMode;
   auth?: ReturnType<typeof useAuth>;
 }) {
+  const location = useLocation();
   const [data, setData] = useState<AppData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -256,32 +257,34 @@ function SignatisWorkspace({
 
   return (
     <Layout agent={data.settings.agent} demoMode={data.demoMode} notice={notice} onLogout={logout}>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<DashboardPage dashboard={dashboard} />} />
-        <Route
-          path="/report-generator"
-          element={<ReportGeneratorPage reports={data.reports} onCreateReport={createReport} />}
-        />
-        <Route path="/leads" element={<LeadManagementPage leads={data.leads} />} />
-        <Route
-          path="/settings"
-          element={
-            <SettingsPage
-              agent={data.settings.agent}
-              integrations={data.settings.integrations as Integration[]}
-              onSave={saveSettings}
-              onConnectIntegration={connectIntegration}
-              onDisconnectIntegration={disconnectIntegration}
-            />
-          }
-        />
-        <Route
-          path="/legal-support"
-          element={<LegalSupportPage agent={data.settings.agent} onSubmitSupport={submitSupport} />}
-        />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+      <div className="route-transition" key={location.pathname}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardPage dashboard={dashboard} />} />
+          <Route
+            path="/report-generator"
+            element={<ReportGeneratorPage reports={data.reports} onCreateReport={createReport} />}
+          />
+          <Route path="/leads" element={<LeadManagementPage leads={data.leads} />} />
+          <Route
+            path="/settings"
+            element={
+              <SettingsPage
+                agent={data.settings.agent}
+                integrations={data.settings.integrations as Integration[]}
+                onSave={saveSettings}
+                onConnectIntegration={connectIntegration}
+                onDisconnectIntegration={disconnectIntegration}
+              />
+            }
+          />
+          <Route
+            path="/legal-support"
+            element={<LegalSupportPage agent={data.settings.agent} onSubmitSupport={submitSupport} />}
+          />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </div>
     </Layout>
   );
 }
