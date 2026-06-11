@@ -130,7 +130,7 @@ describe("api report routes", () => {
   });
 
   it("creates reports from property-name-only requests", async () => {
-    const { default: handler } = await import("./api");
+    const { default: handler } = await import("../functions/api");
     const response = await handler(
       new Request("https://example.com/api/reports/create", {
         method: "POST",
@@ -148,7 +148,7 @@ describe("api report routes", () => {
   });
 
   it("streams authenticated report PDFs", async () => {
-    const { default: handler } = await import("./api");
+    const { default: handler } = await import("../functions/api");
     const response = await handler(
       new Request("https://example.com/api/reports/report_123/pdf", {
         method: "GET",
@@ -161,7 +161,7 @@ describe("api report routes", () => {
   });
 
   it("returns public shared reports without auth", async () => {
-    const { default: handler } = await import("./api");
+    const { default: handler } = await import("../functions/api");
     const response = await handler(new Request("https://example.com/api/reports/share/shr_123"));
 
     expect(response.status).toBe(200);
@@ -171,7 +171,7 @@ describe("api report routes", () => {
   });
 
   it("returns 404 for invalid share tokens", async () => {
-    const { default: handler } = await import("./api");
+    const { default: handler } = await import("../functions/api");
     const response = await handler(new Request("https://example.com/api/reports/share/invalid"));
 
     expect(response.status).toBe(404);
