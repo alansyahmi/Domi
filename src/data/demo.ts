@@ -1,5 +1,9 @@
 import type { Agent, DashboardData, Integration, Lead, PropertyReport } from "../types";
 
+function formatRm(value: number): string {
+  return `RM ${value.toLocaleString("en-MY")}`;
+}
+
 export const demoAgent: Agent = {
   id: "agent_demo",
   workosUserId: "user_demo",
@@ -96,6 +100,62 @@ export const demoLeads: Lead[] = [
   },
 ];
 
+function reportExtras(
+  propertyName: string,
+  propertyKey: string,
+  marketSignal: string,
+  sentimentSummary: string,
+  askingPriceRm: number,
+  tenure: "freehold" | "leasehold" | "unknown" = "freehold",
+): Pick<
+  PropertyReport,
+  "propertyName" | "propertyKey" | "cacheStatus" | "shareToken" | "inputSnapshot" | "indexLookup" | "analytics" | "citations" | "contentSections"
+> {
+  return {
+    propertyName,
+    propertyKey,
+    cacheStatus: "hit",
+    shareToken: `shr_demo_${propertyKey}`,
+    indexLookup: {
+      propertyKey,
+      status: "fresh_hit",
+      liveSearchStatus: "not_needed",
+      freshnessDays: 1,
+      citationsCount: 1,
+      summary: marketSignal,
+      checkedAt: "2026-06-10T10:30:00.000Z",
+    },
+    inputSnapshot: {
+      propertyName,
+      address: propertyName,
+      propertyType: "Residential Property",
+      listingIntent: "sale",
+      tenure,
+      askingPriceRm,
+      sqft: 0,
+      bedrooms: 0,
+      bathrooms: 0,
+      yearBuilt: 2026,
+    },
+    analytics: {
+      sentiment: "positive",
+      pricingTrend: marketSignal,
+      confidenceScore: 0.82,
+      freshnessDays: 1,
+    },
+    citations: [
+      {
+        title: "Signatis deterministic market model",
+        url: "https://signatis.app/research/static-market-model",
+      },
+    ],
+    contentSections: [
+      { title: "Market read", body: `${marketSignal} at ${formatRm(askingPriceRm)} with ${tenure} tenure.` },
+      { title: "Buyer sentiment", body: sentimentSummary },
+    ],
+  };
+}
+
 export const demoReports: PropertyReport[] = [
   {
     id: "report_1",
@@ -111,6 +171,14 @@ export const demoReports: PropertyReport[] = [
     marketSignal: "Premium resale signal",
     sentimentSummary: "Neighborhood stability and family amenities lead buyer sentiment.",
     generatedAt: "2026-06-10T10:30:00.000Z",
+    ...reportExtras(
+      "142 Oak St",
+      "142-oak-st",
+      "Premium resale signal",
+      "Neighborhood stability and family amenities lead buyer sentiment.",
+      1250000,
+      "freehold",
+    ),
   },
   {
     id: "report_2",
@@ -126,6 +194,14 @@ export const demoReports: PropertyReport[] = [
     marketSignal: "Balanced market signal",
     sentimentSummary: "Urban convenience is the dominant buyer narrative.",
     generatedAt: "2026-06-09T12:00:00.000Z",
+    ...reportExtras(
+      "Downtown Market Overview",
+      "downtown-market-overview",
+      "Balanced market signal",
+      "Urban convenience is the dominant buyer narrative.",
+      850000,
+      "leasehold",
+    ),
   },
   {
     id: "report_3",
@@ -141,6 +217,14 @@ export const demoReports: PropertyReport[] = [
     marketSignal: "Processing market deltas",
     sentimentSummary: "Awaiting neighborhood sentiment refresh.",
     generatedAt: "2026-06-10T09:15:00.000Z",
+    ...reportExtras(
+      "Klang Valley Portfolio",
+      "klang-valley-portfolio",
+      "Processing market deltas",
+      "Awaiting neighborhood sentiment refresh.",
+      2400000,
+      "unknown",
+    ),
   },
 ];
 

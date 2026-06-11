@@ -107,6 +107,35 @@ export async function createReportApi(input: PropertyReportInput, getAccessToken
   return response.report;
 }
 
+export async function getReportApi(reportId: string, getAccessToken?: AccessTokenProvider): Promise<PropertyReport> {
+  const response = await apiJson<{ report: PropertyReport }>(
+    buildReportDetailUrl(reportId),
+    {},
+    getAccessToken,
+  );
+  return response.report;
+}
+
+export async function getSharedReportApi(token: string): Promise<{ report: PropertyReport; agent: Agent }> {
+  return apiJson<{ report: PropertyReport; agent: Agent }>(`/api/reports/share/${encodeURIComponent(token)}`);
+}
+
+export function buildReportPdfUrl(reportId: string): string {
+  return `/api/reports/${encodeURIComponent(reportId)}/pdf`;
+}
+
+export function buildReportDetailUrl(reportId: string): string {
+  return `/api/reports/${encodeURIComponent(reportId)}`;
+}
+
+export function buildSharedReportUrl(token: string): string {
+  return `/reports/share/${encodeURIComponent(token)}`;
+}
+
+export function buildSharedReportPdfUrl(token: string): string {
+  return `/api/reports/share/${encodeURIComponent(token)}/pdf`;
+}
+
 export async function saveSettingsApi(
   input: Omit<Agent, "id" | "workosUserId" | "plan" | "avatarInitials" | "ingestionAddress">,
   getAccessToken?: AccessTokenProvider,

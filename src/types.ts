@@ -1,6 +1,11 @@
 export type Intent = 0 | 1;
 export type Sentiment = "positive" | "neutral" | "negative";
 export type ReportStatus = "ready" | "running" | "draft";
+export type ReportCacheStatus = "hit" | "miss" | "refreshed" | "fallback";
+export type ListingIntent = "sale" | "rent" | "auction" | "valuation";
+export type PropertyTenure = "freehold" | "leasehold" | "unknown";
+export type ReportIndexLookupStatus = "fresh_hit" | "stale_hit" | "miss";
+export type ReportLiveSearchStatus = "not_needed" | "validated" | "failed";
 
 export interface Agent {
   id: string;
@@ -52,6 +57,8 @@ export interface PropertyReport {
   id: string;
   agentId: string;
   title: string;
+  propertyName: string;
+  propertyKey: string;
   address: string;
   propertyType: string;
   sqft: number;
@@ -62,6 +69,13 @@ export interface PropertyReport {
   marketSignal: string;
   sentimentSummary: string;
   generatedAt: string;
+  cacheStatus: ReportCacheStatus;
+  shareToken: string;
+  inputSnapshot: ReportInputSnapshot;
+  indexLookup: ReportIndexLookup;
+  analytics: ReportAnalytics;
+  citations: ReportCitation[];
+  contentSections: ReportContentSection[];
 }
 
 export interface Integration {
@@ -95,10 +109,60 @@ export interface DashboardData {
 }
 
 export interface PropertyReportInput {
+  propertyName?: string;
+  address?: string;
+  propertyType?: string;
+  listingIntent?: ListingIntent;
+  tenure?: PropertyTenure;
+  askingPriceRm?: number;
+  sqft?: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  yearBuilt?: number;
+  sourceUrl?: string;
+  sourceNotes?: string;
+}
+
+export interface ReportInputSnapshot {
+  propertyName: string;
   address: string;
   propertyType: string;
+  listingIntent: ListingIntent;
+  tenure: PropertyTenure;
+  askingPriceRm: number;
   sqft: number;
   bedrooms: number;
   bathrooms: number;
   yearBuilt: number;
+  sourceUrl?: string;
+  sourceNotes?: string;
+}
+
+export interface ReportCitation {
+  title: string;
+  url: string;
+  snippet?: string;
+  retrievedAt?: string;
+}
+
+export interface ReportAnalytics {
+  sentiment: Sentiment;
+  pricingTrend: string;
+  confidenceScore: number;
+  freshnessDays: number;
+}
+
+export interface ReportIndexLookup {
+  propertyKey: string;
+  status: ReportIndexLookupStatus;
+  liveSearchStatus: ReportLiveSearchStatus;
+  freshnessDays: number | null;
+  citationsCount: number;
+  summary: string;
+  checkedAt: string;
+}
+
+export interface ReportContentSection {
+  title: string;
+  body: string;
 }

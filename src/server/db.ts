@@ -1,5 +1,5 @@
 import { createClient } from "@tursodatabase/serverless/compat";
-import { buildReportDraft } from "../domain/reports";
+import { buildReportDraft, buildReportPropertyKey, normalizeReportInput } from "../domain/reports";
 import { getRuntimeEnv } from "./runtime-env";
 import type {
   Agent,
@@ -9,6 +9,12 @@ import type {
   LeadEvent,
   PropertyReport,
   PropertyReportInput,
+  ReportAnalytics,
+  ReportCacheStatus,
+  ReportCitation,
+  ReportContentSection,
+  ReportIndexLookup,
+  ReportInputSnapshot,
   SupportRequest,
 } from "../types";
 import { computeLeadScore } from "../domain/leadScoring";
@@ -40,6 +46,14 @@ export interface SignatisDbClient {
           args?: SqlArgs;
         },
   ): Promise<QueryResult<Row>>;
+}
+
+export interface PropertyIntelligenceCache {
+  propertyKey: string;
+  propertyName: string;
+  payload: Record<string, unknown>;
+  citations: ReportCitation[];
+  refreshedAt: string;
 }
 
 export function getTursoConfig(env: DbEnv): TursoConfig {
@@ -123,6 +137,8 @@ const schemaStatements = [
     id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL,
     title TEXT NOT NULL,
+    property_name TEXT,
+    property_key TEXT,
     address TEXT NOT NULL,
     property_type TEXT NOT NULL,
     sqft INTEGER NOT NULL,
@@ -132,8 +148,21 @@ const schemaStatements = [
     status TEXT NOT NULL,
     market_signal TEXT NOT NULL,
     sentiment_summary TEXT NOT NULL,
+    cache_status TEXT,
+    share_token TEXT,
+    input_json TEXT,
+    analytics_json TEXT,
+    citations_json TEXT,
+    content_sections_json TEXT,
     generated_at TEXT NOT NULL,
     FOREIGN KEY(agent_id) REFERENCES agents(id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS property_intelligence_cache (
+    property_key TEXT PRIMARY KEY,
+    property_name TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    citations_json TEXT NOT NULL,
+    refreshed_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS integrations (
     id TEXT PRIMARY KEY,
@@ -175,6 +204,25 @@ export async function ensureSchema(db: SignatisDbClient): Promise<void> {
       await db.execute(`ALTER TABLE agents ADD COLUMN ${col}`);
     } catch {
       // Column already exists, safe to ignore
+    }
+  }
+
+  const reportCols = [
+    "property_name TEXT",
+    "property_key TEXT",
+    "cache_status TEXT",
+    "share_token TEXT",
+    "input_json TEXT",
+    "analytics_json TEXT",
+    "citations_json TEXT",
+    "content_sections_json TEXT",
+  ];
+
+  for (const col of reportCols) {
+    try {
+      await db.execute(`ALTER TABLE property_reports ADD COLUMN ${col}`);
+    } catch {
+      // Column already exists, safe to ignore.
     }
   }
 }
@@ -220,11 +268,69 @@ export function mapLead(row: Record<string, unknown>): Lead {
   };
 }
 
+function parseJson<T>(value: unknown, fallback: T): T {
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function parseSentiment(value: unknown): ReportAnalytics["sentiment"] {
+  return value === "positive" || value === "negative" || value === "neutral" ? value : "neutral";
+}
+
 export function mapReport(row: Record<string, unknown>): PropertyReport {
+  const fallbackInput: ReportInputSnapshot = {
+    propertyName: row.property_name ? String(row.property_name) : String(row.address),
+    address: String(row.address),
+    propertyType: String(row.property_type),
+    listingIntent: "sale",
+    tenure: "unknown",
+    askingPriceRm: 0,
+    sqft: Number(row.sqft),
+    bedrooms: Number(row.bedrooms),
+    bathrooms: Number(row.bathrooms),
+    yearBuilt: Number(row.year_built),
+  };
+  const parsedInput = parseJson<PropertyReportInput>(row.input_json, fallbackInput);
+  const inputSnapshot = normalizeReportInput({ ...fallbackInput, ...parsedInput });
+  const fallbackPropertyKey = row.property_key ? String(row.property_key) : String(row.address).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const fallbackAnalytics: ReportAnalytics = {
+    sentiment: "neutral",
+    pricingTrend: String(row.market_signal),
+    confidenceScore: 0.68,
+    freshnessDays: 0,
+  };
+  const analyticsPayload = parseJson<Partial<ReportAnalytics> & { indexLookup?: ReportIndexLookup }>(row.analytics_json, fallbackAnalytics);
+  const analytics: ReportAnalytics = {
+    sentiment: parseSentiment(analyticsPayload.sentiment),
+    pricingTrend: analyticsPayload.pricingTrend || fallbackAnalytics.pricingTrend,
+    confidenceScore: Number.isFinite(analyticsPayload.confidenceScore) ? Number(analyticsPayload.confidenceScore) : fallbackAnalytics.confidenceScore,
+    freshnessDays: Number.isFinite(analyticsPayload.freshnessDays) ? Number(analyticsPayload.freshnessDays) : fallbackAnalytics.freshnessDays,
+  };
+  const citations = parseJson<ReportCitation[]>(row.citations_json, []);
+  const contentSections = parseJson<ReportContentSection[]>(row.content_sections_json, [
+    { title: "Market signal", body: String(row.market_signal) },
+    { title: "Sentiment", body: String(row.sentiment_summary) },
+  ]);
+  const indexLookup = analyticsPayload.indexLookup ?? {
+    propertyKey: fallbackPropertyKey,
+    status: row.cache_status === "hit" ? "fresh_hit" : row.cache_status === "refreshed" ? "stale_hit" : "miss",
+    liveSearchStatus: row.cache_status === "hit" ? "not_needed" : row.cache_status === "fallback" ? "failed" : "validated",
+    freshnessDays: analytics.freshnessDays,
+    citationsCount: citations.length,
+    summary: contentSections[0]?.body ?? "",
+    checkedAt: String(row.generated_at),
+  } satisfies ReportIndexLookup;
+
   return {
     id: String(row.id),
     agentId: String(row.agent_id),
     title: String(row.title),
+    propertyName: row.property_name ? String(row.property_name) : inputSnapshot.propertyName ?? String(row.address),
+    propertyKey: fallbackPropertyKey,
     address: String(row.address),
     propertyType: String(row.property_type),
     sqft: Number(row.sqft),
@@ -235,6 +341,13 @@ export function mapReport(row: Record<string, unknown>): PropertyReport {
     marketSignal: String(row.market_signal),
     sentimentSummary: String(row.sentiment_summary),
     generatedAt: String(row.generated_at),
+    cacheStatus: (row.cache_status ? String(row.cache_status) : "fallback") as ReportCacheStatus,
+    shareToken: row.share_token ? String(row.share_token) : "",
+    inputSnapshot,
+    indexLookup,
+    analytics,
+    citations,
+    contentSections,
   };
 }
 
@@ -371,11 +484,15 @@ export async function seedWorkspace(db: SignatisDbClient, agentId: string): Prom
     });
   }
 
-  const reportInputs: Array<PropertyReportInput & { id: string; generatedAt: string }> = [
+  const reportInputs: Array<ReportInputSnapshot & { id: string; generatedAt: string }> = [
     {
       id: "report_1",
+      propertyName: "142 Oak St",
       address: "142 Oak St",
       propertyType: "Terrace House",
+      listingIntent: "sale",
+      tenure: "freehold",
+      askingPriceRm: 1250000,
       sqft: 2500,
       bedrooms: 4,
       bathrooms: 3,
@@ -384,8 +501,12 @@ export async function seedWorkspace(db: SignatisDbClient, agentId: string): Prom
     },
     {
       id: "report_2",
+      propertyName: "Downtown Market Overview",
       address: "Downtown Market Overview",
       propertyType: "Market Brief",
+      listingIntent: "sale",
+      tenure: "leasehold",
+      askingPriceRm: 850000,
       sqft: 1800,
       bedrooms: 3,
       bathrooms: 2,
@@ -490,6 +611,112 @@ export async function getReports(db: SignatisDbClient, agentId: string): Promise
   return result.rows.map(mapReport);
 }
 
+export async function getReportById(
+  db: SignatisDbClient,
+  agentId: string,
+  reportId: string,
+): Promise<PropertyReport | null> {
+  const result = await db.execute<Record<string, unknown>>({
+    sql: "SELECT * FROM property_reports WHERE id = ? AND agent_id = ? LIMIT 1",
+    args: [reportId, agentId],
+  });
+  return result.rows[0] ? mapReport(result.rows[0]) : null;
+}
+
+export async function getReportByShareToken(
+  db: SignatisDbClient,
+  shareToken: string,
+): Promise<PropertyReport | null> {
+  const result = await db.execute<Record<string, unknown>>({
+    sql: "SELECT * FROM property_reports WHERE share_token = ? LIMIT 1",
+    args: [shareToken],
+  });
+  return result.rows[0] ? mapReport(result.rows[0]) : null;
+}
+
+export async function getAgentById(db: SignatisDbClient, agentId: string): Promise<Agent | null> {
+  const result = await db.execute<Record<string, unknown>>({
+    sql: "SELECT * FROM agents WHERE id = ? LIMIT 1",
+    args: [agentId],
+  });
+  return result.rows[0] ? mapAgent(result.rows[0]) : null;
+}
+
+export async function getPropertyIntelligenceCache(
+  db: SignatisDbClient,
+  propertyKey: string,
+): Promise<PropertyIntelligenceCache | null> {
+  const result = await db.execute<Record<string, unknown>>({
+    sql: "SELECT * FROM property_intelligence_cache WHERE property_key = ? LIMIT 1",
+    args: [propertyKey],
+  });
+  const row = result.rows[0];
+  if (!row) return null;
+
+  return {
+    propertyKey: String(row.property_key),
+    propertyName: String(row.property_name),
+    payload: parseJson<Record<string, unknown>>(row.payload_json, {}),
+    citations: parseJson<ReportCitation[]>(row.citations_json, []),
+    refreshedAt: String(row.refreshed_at),
+  };
+}
+
+export async function savePropertyIntelligence(
+  db: SignatisDbClient,
+  cache: PropertyIntelligenceCache,
+): Promise<void> {
+  await db.execute({
+    sql: `INSERT OR REPLACE INTO property_intelligence_cache (
+      property_key, property_name, payload_json, citations_json, refreshed_at
+    ) VALUES (?, ?, ?, ?, ?)`,
+    args: [
+      cache.propertyKey,
+      cache.propertyName,
+      JSON.stringify(cache.payload),
+      JSON.stringify(cache.citations),
+      cache.refreshedAt,
+    ],
+  });
+}
+
+export async function savePropertyReport(
+  db: SignatisDbClient,
+  report: PropertyReport,
+): Promise<void> {
+  await db.execute({
+    sql: `INSERT INTO property_reports (
+      id, agent_id, title, property_name, property_key, address, property_type,
+      sqft, bedrooms, bathrooms, year_built, status, market_signal,
+      sentiment_summary, cache_status, share_token, input_json, analytics_json,
+      citations_json, content_sections_json, generated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      report.id,
+      report.agentId,
+      report.title,
+      report.propertyName,
+      report.propertyKey,
+      report.address,
+      report.propertyType,
+      report.sqft,
+      report.bedrooms,
+      report.bathrooms,
+      report.yearBuilt,
+      report.status,
+      report.marketSignal,
+      report.sentimentSummary,
+      report.cacheStatus,
+      report.shareToken,
+      JSON.stringify(report.inputSnapshot),
+      JSON.stringify({ ...report.analytics, indexLookup: report.indexLookup }),
+      JSON.stringify(report.citations),
+      JSON.stringify(report.contentSections),
+      report.generatedAt,
+    ],
+  });
+}
+
 export async function getIntegrations(db: SignatisDbClient, agentId: string): Promise<Integration[]> {
   const result = await db.execute<Record<string, unknown>>({
     sql: "SELECT * FROM integrations WHERE agent_id = ? ORDER BY name ASC",
@@ -537,47 +764,59 @@ export async function createReport(
   agentId: string,
   input: PropertyReportInput,
 ): Promise<PropertyReport> {
-  const draft = buildReportDraft(input);
+  const normalized = normalizeReportInput(input);
+  const draft = buildReportDraft(normalized);
+  const propertyKey = buildReportPropertyKey(normalized);
   const id = `report_${Date.now()}`;
   const generatedAt = new Date().toISOString();
-
-  await db.execute({
-    sql: `INSERT INTO property_reports (
-      id, agent_id, title, address, property_type, sqft, bedrooms, bathrooms,
-      year_built, status, market_signal, sentiment_summary, generated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [
-      id,
-      agentId,
-      draft.title,
-      input.address.trim(),
-      input.propertyType.trim(),
-      input.sqft,
-      input.bedrooms,
-      input.bathrooms,
-      input.yearBuilt,
-      draft.status,
-      draft.marketSignal,
-      draft.sentimentSummary,
-      generatedAt,
-    ],
-  });
-
-  return {
+  const report: PropertyReport = {
     id,
     agentId,
     title: draft.title,
-    address: input.address.trim(),
-    propertyType: input.propertyType.trim(),
-    sqft: input.sqft,
-    bedrooms: input.bedrooms,
-    bathrooms: input.bathrooms,
-    yearBuilt: input.yearBuilt,
+    propertyName: normalized.propertyName ?? normalized.address,
+    propertyKey,
+    address: normalized.address,
+    propertyType: normalized.propertyType,
+    sqft: normalized.sqft,
+    bedrooms: normalized.bedrooms,
+    bathrooms: normalized.bathrooms,
+    yearBuilt: normalized.yearBuilt,
     status: draft.status,
     marketSignal: draft.marketSignal,
     sentimentSummary: draft.sentimentSummary,
     generatedAt,
+    cacheStatus: "fallback",
+    shareToken: `shr_${Date.now()}`,
+    inputSnapshot: normalized,
+    indexLookup: {
+      propertyKey,
+      status: "miss",
+      liveSearchStatus: "failed",
+      freshnessDays: null,
+      citationsCount: 0,
+      summary: "",
+      checkedAt: generatedAt,
+    },
+    analytics: {
+      sentiment: "neutral",
+      pricingTrend: draft.marketSignal,
+      confidenceScore: 0.68,
+      freshnessDays: 0,
+    },
+    citations: [
+      {
+        title: "Signatis deterministic market model",
+        url: "https://signatis.app/research/static-market-model",
+      },
+    ],
+    contentSections: draft.sections.map((section) => ({
+      title: section,
+      body: `${section} for ${normalized.address}.`,
+    })),
   };
+
+  await savePropertyReport(db, report);
+  return report;
 }
 
 export async function updateAgentSettings(

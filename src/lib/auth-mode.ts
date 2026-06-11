@@ -4,13 +4,15 @@ export function resolveAuthMode({
   dev,
   prod,
   mode,
+  workosConfigured = false,
 }: {
   dev: boolean;
   prod: boolean;
   mode?: string;
+  workosConfigured?: boolean;
 }): SignatisAuthMode {
-  if (prod) return "workos";
-  if (mode === "workos") return "workos";
   if (mode === "demo") return "demo";
-  return dev ? "demo" : "workos";
+  if (mode === "workos" && workosConfigured) return "workos";
+  if (prod && workosConfigured) return "workos";
+  return "demo";
 }

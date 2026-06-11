@@ -6,18 +6,15 @@ import App from "./App";
 import { resolveAuthMode } from "./lib/auth-mode";
 import "./styles.css";
 
+const clientId = import.meta.env.VITE_WORKOS_CLIENT_ID;
+const redirectUri = import.meta.env.VITE_WORKOS_REDIRECT_URI || window.location.origin;
+
 const authMode = resolveAuthMode({
   dev: import.meta.env.DEV,
   prod: import.meta.env.PROD,
   mode: import.meta.env.VITE_SIGNATIS_AUTH_MODE,
+  workosConfigured: Boolean(clientId),
 });
-
-const clientId = import.meta.env.VITE_WORKOS_CLIENT_ID;
-const redirectUri = import.meta.env.VITE_WORKOS_REDIRECT_URI || window.location.origin;
-
-if (authMode === "workos" && !clientId) {
-  throw new Error("VITE_WORKOS_CLIENT_ID is required when VITE_SIGNATIS_AUTH_MODE=workos");
-}
 
 const app = (
   <BrowserRouter>

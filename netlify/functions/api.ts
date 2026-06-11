@@ -3,12 +3,14 @@ import { WorkOS } from "@workos-inc/node";
 import { createCsrfToken, requireSession, verifyWorkosToken, type SessionResult } from "../../src/server/auth";
 import {
   createSignatisDb,
-  createReport,
   createSupportRequest,
   ensureAgentWorkspace,
+  getAgentById,
   getDashboardData,
   getIntegrations,
   getLeads,
+  getReportById,
+  getReportByShareToken,
   getReports,
   updateAgentSettings,
   connectIntegration,
@@ -16,6 +18,8 @@ import {
 } from "../../src/server/db";
 import { getRuntimeEnv } from "../../src/server/runtime-env";
 import { validateReportInput } from "../../src/domain/reports";
+import { generatePropertyReport } from "../../src/server/report-pipeline";
+import { generateReportPdf } from "../../src/server/report-pdf";
 import type { Agent, PropertyReportInput } from "../../src/types";
 
 function json(data: unknown, init: ResponseInit = {}): Response {
@@ -32,6 +36,15 @@ function getEndpoint(req: Request): string {
   const apiIndex = pathname.indexOf("/api/");
   if (apiIndex >= 0) return pathname.slice(apiIndex + 5).replace(/^\/+/, "");
   return pathname.split("/").filter(Boolean).at(-1) ?? "";
+}
+
+function pdf(data: Uint8Array, filename: string): Response {
+  return new Response(data, {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="${filename}"`,
+    },
+  });
 }
 
 function getWorkos() {
@@ -148,6 +161,7 @@ async function authenticatedContext(req: Request): Promise<
 
 export default async (req: Request) => {
   const endpoint = getEndpoint(req);
+  const shareMatch = endpoint.match(/^reports\/share\/([^/]+)(?:\/(pdf))?$/);
 
   if (endpoint === "csrf-token") {
     const runtimeEnv = getRuntimeEnv();
@@ -155,6 +169,25 @@ export default async (req: Request) => {
       return json({ error: "CSRF_SECRET is not configured." }, { status: 500 });
     }
     return json({ csrfToken: createCsrfToken(runtimeEnv.CSRF_SECRET) });
+  }
+
+  if (shareMatch && req.method === "GET") {
+    const runtimeEnv = getRuntimeEnv();
+    const db = createSignatisDb(runtimeEnv);
+    const report = await getReportByShareToken(db, shareMatch[1]);
+    if (!report) {
+      return json({ error: "Shared report not found." }, { status: 404 });
+    }
+    const agent = await getAgentById(db, report.agentId);
+    if (!agent) {
+      return json({ error: "Report agent not found." }, { status: 404 });
+    }
+
+    if (shareMatch[2] === "pdf") {
+      return pdf(generateReportPdf(report, agent), `${report.propertyKey || report.id}.pdf`);
+    }
+
+    return json({ report, agent });
   }
 
   const context = await authenticatedContext(req);
@@ -179,13 +212,33 @@ export default async (req: Request) => {
       return json({ reports: await getReports(db, agent.id) }, { headers: responseHeaders });
     }
 
+    const reportDetailMatch = endpoint.match(/^reports\/([^/]+)$/);
+    if (reportDetailMatch && req.method === "GET") {
+      const report = await getReportById(db, agent.id, reportDetailMatch[1]);
+      if (!report) {
+        return json({ error: "Report not found." }, { status: 404, headers: responseHeaders });
+      }
+      return json({ report }, { headers: responseHeaders });
+    }
+
+    const reportPdfMatch = endpoint.match(/^reports\/([^/]+)\/pdf$/);
+    if (reportPdfMatch && req.method === "GET") {
+      const report = await getReportById(db, agent.id, reportPdfMatch[1]);
+      if (!report) {
+        return json({ error: "Report not found." }, { status: 404, headers: responseHeaders });
+      }
+      const pdfResponse = pdf(generateReportPdf(report, agent), `${report.propertyKey || report.id}.pdf`);
+      responseHeaders.forEach((value, key) => pdfResponse.headers.append(key, value));
+      return pdfResponse;
+    }
+
     if (endpoint === "reports/create" && req.method === "POST") {
       const input = await readJson<PropertyReportInput>(req);
       const validation = validateReportInput(input);
       if (!validation.valid) {
         return json({ errors: validation.errors }, { status: 422, headers: responseHeaders });
       }
-      return json({ report: await createReport(db, agent.id, input) }, { status: 201, headers: responseHeaders });
+      return json({ report: await generatePropertyReport(db, agent, input) }, { status: 201, headers: responseHeaders });
     }
 
     if (endpoint === "settings" && req.method === "GET") {

@@ -1,7 +1,7 @@
 import { useAuth } from "@workos-inc/authkit-react";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { buildReportDraft } from "./domain/reports";
+import { buildReportDraft, buildReportPropertyKey, normalizeReportInput } from "./domain/reports";
 import {
   createReportApi,
   loadBootstrapData,
@@ -17,27 +17,74 @@ import LeadManagementPage from "./pages/LeadManagementPage";
 import LegalSupportPage from "./pages/LegalSupportPage";
 import ReportGeneratorPage from "./pages/ReportGeneratorPage";
 import SettingsPage from "./pages/SettingsPage";
+import SharedReportPage from "./pages/SharedReportPage";
 import type { Agent, Integration, PropertyReport, PropertyReportInput, SupportRequest } from "./types";
 import type { SignatisAuthMode } from "./lib/auth-mode";
 
 export interface AppData extends BootstrapData {}
 
+function formatRm(value: number): string {
+  return value > 0 ? `RM ${value.toLocaleString("en-MY")}` : "price not provided";
+}
+
 function buildLocalReport(input: PropertyReportInput, agentId: string): PropertyReport {
-  const draft = buildReportDraft(input);
+  const normalized = normalizeReportInput(input);
+  const draft = buildReportDraft(normalized);
+  const propertyKey = buildReportPropertyKey(normalized);
   return {
     id: `report_local_${Date.now()}`,
     agentId,
     title: draft.title,
-    address: input.address.trim(),
-    propertyType: input.propertyType.trim(),
-    sqft: input.sqft,
-    bedrooms: input.bedrooms,
-    bathrooms: input.bathrooms,
-    yearBuilt: input.yearBuilt,
+    propertyName: normalized.propertyName ?? normalized.address,
+    propertyKey,
+    address: normalized.address,
+    propertyType: normalized.propertyType,
+    sqft: normalized.sqft,
+    bedrooms: normalized.bedrooms,
+    bathrooms: normalized.bathrooms,
+    yearBuilt: normalized.yearBuilt,
     status: draft.status,
     marketSignal: draft.marketSignal,
     sentimentSummary: draft.sentimentSummary,
     generatedAt: new Date().toISOString(),
+    cacheStatus: "fallback",
+    shareToken: `shr_local_${Date.now()}`,
+    inputSnapshot: normalized,
+    indexLookup: {
+      propertyKey,
+      status: "miss",
+      liveSearchStatus: "failed",
+      freshnessDays: null,
+      citationsCount: 0,
+      summary: "",
+      checkedAt: new Date().toISOString(),
+    },
+    analytics: {
+      sentiment: "neutral",
+      pricingTrend: draft.marketSignal,
+      confidenceScore: 0.68,
+      freshnessDays: 0,
+    },
+    citations: [
+      {
+        title: "Signatis deterministic market model",
+        url: "https://signatis.app/research/static-market-model",
+      },
+    ],
+    contentSections: [
+      {
+        title: "Market read",
+        body: `${normalized.propertyName} is positioned as a ${normalized.tenure} ${normalized.propertyType.toLowerCase()} for ${normalized.listingIntent} in ${normalized.address} at ${formatRm(normalized.askingPriceRm)}.`,
+      },
+      {
+        title: "Pricing signal",
+        body: `${draft.marketSignal}. Agent context and optional listing facts support the current asking position.${normalized.sourceNotes ? ` Notes: ${normalized.sourceNotes}` : ""}`,
+      },
+      {
+        title: "Buyer sentiment",
+        body: draft.sentimentSummary,
+      },
+    ],
   };
 }
 
@@ -47,6 +94,12 @@ function WorkosApp() {
 }
 
 export default function App({ authMode }: { authMode: SignatisAuthMode }) {
+  const location = useLocation();
+
+  if (location.pathname.startsWith("/reports/share/")) {
+    return <SharedReportPage />;
+  }
+
   if (authMode === "workos") {
     return <WorkosApp />;
   }

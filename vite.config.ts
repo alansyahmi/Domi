@@ -7,6 +7,6 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), netlify()],
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "netlify/**/*.test.ts"],
   },
 });

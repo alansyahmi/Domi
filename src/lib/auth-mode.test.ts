@@ -6,11 +6,23 @@ describe("auth mode", () => {
     expect(resolveAuthMode({ dev: true, prod: false, mode: undefined })).toBe("demo");
   });
 
-  it("forces production to WorkOS mode", () => {
-    expect(resolveAuthMode({ dev: false, prod: true, mode: "demo" })).toBe("workos");
+  it("honors explicit demo mode in production for static deploy previews", () => {
+    expect(resolveAuthMode({ dev: false, prod: true, mode: "demo" })).toBe("demo");
   });
 
-  it("honors explicit WorkOS mode outside production", () => {
-    expect(resolveAuthMode({ dev: true, prod: false, mode: "workos" })).toBe("workos");
+  it("defaults production to demo mode when WorkOS is not configured", () => {
+    expect(resolveAuthMode({ dev: false, prod: true, mode: undefined })).toBe("demo");
+  });
+
+  it("uses WorkOS in production when the client is configured", () => {
+    expect(resolveAuthMode({ dev: false, prod: true, mode: undefined, workosConfigured: true })).toBe("workos");
+  });
+
+  it("honors explicit WorkOS mode when the client is configured", () => {
+    expect(resolveAuthMode({ dev: true, prod: false, mode: "workos", workosConfigured: true })).toBe("workos");
+  });
+
+  it("falls back to demo when WorkOS mode is requested without a client id", () => {
+    expect(resolveAuthMode({ dev: false, prod: true, mode: "workos", workosConfigured: false })).toBe("demo");
   });
 });
