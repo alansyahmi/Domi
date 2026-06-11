@@ -2,6 +2,11 @@
   command = "npm run build"
   publish = "dist"
 
+[build.environment]
+  # These Vite variables are intentionally compiled into the browser bundle.
+  # Keep real server secrets out of this allowlist.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_WORKOS_CLIENT_ID,VITE_WORKOS_REDIRECT_URI,VITE_SIGNATIS_AUTH_MODE"
+
 [functions]
   directory = "netlify/functions"
 
