@@ -1103,8 +1103,6 @@ h3 {
 img.avatar {
   object-fit: cover;
 }
-  font-weight: 750;
-}
 
 .shared-report-loading {
   width: min(32rem, 100%);
