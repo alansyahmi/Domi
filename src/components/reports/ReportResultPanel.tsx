@@ -2,6 +2,7 @@ import { BadgeDollarSign, BarChart3, Database, FileText, Gauge, KeyRound, Search
 import type { PropertyReport } from "../../types";
 import ReportActionBar from "./ReportActionBar";
 import ReportCitationList from "./ReportCitationList";
+import ReportPricingPanel from "./ReportPricingPanel";
 
 function cacheLabel(status: PropertyReport["cacheStatus"]): string {
   if (status === "hit") return "Pre-built intelligence";
@@ -11,15 +12,24 @@ function cacheLabel(status: PropertyReport["cacheStatus"]): string {
 }
 
 function formatRm(value: number): string {
-  return value > 0 ? `RM ${value.toLocaleString("en-MY")}` : "Price not provided";
+  return value > 0 ? `RM ${value.toLocaleString("en-MY")}` : "TBD (Market Ask)";
 }
 
 function labelValue(value: string): string {
+  if (!value || value.toLowerCase() === "unknown") return "TBD (To Be Confirmed)";
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function sentimentLabel(value: string): string {
+  if (value === "positive") return "Active / Positive";
+  if (value === "neutral") return "Balanced / Neutral";
+  if (value === "negative") return "Selective / Cautious";
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function lookupLabel(report: PropertyReport): string {
   if (report.indexLookup.liveSearchStatus === "validated") return "Live search validated and indexed";
+  if (report.indexLookup.liveSearchStatus === "limited") return "Live search found limited source coverage";
   if (report.indexLookup.liveSearchStatus === "failed") return "Live search unavailable, fallback model used";
   return "Fresh indexed intelligence";
 }
@@ -39,7 +49,7 @@ export default function ReportResultPanel({ report }: { report: PropertyReport }
   return (
     <section className="card report-result-panel p-6 md:p-8">
       <div className="report-result-header">
-        <div className="brand-mark !h-12 !w-12">
+        <div className="brand-mark h-12! w-12!">
           <FileText size={24} aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
@@ -85,7 +95,7 @@ export default function ReportResultPanel({ report }: { report: PropertyReport }
         <article>
           <Sparkles size={20} aria-hidden="true" />
           <span>Buyer sentiment</span>
-          <strong>{report.analytics.sentiment}</strong>
+          <strong>{sentimentLabel(report.analytics.sentiment)}</strong>
         </article>
         <article>
           <Gauge size={20} aria-hidden="true" />
@@ -98,6 +108,8 @@ export default function ReportResultPanel({ report }: { report: PropertyReport }
           <strong>{report.analytics.freshnessDays === 0 ? "Today" : `${report.analytics.freshnessDays}d`}</strong>
         </article>
       </div>
+
+      <ReportPricingPanel report={report} variant="agent" />
 
       <div className="grid gap-4">
         {report.contentSections.map((section) => (

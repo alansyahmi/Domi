@@ -1,4 +1,4 @@
-import { BadgeDollarSign, ChevronDown, Home, Link, MapPin, NotebookPen, Ruler, Sparkles } from "lucide-react";
+import { BadgeDollarSign, ChevronDown, Home, Link, MapPin, NotebookPen, RefreshCw, Ruler, Sparkles } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { validateReportInput } from "../../domain/reports";
 import type { PropertyReport, PropertyReportInput } from "../../types";
@@ -65,10 +65,33 @@ export default function ReportInputPanel({
     }
   }
 
+  async function refreshData() {
+    const validation = validateReportInput(input);
+    if (!validation.valid) {
+      setErrors(validation.errors);
+      setSubmitError(null);
+      return;
+    }
+
+    setSaving(true);
+    setSubmitError(null);
+    onGeneratingChange(true);
+    try {
+      const report = await onCreateReport({ ...input, bypassCache: true });
+      onReportCreated(report);
+      setErrors({});
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Unable to refresh report data.");
+    } finally {
+      setSaving(false);
+      onGeneratingChange(false);
+    }
+  }
+
   return (
     <form className="card report-input-panel p-6 md:p-8" onSubmit={(event) => void submit(event)}>
       <div className="flex items-start gap-4 border-b border-slate-200 pb-6">
-        <div className="brand-mark !h-12 !w-12">
+        <div className="brand-mark h-12 w-12">
           <Sparkles size={24} aria-hidden="true" />
         </div>
         <div>
@@ -84,7 +107,7 @@ export default function ReportInputPanel({
             <span className="relative">
               <Home size={22} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
               <input
-                className="input pl-11 text-lg"
+                className="input pl-12 text-lg"
                 placeholder="The Estate KL"
                 value={input.propertyName ?? ""}
                 onChange={(event) => setInput({ ...input, propertyName: event.target.value })}
@@ -111,7 +134,7 @@ export default function ReportInputPanel({
               <span className="relative">
                 <MapPin size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
                 <input
-                  className="input pl-11"
+                  className="input pl-12"
                   placeholder="Jalan Ampang, Kuala Lumpur"
                   value={input.address ?? ""}
                   onChange={(event) => setInput({ ...input, address: event.target.value })}
@@ -142,7 +165,7 @@ export default function ReportInputPanel({
               <span className="relative">
                 <BadgeDollarSign size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
                 <input
-                  className="input pl-11"
+                  className="input pl-12"
                   min={1}
                   placeholder="1250000"
                   type="number"
@@ -189,7 +212,7 @@ export default function ReportInputPanel({
               <span className="relative">
                 <Ruler size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
                 <input
-                  className="input pl-11"
+                  className="input pl-12"
                   min={0}
                   type="number"
                   value={numericValue(input.sqft)}
@@ -240,7 +263,7 @@ export default function ReportInputPanel({
               <span className="relative">
                 <Link size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
                 <input
-                  className="input pl-11"
+                  className="input pl-12"
                   placeholder="https://..."
                   value={input.sourceUrl ?? ""}
                   onChange={(event) => setInput({ ...input, sourceUrl: event.target.value })}
@@ -252,9 +275,9 @@ export default function ReportInputPanel({
             <label className="form-field md:col-span-2">
               <span className="form-label">Agent notes</span>
               <span className="relative">
-                <NotebookPen size={20} className="absolute left-3 top-4 text-slate-500" aria-hidden="true" />
+                <NotebookPen size={20} className="absolute left-3 top-5 text-slate-500" aria-hidden="true" />
                 <textarea
-                  className="input min-h-24 resize-y pl-11 pt-3"
+                  className="input min-h-24 resize-y pl-12 pt-3"
                   placeholder="Nearby LRT, renovated kitchen, motivated seller..."
                   value={input.sourceNotes ?? ""}
                   onChange={(event) => setInput({ ...input, sourceNotes: event.target.value })}
@@ -264,7 +287,11 @@ export default function ReportInputPanel({
           </div>
         ) : null}
 
-        <div className="flex justify-end border-t border-slate-200 pt-6">
+        <div className="flex justify-end gap-3 border-t border-slate-200 pt-6">
+          <button className="secondary-button min-w-40" disabled={saving} onClick={() => void refreshData()} type="button">
+            <RefreshCw size={18} aria-hidden="true" />
+            {saving ? "Refreshing..." : "Refresh Data"}
+          </button>
           <button className="primary-button min-w-52" disabled={saving} type="submit">
             {saving ? "Generating" : "Generate Report"}
           </button>

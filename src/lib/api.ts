@@ -4,6 +4,7 @@ import type {
   DashboardData,
   Integration,
   Lead,
+  LeadEvent,
   PropertyReport,
   PropertyReportInput,
   SupportRequest,
@@ -195,3 +196,48 @@ export async function logoutApi(csrfToken: string): Promise<void> {
   };
   browser.location?.assign(location);
 }
+
+export async function submitLeadInquiryApi(
+  shareToken: string,
+  input: { name: string; email: string; phone: string; message: string }
+): Promise<{ success: boolean; lead: Lead }> {
+  return apiJson<{ success: boolean; lead: Lead }>(`/api/reports/share/${encodeURIComponent(shareToken)}/inquiry`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function createLeadApi(
+  input: {
+    name: string;
+    email: string;
+    phone: string;
+    source: string;
+    propertyInterest: string;
+    budget: string;
+    message?: string;
+  },
+  getAccessToken?: AccessTokenProvider,
+): Promise<{ success: boolean; lead: Lead }> {
+  return apiJson<{ success: boolean; lead: Lead }>("/api/leads/create", {
+    method: "POST",
+    body: JSON.stringify(input),
+  }, getAccessToken);
+}
+
+export async function deleteLeadApi(
+  leadId: string,
+  getAccessToken?: AccessTokenProvider,
+): Promise<{ success: boolean }> {
+  return apiJson<{ success: boolean }>(`/api/leads/${encodeURIComponent(leadId)}`, {
+    method: "DELETE",
+  }, getAccessToken);
+}
+
+export async function getLeadEventsApi(
+  leadId: string,
+  getAccessToken?: AccessTokenProvider,
+): Promise<{ events: LeadEvent[] }> {
+  return apiJson<{ events: LeadEvent[] }>(`/api/leads/${encodeURIComponent(leadId)}/events`, {}, getAccessToken);
+}
+

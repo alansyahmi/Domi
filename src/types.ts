@@ -5,7 +5,8 @@ export type ReportCacheStatus = "hit" | "miss" | "refreshed" | "fallback";
 export type ListingIntent = "sale" | "rent" | "auction" | "valuation";
 export type PropertyTenure = "freehold" | "leasehold" | "unknown";
 export type ReportIndexLookupStatus = "fresh_hit" | "stale_hit" | "miss";
-export type ReportLiveSearchStatus = "not_needed" | "validated" | "failed";
+export type ReportLiveSearchStatus = "not_needed" | "validated" | "limited" | "failed";
+export type ReportCitationSourceType = "official" | "community" | "comparable_listing" | "model" | "other";
 
 export interface Agent {
   id: string;
@@ -75,6 +76,7 @@ export interface PropertyReport {
   indexLookup: ReportIndexLookup;
   analytics: ReportAnalytics;
   citations: ReportCitation[];
+  comparableListings: ReportComparableListing[];
   contentSections: ReportContentSection[];
 }
 
@@ -121,6 +123,7 @@ export interface PropertyReportInput {
   yearBuilt?: number;
   sourceUrl?: string;
   sourceNotes?: string;
+  bypassCache?: boolean;
 }
 
 export interface ReportInputSnapshot {
@@ -143,6 +146,19 @@ export interface ReportCitation {
   url: string;
   snippet?: string;
   retrievedAt?: string;
+  sourceType?: ReportCitationSourceType;
+}
+
+export interface ReportComparableListing {
+  title: string;
+  sourceName?: string;
+  url: string;
+  askingPriceRm?: number;
+  builtUpSqft?: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  listingIntent?: ListingIntent;
+  snippet?: string;
 }
 
 export interface ReportAnalytics {

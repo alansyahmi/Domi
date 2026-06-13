@@ -113,6 +113,7 @@ describe("database helpers", () => {
           freshnessDays: 0,
         },
         citations: [{ title: "Source", url: "https://example.com" }],
+        comparableListings: [],
         contentSections: [{ title: "Market read", body: "Premium demand is stable." }],
       });
 
@@ -176,6 +177,58 @@ describe("database helpers", () => {
         status: "miss",
         liveSearchStatus: "validated",
         citationsCount: 0,
+      });
+    });
+  });
+
+  describe("leads database helpers", () => {
+    it("deleteLead executes DELETE statements for events and lead", async () => {
+      const executeMock = vi.fn().mockResolvedValue({ rows: [] });
+      const dbMock = { execute: executeMock };
+
+      const { deleteLead } = await import("./db");
+      await deleteLead(dbMock as any, "agent_123", "lead_456");
+
+      expect(executeMock).toHaveBeenNthCalledWith(1, {
+        sql: "DELETE FROM lead_events WHERE lead_id = ? AND agent_id = ?",
+        args: ["lead_456", "agent_123"],
+      });
+      expect(executeMock).toHaveBeenNthCalledWith(2, {
+        sql: "DELETE FROM leads WHERE id = ? AND agent_id = ?",
+        args: ["lead_456", "agent_123"],
+      });
+    });
+
+    it("getLeadEvents queries events in chronological order", async () => {
+      const executeMock = vi.fn().mockResolvedValue({
+        rows: [
+          {
+            id: "event_1",
+            lead_id: "lead_456",
+            agent_id: "agent_123",
+            event_type: "manual_note",
+            event_label: "Call log",
+            occurred_at: "2026-06-11T12:00:00.000Z",
+          },
+        ],
+      });
+      const dbMock = { execute: executeMock };
+
+      const { getLeadEvents } = await import("./db");
+      const events = await getLeadEvents(dbMock as any, "agent_123", "lead_456");
+
+      expect(executeMock).toHaveBeenCalledWith({
+        sql: "SELECT * FROM lead_events WHERE lead_id = ? AND agent_id = ? ORDER BY occurred_at DESC",
+        args: ["lead_456", "agent_123"],
+      });
+      expect(events).toHaveLength(1);
+      expect(events[0]).toEqual({
+        id: "event_1",
+        leadId: "lead_456",
+        agentId: "agent_123",
+        eventType: "manual_note",
+        eventLabel: "Call log",
+        occurredAt: "2026-06-11T12:00:00.000Z",
       });
     });
   });

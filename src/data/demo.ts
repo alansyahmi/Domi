@@ -109,7 +109,7 @@ function reportExtras(
   tenure: "freehold" | "leasehold" | "unknown" = "freehold",
 ): Pick<
   PropertyReport,
-  "propertyName" | "propertyKey" | "cacheStatus" | "shareToken" | "inputSnapshot" | "indexLookup" | "analytics" | "citations" | "contentSections"
+  "propertyName" | "propertyKey" | "cacheStatus" | "shareToken" | "inputSnapshot" | "indexLookup" | "analytics" | "citations" | "comparableListings" | "contentSections"
 > {
   return {
     propertyName,
@@ -149,6 +149,7 @@ function reportExtras(
         url: "https://signatis.app/research/static-market-model",
       },
     ],
+    comparableListings: [],
     contentSections: [
       { title: "Market read", body: `${marketSignal} at ${formatRm(askingPriceRm)} with ${tenure} tenure.` },
       { title: "Buyer sentiment", body: sentimentSummary },

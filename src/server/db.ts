@@ -12,6 +12,7 @@ import type {
   ReportAnalytics,
   ReportCacheStatus,
   ReportCitation,
+  ReportComparableListing,
   ReportContentSection,
   ReportIndexLookup,
   ReportInputSnapshot,
@@ -216,6 +217,7 @@ export async function ensureSchema(db: SignatisDbClient): Promise<void> {
     "analytics_json TEXT",
     "citations_json TEXT",
     "content_sections_json TEXT",
+    "comparable_listings_json TEXT",
   ];
 
   for (const col of reportCols) {
@@ -311,6 +313,7 @@ export function mapReport(row: Record<string, unknown>): PropertyReport {
     freshnessDays: Number.isFinite(analyticsPayload.freshnessDays) ? Number(analyticsPayload.freshnessDays) : fallbackAnalytics.freshnessDays,
   };
   const citations = parseJson<ReportCitation[]>(row.citations_json, []);
+  const comparableListings = parseJson<ReportComparableListing[]>(row.comparable_listings_json, []);
   const contentSections = parseJson<ReportContentSection[]>(row.content_sections_json, [
     { title: "Market signal", body: String(row.market_signal) },
     { title: "Sentiment", body: String(row.sentiment_summary) },
@@ -347,6 +350,7 @@ export function mapReport(row: Record<string, unknown>): PropertyReport {
     indexLookup,
     analytics,
     citations,
+    comparableListings,
     contentSections,
   };
 }
@@ -689,8 +693,8 @@ export async function savePropertyReport(
       id, agent_id, title, property_name, property_key, address, property_type,
       sqft, bedrooms, bathrooms, year_built, status, market_signal,
       sentiment_summary, cache_status, share_token, input_json, analytics_json,
-      citations_json, content_sections_json, generated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      citations_json, content_sections_json, comparable_listings_json, generated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       report.id,
       report.agentId,
@@ -712,6 +716,7 @@ export async function savePropertyReport(
       JSON.stringify({ ...report.analytics, indexLookup: report.indexLookup }),
       JSON.stringify(report.citations),
       JSON.stringify(report.contentSections),
+      JSON.stringify(report.comparableListings ?? []),
       report.generatedAt,
     ],
   });
@@ -809,6 +814,7 @@ export async function createReport(
         url: "https://signatis.app/research/static-market-model",
       },
     ],
+    comparableListings: [],
     contentSections: draft.sections.map((section) => ({
       title: section,
       body: `${section} for ${normalized.address}.`,
@@ -839,6 +845,8 @@ export async function updateAgentSettings(
     args: [
       values.fullName,
       values.email,
+
+
       values.phone,
       values.renNumber ?? "",
       values.agencyName ?? "",
@@ -886,4 +894,128 @@ export async function createSupportRequest(
   });
 
   return request;
+}
+
+export async function createLead(
+  db: SignatisDbClient,
+  agentId: string,
+  input: {
+    name: string;
+    email: string;
+    phone: string;
+    source: string;
+    propertyInterest: string;
+    budget: string;
+    message?: string;
+  }
+): Promise<Lead> {
+  const id = `lead_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const messageText = input.message?.trim() || "";
+  let inquirySentiment = 0;
+  const lowerMsg = messageText.toLowerCase();
+
+  if (/love|interested|viewing|buy|nice|great|good|excellent|perfect|keen/i.test(lowerMsg)) {
+    inquirySentiment = 0.8;
+  } else if (/bad|expensive|defect|broken|poor|disappointed|issue|noise|concern/i.test(lowerMsg)) {
+    inquirySentiment = -0.6;
+  }
+
+  const scoreObj = computeLeadScore({
+    emailOpens: 0,
+    linkClicks: 0,
+    reportViews: 1,
+    inquirySentiment,
+  });
+
+  const sentiment = inquirySentiment > 0.2 ? "positive" : inquirySentiment < -0.2 ? "negative" : "neutral";
+
+  const lead: Lead = {
+    id,
+    agentId,
+    name: input.name,
+    email: input.email,
+    phone: input.phone,
+    source: input.source,
+    propertyInterest: input.propertyInterest,
+    budget: input.budget,
+    emailOpens: 0,
+    linkClicks: 0,
+    reportViews: 1,
+    inquirySentiment,
+    sentiment,
+    score: scoreObj.score,
+    intent: scoreObj.intent,
+    tier: scoreObj.tier,
+    createdAt: new Date().toISOString(),
+  };
+
+  await db.execute({
+    sql: `INSERT INTO leads (
+      id, agent_id, name, email, phone, source, property_interest, budget,
+      email_opens, link_clicks, report_views, inquiry_sentiment, sentiment,
+      score, intent, tier, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      lead.id,
+      lead.agentId,
+      lead.name,
+      lead.email,
+      lead.phone,
+      lead.source,
+      lead.propertyInterest,
+      lead.budget,
+      lead.emailOpens,
+      lead.linkClicks,
+      lead.reportViews,
+      lead.inquirySentiment,
+      lead.sentiment,
+      lead.score,
+      lead.intent,
+      lead.tier,
+      lead.createdAt,
+    ],
+  });
+
+  if (messageText) {
+    await db.execute({
+      sql: `INSERT INTO lead_events (id, lead_id, agent_id, event_type, event_label, occurred_at)
+            VALUES (?, ?, ?, 'manual_note', ?, ?)`,
+      args: [
+        `event_${Date.now()}`,
+        lead.id,
+        agentId,
+        `Inquiry: "${messageText}"`,
+        lead.createdAt,
+      ],
+    });
+  }
+
+  return lead;
+}
+
+export async function deleteLead(
+  db: SignatisDbClient,
+  agentId: string,
+  leadId: string,
+): Promise<void> {
+  await db.execute({
+    sql: "DELETE FROM lead_events WHERE lead_id = ? AND agent_id = ?",
+    args: [leadId, agentId],
+  });
+  await db.execute({
+    sql: "DELETE FROM leads WHERE id = ? AND agent_id = ?",
+    args: [leadId, agentId],
+  });
+}
+
+export async function getLeadEvents(
+  db: SignatisDbClient,
+  agentId: string,
+  leadId: string,
+): Promise<LeadEvent[]> {
+  const result = await db.execute<Record<string, unknown>>({
+    sql: "SELECT * FROM lead_events WHERE lead_id = ? AND agent_id = ? ORDER BY occurred_at DESC",
+    args: [leadId, agentId],
+  });
+  return result.rows.map(mapLeadEvent);
 }

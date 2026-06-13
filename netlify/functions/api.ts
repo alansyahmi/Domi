@@ -15,6 +15,9 @@ import {
   updateAgentSettings,
   connectIntegration,
   disconnectIntegration,
+  createLead,
+  deleteLead,
+  getLeadEvents,
 } from "../../src/server/db";
 import { getRuntimeEnv } from "../../src/server/runtime-env";
 import { validateReportInput } from "../../src/domain/reports";
@@ -171,6 +174,36 @@ export default async (req: Request) => {
     return json({ csrfToken: createCsrfToken(runtimeEnv.CSRF_SECRET) });
   }
 
+  const shareInquiryMatch = endpoint.match(/^reports\/share\/([^/]+)\/inquiry$/);
+  if (shareInquiryMatch && req.method === "POST") {
+    const runtimeEnv = getRuntimeEnv();
+    const db = createSignatisDb(runtimeEnv);
+    const report = await getReportByShareToken(db, shareInquiryMatch[1]);
+    if (!report) {
+      return json({ error: "Shared report not found." }, { status: 404 });
+    }
+    const body = await readJson<{ name?: string; email?: string; phone?: string; message?: string }>(req);
+    if (!body.name || !body.email || !body.phone) {
+      return json({ error: "Name, email, and phone are required." }, { status: 422 });
+    }
+
+    const budget = report.inputSnapshot.askingPriceRm > 0
+      ? `RM ${report.inputSnapshot.askingPriceRm.toLocaleString("en-MY")}`
+      : "TBD";
+
+    const lead = await createLead(db, report.agentId, {
+      name: body.name.trim(),
+      email: body.email.trim(),
+      phone: body.phone.trim(),
+      source: "Report Shared Link",
+      propertyInterest: report.propertyName || report.address,
+      budget,
+      message: body.message,
+    });
+
+    return json({ success: true, lead });
+  }
+
   if (shareMatch && req.method === "GET") {
     const runtimeEnv = getRuntimeEnv();
     const db = createSignatisDb(runtimeEnv);
@@ -206,6 +239,43 @@ export default async (req: Request) => {
 
     if (endpoint === "leads" && req.method === "GET") {
       return json({ leads: await getLeads(db, agent.id) }, { headers: responseHeaders });
+    }
+
+    if (endpoint === "leads/create" && req.method === "POST") {
+      const body = await readJson<{
+        name?: string;
+        email?: string;
+        phone?: string;
+        source?: string;
+        propertyInterest?: string;
+        budget?: string;
+        message?: string;
+      }>(req);
+      if (!body.name || !body.email || !body.phone) {
+        return json({ error: "Name, email, and phone are required." }, { status: 422, headers: responseHeaders });
+      }
+      const lead = await createLead(db, agent.id, {
+        name: body.name.trim(),
+        email: body.email.trim(),
+        phone: body.phone.trim(),
+        source: body.source?.trim() || "Manual Add",
+        propertyInterest: body.propertyInterest?.trim() || "General Interest",
+        budget: body.budget?.trim() || "TBD",
+        message: body.message,
+      });
+      return json({ success: true, lead }, { status: 201, headers: responseHeaders });
+    }
+
+    const leadDeleteMatch = endpoint.match(/^leads\/([^/]+)$/);
+    if (leadDeleteMatch && req.method === "DELETE") {
+      await deleteLead(db, agent.id, leadDeleteMatch[1]);
+      return json({ success: true }, { headers: responseHeaders });
+    }
+
+    const leadEventsMatch = endpoint.match(/^leads\/([^/]+)\/events$/);
+    if (leadEventsMatch && req.method === "GET") {
+      const events = await getLeadEvents(db, agent.id, leadEventsMatch[1]);
+      return json({ events }, { headers: responseHeaders });
     }
 
     if (endpoint === "reports" && req.method === "GET") {

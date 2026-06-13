@@ -143,3 +143,180 @@ export function buildReportDraft(input: PropertyReportInput): ReportDraft {
         : "Neighborhood stability and family amenities lead buyer sentiment.",
   };
 }
+
+function primaryPropertyLabel(value: string): string {
+  let primary = (value.split(",")[0] ?? value).trim();
+  if (value.includes(",")) {
+    const parts = primary.split(/\s+/);
+    const lastPart = parts[parts.length - 1];
+    if (parts.length > 2 && lastPart && /^[a-z]{2,3}$/i.test(lastPart)) {
+      primary = parts.slice(0, -1).join(" ");
+    }
+  }
+  return primary;
+}
+
+export function compactPropertyName(value: string): string {
+  // Assuming primaryPropertyLabel handles extraction, convert to lowercase
+  let text = primaryPropertyLabel(value).toLowerCase();
+
+  text = text
+    // 1. Structural Modifiers (Match plurals first to avoid truncation bugs)
+    .replace(/\bcondominiums?\b|\bcondos?\b/g, "condo")
+    .replace(/\bapartments?\b|\bapts?\b/g, "apt")
+    .replace(/\bresidensi\b|\bresidences?\b/g, "res") // Handles both singular/plural/Malay
+    .replace(/\bserviced\b/g, "serv")
+
+    // 2. Local Spatial / Address Modifiers
+    .replace(/\bjalan\b/g, "jln")
+    .replace(/\bbukit\b/g, "bt")
+    .replace(/\bkampung\b|\bkampong\b/g, "kg")
+    .replace(/\btaman\b/g, "tmn")
+    .replace(/\blorong\b/g, "lrg")
+    .replace(/\bbandar\b/g, "bdr")
+    .replace(/\bseksyen\b|\bsection\b/g, "sek")
+    .replace(/\btanjung\b/g, "tg")
+    .replace(/\bmenara\b/g, "mnr") // Added "Tower" shorthand
+
+    // 3. Metric Modifiers
+    .replace(/\bsquare\s*feet\b|\bsqft\b|\bsf\b/g, "sqft")
+    .replace(/\bper\s*square\s*foot\b|\bpsf\b/g, "psf");
+
+  // Strips everything except alphanumeric characters for clean DB/Routing slugs
+  return text.replace(/[^a-z0-9]+/g, "");
+}
+
+export function propertyNameTokens(value: string): string[] {
+  return primaryPropertyLabel(value)
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 3);
+}
+
+export function matchesPropertyName(propertyName: string, text: string, strict = false): boolean {
+  const compact = compactPropertyName(propertyName);
+  const haystack = compactPropertyName(text);
+  if (compact.length < 3 || haystack.length === 0) return false;
+
+  if (strict) {
+    return haystack.includes(compact);
+  }
+
+  const tokens = propertyNameTokens(propertyName);
+  if (tokens.length <= 1) {
+    return haystack.includes(compact);
+  }
+
+  return tokens.every((token) => haystack.includes(token));
+}
+
+export function conflictsWithPropertyName(propertyName: string, text: string): boolean {
+  const compact = compactPropertyName(propertyName);
+  const haystack = compactPropertyName(text);
+  const tokens = propertyNameTokens(propertyName);
+
+  if (compact.length < 3 || tokens.length < 2) return false;
+  if (haystack.includes(compact)) return false;
+
+  const [prefix, ...suffixTokens] = tokens;
+  if (!haystack.includes(prefix)) return false;
+
+  return suffixTokens.some((token) => !haystack.includes(token));
+}
+
+export function hasTargetAskingPrice(input: { askingPriceRm?: number }): boolean {
+  return (input.askingPriceRm ?? 0) > 0;
+}
+
+export type MarketPricingMode = "target_comparison" | "comparable_market";
+
+export interface MarketPricingStats {
+  mode: MarketPricingMode;
+  averagePrice: number;
+  averagePricePerSqft: number;
+  priceDifferencePct: number;
+  ppsDifferencePct: number;
+  priceDifferenceRm: number;
+  targetPricePerSqft: number;
+  priceRangeMin: number;
+  priceRangeMax: number;
+  validPriceCount: number;
+  validPpsCount: number;
+  estimatedGrossYield?: number;
+  averageRentalPrice?: number;
+}
+
+export function calculateMarketPricingStats(report: {
+  inputSnapshot: { askingPriceRm?: number; sqft?: number; listingIntent?: string };
+  comparableListings?: Array<{ askingPriceRm?: number; builtUpSqft?: number; listingIntent?: string }>;
+}): MarketPricingStats {
+  const targetPrice = report.inputSnapshot.askingPriceRm ?? 0;
+  const targetSqft = report.inputSnapshot.sqft ?? 0;
+  const targetPps = targetPrice > 0 && targetSqft > 0 ? targetPrice / targetSqft : 0;
+  const targetIntent = report.inputSnapshot.listingIntent || "sale";
+  const compareToTarget = hasTargetAskingPrice(report.inputSnapshot);
+
+  const comparables = report.comparableListings ?? [];
+
+  const validPriceComps = comparables.filter(
+    (c) =>
+      c.askingPriceRm &&
+      c.askingPriceRm > 0 &&
+      (!c.listingIntent || c.listingIntent === targetIntent),
+  );
+
+  const prices = validPriceComps
+    .map((c) => c.askingPriceRm)
+    .filter((price): price is number => typeof price === "number" && Number.isFinite(price) && price > 0)
+    .sort((left, right) => left - right);
+  const totalPrices = prices.reduce((sum, price) => sum + price, 0);
+  const averagePrice = prices.length > 0 ? totalPrices / prices.length : 0;
+
+  const validPpsComps = validPriceComps.filter((c) => c.builtUpSqft && c.builtUpSqft > 0);
+  const totalPps = validPpsComps.reduce(
+    (sum, c) => sum + (c.askingPriceRm ?? 0) / (c.builtUpSqft ?? 1),
+    0,
+  );
+  const averagePricePerSqft = validPpsComps.length > 0 ? totalPps / validPpsComps.length : 0;
+
+  const priceDifferenceRm = compareToTarget ? targetPrice - averagePrice : 0;
+  const priceDifferencePct =
+    compareToTarget && averagePrice > 0 ? ((targetPrice - averagePrice) / averagePrice) * 100 : 0;
+  const ppsDifferencePct =
+    compareToTarget && averagePricePerSqft > 0 && targetPps > 0
+      ? ((targetPps - averagePricePerSqft) / averagePricePerSqft) * 100
+      : 0;
+
+  // Calculate rental stats if target is a sale property
+  const rentalComps = comparables.filter(
+    (c) => c.askingPriceRm && c.askingPriceRm > 0 && c.listingIntent === "rent"
+  );
+  const rentalPrices = rentalComps
+    .map((c) => c.askingPriceRm)
+    .filter((price): price is number => typeof price === "number" && price > 0);
+  const averageRentalPrice = rentalPrices.length > 0
+    ? rentalPrices.reduce((sum, price) => sum + price, 0) / rentalPrices.length
+    : undefined;
+
+  let estimatedGrossYield: number | undefined;
+  if (targetIntent === "sale" && targetPrice > 0 && averageRentalPrice && averageRentalPrice > 0) {
+    estimatedGrossYield = Number(((averageRentalPrice * 12 / targetPrice) * 100).toFixed(2));
+  }
+
+  return {
+    mode: compareToTarget ? "target_comparison" : "comparable_market",
+    averagePrice,
+    averagePricePerSqft,
+    priceDifferencePct,
+    ppsDifferencePct,
+    priceDifferenceRm,
+    targetPricePerSqft: targetPps,
+    priceRangeMin: prices[0] ?? 0,
+    priceRangeMax: prices.length > 0 ? prices[prices.length - 1] : 0,
+    validPriceCount: validPriceComps.length,
+    validPpsCount: validPpsComps.length,
+    estimatedGrossYield,
+    averageRentalPrice,
+  };
+}
+

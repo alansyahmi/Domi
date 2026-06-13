@@ -1,7 +1,69 @@
-import type { Agent, PropertyReport } from "../types";
+import type { Agent, PropertyReport, ReportCitation } from "../types";
+
+const PAGE_WIDTH = 612;
+const PAGE_HEIGHT = 792;
+const PANEL_X = 42;
+const PANEL_Y = 42;
+const PANEL_W = 528;
+const PANEL_H = 708;
+const CONTENT_X = 66;
+const CONTENT_W = 480;
+const TOP_Y = 684;
+const BOTTOM_Y = 90;
+
+const COLORS = {
+  navy: [0.016, 0.086, 0.153],
+  navySoft: [0.102, 0.169, 0.235],
+  gold: [1, 0.831, 0.353],
+  background: [0.969, 0.976, 0.984],
+  surface: [1, 1, 1],
+  surfaceSoft: [0.945, 0.957, 0.969],
+  line: [0.863, 0.89, 0.918],
+  muted: [0.4, 0.455, 0.522],
+  success: [0.02, 0.588, 0.412],
+  danger: [0.761, 0.149, 0.149],
+} as const;
+
+type Color = readonly [number, number, number];
+
+interface PdfPage {
+  commands: string[];
+  pageNumber: number;
+}
 
 function escapePdfText(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+  return value
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "'")
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)");
+}
+
+function color(colorValue: Color, operator: "rg" | "RG" = "rg"): string {
+  return `${colorValue.map((part) => part.toFixed(3)).join(" ")} ${operator}`;
+}
+
+function fillRect(x: number, y: number, width: number, height: number, fill: Color): string {
+  return `${color(fill)} ${x} ${y} ${width} ${height} re f`;
+}
+
+function strokeRect(x: number, y: number, width: number, height: number, stroke: Color): string {
+  return `${color(stroke, "RG")} ${x} ${y} ${width} ${height} re S`;
+}
+
+function line(x1: number, y1: number, x2: number, y2: number, stroke: Color, width = 1): string {
+  return `${width} w ${color(stroke, "RG")} ${x1} ${y1} m ${x2} ${y2} l S`;
+}
+
+function textAt(
+  x: number,
+  y: number,
+  size: number,
+  value: string,
+  font: "F1" | "F2" | "F3" = "F1",
+  fill: Color = COLORS.navy,
+): string {
+  return `BT /${font} ${size} Tf ${color(fill)} ${x} ${y} Td (${escapePdfText(value)}) Tj ET`;
 }
 
 function wrapText(value: string, maxLength = 82): string[] {
@@ -23,92 +85,226 @@ function wrapText(value: string, maxLength = 82): string[] {
   return lines.length ? lines : [""];
 }
 
-function textAt(x: number, y: number, size: number, value: string): string {
-  return `BT /F1 ${size} Tf ${x} ${y} Td (${escapePdfText(value)}) Tj ET`;
-}
-
 function formatRm(value: number): string {
-  return value > 0 ? `RM ${value.toLocaleString("en-MY")}` : "Price not provided";
+  return value > 0 ? `RM ${value.toLocaleString("en-MY")}` : "Price to be confirmed";
 }
 
 function labelValue(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function wrappedTextAt(x: number, y: number, size: number, value: string, maxLength = 86): { commands: string[]; nextY: number } {
-  const commands: string[] = [];
-  let cursorY = y;
-  for (const line of wrapText(value, maxLength)) {
-    commands.push(textAt(x, cursorY, size, line));
-    cursorY -= size + 5;
-  }
-  return { commands, nextY: cursorY };
+function citationLabel(citation: ReportCitation): string {
+  if (citation.sourceType === "official") return "Official";
+  if (citation.sourceType === "community") return "Community";
+  if (citation.sourceType === "model") return "Model";
+  if (citation.sourceType === "comparable_listing") return "Current Listing";
+  return "Source";
 }
 
-function buildTextCommands(report: PropertyReport, agent: Agent): string {
-  const input = report.inputSnapshot;
-  const commands: string[] = [
-    "0.96 0.97 0.98 rg 0 0 612 792 re f",
-    "1 1 1 rg 54 52 504 688 re f",
-    "0.86 0.89 0.93 RG 54 52 504 688 re S",
-    "0.02 0.09 0.15 rg 54 690 504 50 re f",
-    textAt(72, 710, 10, "SIGNATIS PROPERTY REPORT"),
-    textAt(72, 650, 24, report.title),
-    textAt(72, 624, 11, `${agent.fullName}${agent.agencyName ? ` | ${agent.agencyName}` : ""}`),
-    textAt(72, 606, 11, `${report.address} | ${report.propertyType}`),
-    textAt(72, 588, 11, `${labelValue(input.listingIntent)} | ${labelValue(input.tenure)} | ${formatRm(input.askingPriceRm)}`),
-    "0.98 0.83 0.35 rg 72 570 468 2 re f",
-  ];
+class PdfLayout {
+  private pages: PdfPage[] = [];
+  private cursorY = TOP_Y;
 
-  let y = 542;
-  const summary = [
-    `Market signal: ${report.marketSignal}`,
-    `Buyer sentiment: ${report.sentimentSummary}`,
-    `Pricing trend: ${report.analytics.pricingTrend}`,
-    `Confidence: ${Math.round(report.analytics.confidenceScore * 100)}%`,
-  ];
-
-  for (const item of summary) {
-    const wrapped = wrappedTextAt(72, y, 11, item, 82);
-    commands.push(...wrapped.commands);
-    y = wrapped.nextY - 4;
+  constructor(
+    private readonly report: PropertyReport,
+    private readonly agent: Agent,
+  ) {
+    this.addPage();
   }
 
-  y -= 8;
-  for (const section of report.contentSections) {
-    commands.push(textAt(72, y, 15, section.title));
-    y -= 20;
-    const wrapped = wrappedTextAt(72, y, 10, section.body, 88);
-    commands.push(...wrapped.commands);
-    y = wrapped.nextY - 12;
+  render(): PdfPage[] {
+    this.renderHero();
+    this.renderMetricGrid();
+    this.renderSections();
+    this.renderCitations();
+    this.renderFinalFooters();
+    return this.pages;
   }
 
-  if (report.citations.length > 0) {
-    commands.push(textAt(72, y, 15, "Citations"));
-    y -= 18;
-    for (const citation of report.citations.slice(0, 4)) {
-      const wrapped = wrappedTextAt(72, y, 9, `${citation.title}: ${citation.url}`, 96);
-      commands.push(...wrapped.commands);
-      y = wrapped.nextY - 4;
+  private current(): PdfPage {
+    return this.pages[this.pages.length - 1];
+  }
+
+  private add(command: string): void {
+    this.current().commands.push(command);
+  }
+
+  private addPage(): void {
+    const pageNumber = this.pages.length + 1;
+    const page: PdfPage = { commands: [], pageNumber };
+    this.pages.push(page);
+    this.cursorY = TOP_Y;
+
+    page.commands.push(
+      fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT, COLORS.background),
+      fillRect(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, COLORS.surface),
+      strokeRect(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, COLORS.line),
+      fillRect(PANEL_X, 710, PANEL_W, 40, COLORS.navy),
+      fillRect(66, 721, 18, 18, COLORS.gold),
+      textAt(92, 724, 10, "SIGNATIS PROPERTY REPORT", "F2", COLORS.surface),
+      textAt(410, 724, 9, `Page ${pageNumber}`, "F1", COLORS.surface),
+      fillRect(PANEL_X, 42, PANEL_W, 34, COLORS.navy),
+      textAt(66, 55, 8.5, `${this.agent.email}  |  ${this.agent.phone}`, "F1", COLORS.surface),
+    );
+
+    if (pageNumber > 1) {
+      page.commands.push(
+        textAt(CONTENT_X, 682, 13, this.report.title, "F2", COLORS.navy),
+        line(CONTENT_X, 668, CONTENT_X + CONTENT_W, 668, COLORS.line),
+      );
+      this.cursorY = 646;
     }
   }
 
-  commands.push(
-    "0.02 0.09 0.15 rg 54 52 504 34 re f",
-    textAt(72, 64, 9, `${agent.email}  |  ${agent.phone}`),
+  private renderFinalFooters(): void {
+    const total = this.pages.length;
+    for (const page of this.pages) {
+      page.commands.push(textAt(500, 55, 8.5, `${page.pageNumber}/${total}`, "F1", COLORS.surface));
+    }
+  }
+
+  private ensureSpace(height: number): void {
+    if (this.cursorY - height < BOTTOM_Y) {
+      this.addPage();
+    }
+  }
+
+  private writeWrapped(
+    text: string,
+    options: {
+      x?: number;
+      size?: number;
+      font?: "F1" | "F2" | "F3";
+      fill?: Color;
+      maxLength?: number;
+      lineGap?: number;
+      after?: number;
+    } = {},
+  ): void {
+    const x = options.x ?? CONTENT_X;
+    const size = options.size ?? 10;
+    const maxLength = options.maxLength ?? 92;
+    const lineGap = options.lineGap ?? 4;
+    const lines = wrapText(text, maxLength);
+    const lineHeight = size + lineGap;
+    this.ensureSpace(lines.length * lineHeight + (options.after ?? 0));
+
+    for (const wrappedLine of lines) {
+      this.add(textAt(x, this.cursorY, size, wrappedLine, options.font ?? "F1", options.fill ?? COLORS.navy));
+      this.cursorY -= lineHeight;
+    }
+    this.cursorY -= options.after ?? 0;
+  }
+
+  private renderHero(): void {
+    const input = this.report.inputSnapshot;
+    this.add(textAt(CONTENT_X, 674, 24, this.report.title, "F3", COLORS.navy));
+    this.add(textAt(CONTENT_X, 648, 10.5, `${this.agent.fullName}${this.agent.agencyName ? ` | ${this.agent.agencyName}` : ""}`, "F2", COLORS.navySoft));
+    this.add(textAt(CONTENT_X, 630, 10.5, `${this.report.address} | ${this.report.propertyType}`, "F1", COLORS.muted));
+    this.add(textAt(CONTENT_X, 612, 10.5, `${labelValue(input.listingIntent)} | ${labelValue(input.tenure)} | ${formatRm(input.askingPriceRm)}`, "F1", COLORS.muted));
+    this.add(line(CONTENT_X, 594, CONTENT_X + CONTENT_W, 594, COLORS.gold, 2));
+    this.cursorY = 568;
+  }
+
+  private renderMetricGrid(): void {
+    const metrics = [
+      ["Market signal", this.report.marketSignal],
+      ["Buyer sentiment", this.report.analytics.sentiment],
+      ["Confidence", `${Math.round(this.report.analytics.confidenceScore * 100)}%`],
+      ["Source coverage", `${this.report.citations.length} citations`],
+    ];
+    const cardW = 232;
+    const cardH = 58;
+    this.ensureSpace(136);
+
+    metrics.forEach(([label, value], index) => {
+      const x = CONTENT_X + (index % 2) * (cardW + 16);
+      const y = this.cursorY - Math.floor(index / 2) * (cardH + 12) - cardH;
+      this.add(fillRect(x, y, cardW, cardH, COLORS.surfaceSoft));
+      this.add(strokeRect(x, y, cardW, cardH, COLORS.line));
+      this.add(textAt(x + 12, y + 36, 8.5, label.toUpperCase(), "F2", COLORS.muted));
+      this.add(textAt(x + 12, y + 17, 11, value, "F2", COLORS.navy));
+    });
+
+    this.cursorY -= 142;
+  }
+
+  private renderSectionTitle(title: string): void {
+    this.ensureSpace(38);
+    this.add(textAt(CONTENT_X, this.cursorY, 15, title, "F2", COLORS.navy));
+    this.cursorY -= 10;
+    this.add(line(CONTENT_X, this.cursorY, CONTENT_X + CONTENT_W, this.cursorY, COLORS.line));
+    this.cursorY -= 18;
+  }
+
+  private renderSections(): void {
+    for (const section of this.report.contentSections) {
+      this.renderSectionTitle(section.title);
+      this.writeWrapped(section.body, {
+        size: 10,
+        fill: COLORS.navySoft,
+        maxLength: 94,
+        after: 14,
+      });
+    }
+  }
+
+  private renderCitations(): void {
+    if (this.report.citations.length === 0) return;
+
+    this.renderSectionTitle("Sources");
+    for (const citation of this.report.citations) {
+      const label = citationLabel(citation);
+      this.ensureSpace(56);
+      this.add(fillRect(CONTENT_X, this.cursorY - 34, CONTENT_W, 42, COLORS.surfaceSoft));
+      this.add(strokeRect(CONTENT_X, this.cursorY - 34, CONTENT_W, 42, COLORS.line));
+      this.add(textAt(CONTENT_X + 12, this.cursorY - 8, 8, label.toUpperCase(), "F2", label === "Community" ? COLORS.danger : COLORS.success));
+      this.writeWrapped(`${citation.title}: ${citation.url}`, {
+        x: CONTENT_X + 12,
+        size: 8.5,
+        fill: COLORS.navy,
+        maxLength: 96,
+        after: 8,
+      });
+    }
+  }
+}
+
+function buildObjects(pages: PdfPage[]): string[] {
+  const fontObjectCount = 3;
+  const firstPageObject = 3;
+  const firstFontObject = firstPageObject + pages.length * 2;
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${pages.map((_, index) => `${firstPageObject + index * 2} 0 R`).join(" ")}] /Count ${pages.length} >>`,
+  ];
+
+  pages.forEach((page, index) => {
+    const pageObject = firstPageObject + index * 2;
+    const contentObject = pageObject + 1;
+    const stream = page.commands.join("\n");
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${firstFontObject} 0 R /F2 ${firstFontObject + 1} 0 R /F3 ${firstFontObject + 2} 0 R >> >> /Contents ${contentObject} 0 R >>`,
+      `<< /Length ${Buffer.byteLength(stream, "utf8")} >>\nstream\n${stream}\nendstream`,
+    );
+  });
+
+  objects.push(
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold >>",
   );
-  return commands.join("\n");
+
+  if (objects.length !== 2 + pages.length * 2 + fontObjectCount) {
+    throw new Error("PDF object assembly failed.");
+  }
+
+  return objects;
 }
 
 export function generateReportPdf(report: PropertyReport, agent: Agent): Uint8Array {
-  const stream = buildTextCommands(report, agent);
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    `<< /Length ${Buffer.byteLength(stream, "utf8")} >>\nstream\n${stream}\nendstream`,
-  ];
+  const pages = new PdfLayout(report, agent).render();
+  const objects = buildObjects(pages);
 
   let pdf = "%PDF-1.4\n";
   const offsets: number[] = [0];

@@ -723,6 +723,11 @@ h3 {
   outline: none;
 }
 
+.input.pl-12,
+.textarea.pl-12 {
+  padding-left: 3rem !important;
+}
+
 .textarea {
   min-height: 8.5rem;
   resize: vertical;
@@ -1078,6 +1083,26 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+.shared-report-contact .whatsapp-btn {
+  background-color: #25d366;
+  color: white !important;
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  transition: background-color 140ms ease;
+}
+
+.shared-report-contact .whatsapp-btn:hover {
+  background-color: #128c7e;
+}
+
+.avatar img,
+img.avatar {
+  object-fit: cover;
+}
   font-weight: 750;
 }
 

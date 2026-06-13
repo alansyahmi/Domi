@@ -3,7 +3,7 @@ import { generateReportPdf } from "./report-pdf";
 import type { Agent, PropertyReport } from "../types";
 
 describe("report PDF generation", () => {
-  it("returns PDF bytes", () => {
+  function createReport(overrides: Partial<PropertyReport> = {}): { agent: Agent; report: PropertyReport } {
     const agent: Agent = {
       id: "agent_123",
       workosUserId: "user_123",
@@ -60,11 +60,98 @@ describe("report PDF generation", () => {
         freshnessDays: 0,
       },
       citations: [{ title: "Source", url: "https://example.com" }],
+      comparableListings: [],
       contentSections: [{ title: "Market read", body: "Premium demand is stable." }],
+      ...overrides,
     };
+
+    return { agent, report };
+  }
+
+  it("returns PDF bytes", () => {
+    const { agent, report } = createReport();
 
     const pdf = generateReportPdf(report, agent);
 
     expect(Buffer.from(pdf).subarray(0, 4).toString("utf8")).toBe("%PDF");
+  });
+
+  it("paginates long reports instead of clipping content", () => {
+    const longBody = Array.from({ length: 90 }, (_, index) =>
+      `Grounded source note ${index + 1}: buyer feedback, official listing facts, community complaints, and advisory caveats should remain readable in the final PDF.`,
+    ).join(" ");
+    const { agent, report } = createReport({
+      contentSections: [
+        { title: "Market read", body: longBody },
+        { title: "Community watchouts", body: longBody },
+        { title: "Pricing signal", body: longBody },
+      ],
+      citations: Array.from({ length: 6 }, (_, index) => ({
+        title: `Source ${index + 1}`,
+        url: `https://example.com/source-${index + 1}`,
+        snippet: "Balanced source coverage for official and community signals.",
+        sourceType: index < 3 ? "official" : "community",
+      })),
+    });
+
+    const pdfText = Buffer.from(generateReportPdf(report, agent)).toString("utf8");
+
+    expect((pdfText.match(/\/Type \/Page \/Parent/g) ?? []).length).toBeGreaterThan(1);
+    expect(pdfText).toContain("Community watchouts");
+    expect(pdfText).toContain("Page 2");
+  });
+
+  it("renders client-facing advisory sections without internal workflow wording", () => {
+    const { agent, report } = createReport({
+      contentSections: [
+        { title: "Executive Read", body: "Balanced market review for client-facing discussion." },
+        { title: "Best-Fit Buyer Profile", body: "Likely suitable for city convenience buyers." },
+        { title: "Watchouts and Buyer Questions", body: "Ask about noise, parking, and maintenance expectations." },
+        { title: "Recommended Listing Narrative", body: "Use a client-safe narrative around convenience and source-backed caveats." },
+      ],
+    });
+    const pdfText = Buffer.from(generateReportPdf(report, agent)).toString("utf8");
+
+    expect(pdfText).toContain("Best-Fit Buyer Profile");
+    expect(pdfText).toContain("Watchouts and Buyer Questions");
+    expect(pdfText).toContain("Recommended Listing Narrative");
+    expect(pdfText).not.toMatch(/cache|index|Tavily|live search/i);
+  });
+
+  it("renders directional current listing context", () => {
+    const { agent, report } = createReport({
+      comparableListings: [
+        {
+          title: "The Estate KL condo for sale",
+          url: "https://example.com/listing",
+          askingPriceRm: 1250000,
+          builtUpSqft: 850,
+          bedrooms: 2,
+          bathrooms: 2,
+          listingIntent: "sale",
+        },
+      ],
+      citations: [
+        {
+          title: "The Estate KL condo for sale",
+          url: "https://example.com/listing",
+          snippet: "Current asking price RM 1,250,000 for 850 sqft.",
+          sourceType: "comparable_listing",
+        },
+      ],
+      contentSections: [
+        {
+          title: "Current Listing Context",
+          body: "Current listing signals show RM 1,250,000 for 850 sqft. Treat this as directional asking context, not a valuation.",
+        },
+      ],
+    });
+    const pdfText = Buffer.from(generateReportPdf(report, agent)).toString("utf8");
+
+    expect(pdfText).toContain("Current Listing Context");
+    expect(pdfText).toContain("CURRENT LISTING");
+    expect(pdfText).toContain("directional asking");
+    expect(pdfText).toContain("context");
+    expect(pdfText).not.toMatch(/Tavily|live search|cache|index/i);
   });
 });

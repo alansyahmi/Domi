@@ -1,6 +1,14 @@
 import { ExternalLink } from "lucide-react";
 import type { ReportCitation } from "../../types";
 
+function sourceLabel(citation: ReportCitation): string | null {
+  if (citation.sourceType === "official") return "Official";
+  if (citation.sourceType === "community") return "Community";
+  if (citation.sourceType === "model") return "Model";
+  if (citation.sourceType === "other") return "Other";
+  return null;
+}
+
 export default function ReportCitationList({ citations }: { citations: ReportCitation[] }) {
   if (citations.length === 0) {
     return <p className="m-0 text-slate-600">No citations were attached to this report.</p>;
@@ -17,7 +25,10 @@ export default function ReportCitationList({ citations }: { citations: ReportCit
           target="_blank"
         >
           <span className="min-w-0">
-            <strong>{citation.title}</strong>
+            <span className="report-citation-title">
+              <strong>{citation.title}</strong>
+              {sourceLabel(citation) ? <span className="report-source-tag">{sourceLabel(citation)}</span> : null}
+            </span>
             {citation.snippet ? <span>{citation.snippet}</span> : null}
           </span>
           <ExternalLink size={16} aria-hidden="true" />

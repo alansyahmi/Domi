@@ -72,10 +72,10 @@ export default function LegalSupportPage({
           </div>
         </section>
 
-        <aside className="card bg-[#1a2b3c] p-8 text-white">
-          <div className="flex gap-5">
+        <aside className="card p-8 text-white flex flex-col justify-start" style={{ backgroundColor: "var(--navy-soft)", color: "white" }}>
+          <div className="flex gap-5 items-center">
             <Scale size={40} className="text-[#ffd45a]" aria-hidden="true" />
-            <h2 className="m-0 text-3xl font-extrabold">Amanah Principles</h2>
+            <h2 className="m-0 text-3xl font-extrabold text-white">Amanah Principles</h2>
           </div>
           <p className="mt-8 text-lg leading-8 text-slate-200">
             Signatis prioritizes transparent data collection, binary decision clarity, no dark patterns, and user autonomy.
@@ -83,7 +83,7 @@ export default function LegalSupportPage({
           <ul className="mt-8 grid gap-5 p-0 list-none font-bold">
             {["Transparent Data Collection", "Binary Decision Clarity", "No Dark Patterns", "User Autonomy First"].map(
               (item) => (
-                <li key={item} className="flex items-center gap-3">
+                <li key={item} className="flex items-center gap-3 text-white">
                   <ShieldCheck size={20} className="text-emerald-400" aria-hidden="true" />
                   {item}
                 </li>

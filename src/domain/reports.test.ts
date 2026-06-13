@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   buildReportDraft,
   buildReportPropertyKey,
+  calculateMarketPricingStats,
+  conflictsWithPropertyName,
+  hasTargetAskingPrice,
+  matchesPropertyName,
   normalizeReportInput,
   validateReportInput,
 } from "./reports";
@@ -132,5 +136,57 @@ describe("property reports", () => {
         askingPriceRm: 1250000,
       }),
     );
+  });
+
+  it("calculates market pricing stats correctly", () => {
+    const stats = calculateMarketPricingStats({
+      inputSnapshot: {
+        askingPriceRm: 1000000,
+        sqft: 1000,
+        listingIntent: "sale",
+      },
+      comparableListings: [
+        { askingPriceRm: 900000, builtUpSqft: 900, listingIntent: "sale" },
+        { askingPriceRm: 1100000, builtUpSqft: 1100, listingIntent: "sale" },
+        { askingPriceRm: 3000, builtUpSqft: 1000, listingIntent: "rent" },
+      ],
+    });
+
+    expect(stats.averagePrice).toBe(1000000); // (900k + 1.1M) / 2
+    expect(stats.averagePricePerSqft).toBe(1000); // 900000/900 = 1000, 1100000/1100 = 1000 -> average 1000
+    expect(stats.targetPricePerSqft).toBe(1000);
+    expect(stats.priceDifferencePct).toBe(0);
+    expect(stats.ppsDifferencePct).toBe(0);
+    expect(stats.validPriceCount).toBe(2);
+    expect(stats.validPpsCount).toBe(2);
+    expect(stats.mode).toBe("target_comparison");
+    expect(stats.averageRentalPrice).toBe(3000);
+    expect(stats.estimatedGrossYield).toBe(3.6); // (3000 * 12 / 1000000) * 100
+  });
+
+  it("uses comparable market mode when asking price is missing", () => {
+    const stats = calculateMarketPricingStats({
+      inputSnapshot: {
+        askingPriceRm: 0,
+        listingIntent: "sale",
+      },
+      comparableListings: [
+        { askingPriceRm: 450000, builtUpSqft: 900, listingIntent: "sale" },
+        { askingPriceRm: 603000, builtUpSqft: 973, listingIntent: "sale" },
+      ],
+    });
+
+    expect(stats.mode).toBe("comparable_market");
+    expect(stats.averagePrice).toBe(526500);
+    expect(stats.priceRangeMin).toBe(450000);
+    expect(stats.priceRangeMax).toBe(603000);
+    expect(stats.priceDifferencePct).toBe(0);
+    expect(hasTargetAskingPrice({ askingPriceRm: 0 })).toBe(false);
+  });
+
+  it("matches property names strictly enough to avoid sibling developments", () => {
+    expect(matchesPropertyName("Likas Vue", "LikasVue serviced residence for sale", true)).toBe(true);
+    expect(matchesPropertyName("Likas Vue", "FOR SALE Likas Square Apartment", true)).toBe(false);
+    expect(conflictsWithPropertyName("Likas Vue", "Likas Square apartment in Likas")).toBe(true);
   });
 });
