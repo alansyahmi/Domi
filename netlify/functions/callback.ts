@@ -42,7 +42,7 @@ export default async (req: Request) => {
   const code = url.searchParams.get("code");
 
   if (!code) {
-    return Response.redirect("/login", 302);
+    return Response.redirect(new URL("/login", req.url).toString(), 302);
   }
 
   if (!env.WORKOS_API_KEY || !env.WORKOS_CLIENT_ID || !env.WORKOS_COOKIE_PASSWORD) {
@@ -70,7 +70,7 @@ export default async (req: Request) => {
     });
 
     if (!auth.sealedSession) {
-      return Response.redirect("/login", 302);
+      return Response.redirect(new URL("/login", req.url).toString(), 302);
     }
 
     const db = createSignatisDb(env);
@@ -90,7 +90,7 @@ export default async (req: Request) => {
       headers,
     });
   } catch {
-    return Response.redirect("/login", 302);
+    return Response.redirect(new URL("/login", req.url).toString(), 302);
   }
 };
 
