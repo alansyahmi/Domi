@@ -1,38 +1,25 @@
-import { describe, expect, it, vi } from "vitest";
-import { buildCookie, requireBearerSession, requireSession, verifyWorkosToken } from "./auth";
-
-vi.mock("jose", () => {
-  return {
-    createRemoteJWKSet: () => () => {},
-    jwtVerify: async (token: string) => {
-      if (token === "valid_token") {
-        return {
-          payload: {
-            sub: "user_123",
-            email: "agent@example.com",
-            firstName: "Ada",
-            lastName: "Agent",
-          },
-        };
-      }
-      if (token === "missing_sub_token") {
-        return {
-          payload: {
-            email: "agent@example.com",
-          },
-        };
-      }
-      throw new Error("Invalid token");
-    },
-  };
-});
+import { describe, expect, it } from "vitest";
+import {
+  buildCookie,
+  parseCookies,
+  requireSession,
+  sealSession,
+  unsealSession,
+} from "./auth";
 
 describe("auth helpers", () => {
-  it("requires a WorkOS sealed session cookie", async () => {
+  const secret = "a-very-secure-secret-key-that-is-at-least-32-characters";
+  const mockUser = {
+    id: "user_123",
+    email: "agent@example.com",
+    firstName: "Ada",
+    lastName: "Agent",
+  };
+
+  it("requires a sealed session cookie", async () => {
     const result = await requireSession({
       cookieHeader: "",
-      workos: null,
-      env: { WORKOS_COOKIE_PASSWORD: "x".repeat(32) },
+      env: { SESSION_SECRET: secret },
     });
 
     expect(result.authenticated).toBe(false);
@@ -47,75 +34,45 @@ describe("auth helpers", () => {
     );
   });
 
-  it("accepts a verified bearer token as a session", async () => {
-    const result = await requireBearerSession({
-      authorizationHeader: "Bearer access_token",
-      verifyAccessToken: async () => ({
-        id: "user_123",
-        email: "agent@example.com",
-        firstName: "Ada",
-        lastName: "Agent",
-      }),
-    });
-
-    expect(result).toEqual({
-      authenticated: true,
-      user: {
-        id: "user_123",
-        email: "agent@example.com",
-        firstName: "Ada",
-        lastName: "Agent",
-      },
+  it("parses cookies from header", () => {
+    const cookies = parseCookies("foo=bar; wos-session=abc123");
+    expect(cookies).toEqual({
+      foo: "bar",
+      "wos-session": "abc123",
     });
   });
 
-  it("rejects requests without a bearer token", async () => {
-    const result = await requireBearerSession({
-      authorizationHeader: null,
-      verifyAccessToken: async () => {
-        throw new Error("should not verify");
-      },
+  it("seals and unseals sessions correctly", async () => {
+    const sealed = await sealSession(mockUser, secret);
+    expect(typeof sealed).toBe("string");
+
+    const unsealed = await unsealSession(sealed, secret);
+    expect(unsealed).toEqual(mockUser);
+  });
+
+  it("fails to unseal with incorrect secret", async () => {
+    const sealed = await sealSession(mockUser, secret);
+    const unsealed = await unsealSession(sealed, "wrong-secret-key-incorrect-length-etc");
+    expect(unsealed).toBeNull();
+  });
+
+  it("fails to unseal with invalid token", async () => {
+    const unsealed = await unsealSession("invalid-token-string", secret);
+    expect(unsealed).toBeNull();
+  });
+
+  it("validates session successfully via requireSession", async () => {
+    const sealed = await sealSession(mockUser, secret);
+    const cookieHeader = `wos-session=${sealed}`;
+    
+    const result = await requireSession({
+      cookieHeader,
+      env: { SESSION_SECRET: secret },
     });
 
-    expect(result.authenticated).toBe(false);
-    if (!result.authenticated) {
-      expect(result.reason).toBe("No bearer token.");
+    expect(result.authenticated).toBe(true);
+    if (result.authenticated) {
+      expect(result.user).toEqual(mockUser);
     }
-  });
-
-  describe("verifyWorkosToken", () => {
-    const mockWorkos = {
-      userManagement: {
-        getJwksUrl: () => "https://example.com/jwks",
-      },
-    };
-
-    it("verifies a valid token successfully", async () => {
-      const user = await verifyWorkosToken("valid_token", mockWorkos, "client_123");
-      expect(user).toEqual({
-        id: "user_123",
-        email: "agent@example.com",
-        firstName: "Ada",
-        lastName: "Agent",
-      });
-    });
-
-    it("fails on an invalid token", async () => {
-      await expect(
-        verifyWorkosToken("invalid_token", mockWorkos, "client_123")
-      ).rejects.toThrow("Invalid token");
-    });
-
-    it("fails if client ID is missing", async () => {
-      await expect(
-        verifyWorkosToken("valid_token", mockWorkos, "")
-      ).rejects.toThrow("WorkOS client ID is not configured.");
-    });
-
-    it("fails if sub claim is missing in token payload", async () => {
-      await expect(
-        verifyWorkosToken("missing_sub_token", mockWorkos, "client_123")
-      ).rejects.toThrow("Invalid token: sub claim is missing.");
-    });
   });
 });

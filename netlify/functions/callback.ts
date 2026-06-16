@@ -1,13 +1,16 @@
 import type { Config } from "@netlify/functions";
-import { WorkOS } from "@workos-inc/node";
-import { buildCookie, SESSION_COOKIE } from "../../src/server/auth";
+import { ScalekitClient } from "@scalekit-sdk/node";
+import { buildCookie, sealSession, SESSION_COOKIE } from "../../src/server/auth";
 import { createSignatisDb, ensureAgentWorkspace } from "../../src/server/db";
 import { getRuntimeEnv } from "../../src/server/runtime-env";
 
 interface CallbackEnv {
-  WORKOS_API_KEY?: string;
-  WORKOS_CLIENT_ID?: string;
-  WORKOS_COOKIE_PASSWORD?: string;
+  SCALEKIT_CLIENT_ID?: string;
+  SCALEKIT_CLIENT_SECRET?: string;
+  SCALEKIT_ENV_URL?: string;
+  SCALEKIT_REDIRECT_URI?: string;
+  SESSION_SECRET?: string;
+  WORKOS_COOKIE_PASSWORD?: string; // fallback
   TURSO_DATABASE_URL?: string;
   TURSO_AUTH_TOKEN?: string;
 }
@@ -15,82 +18,148 @@ interface CallbackEnv {
 function getEnv(): CallbackEnv {
   const runtimeEnv = getRuntimeEnv();
   return {
-    WORKOS_API_KEY: runtimeEnv.WORKOS_API_KEY,
-    WORKOS_CLIENT_ID: runtimeEnv.WORKOS_CLIENT_ID,
+    SCALEKIT_CLIENT_ID: runtimeEnv.SCALEKIT_CLIENT_ID,
+    SCALEKIT_CLIENT_SECRET: runtimeEnv.SCALEKIT_CLIENT_SECRET,
+    SCALEKIT_ENV_URL: runtimeEnv.SCALEKIT_ENV_URL,
+    SCALEKIT_REDIRECT_URI: runtimeEnv.SCALEKIT_REDIRECT_URI,
+    SESSION_SECRET: runtimeEnv.SESSION_SECRET,
     WORKOS_COOKIE_PASSWORD: runtimeEnv.WORKOS_COOKIE_PASSWORD,
     TURSO_DATABASE_URL: runtimeEnv.TURSO_DATABASE_URL,
     TURSO_AUTH_TOKEN: runtimeEnv.TURSO_AUTH_TOKEN,
   };
 }
 
-function decodeReturnTo(state: string | null): string {
-  if (!state) return "/dashboard";
+interface StatePayload {
+  returnTo?: string;
+  codeVerifier?: string;
+}
+
+function decodeState(state: string | null): StatePayload {
+  if (!state) return {};
 
   try {
-    const parsed = JSON.parse(Buffer.from(state, "base64url").toString("utf8")) as {
-      returnTo?: string;
+    const parsed = JSON.parse(Buffer.from(state, "base64url").toString("utf8")) as StatePayload;
+    return {
+      returnTo: parsed.returnTo?.startsWith("/") ? parsed.returnTo : undefined,
+      codeVerifier: parsed.codeVerifier,
     };
-    return parsed.returnTo?.startsWith("/") ? parsed.returnTo : "/dashboard";
   } catch {
-    return "/dashboard";
+    return {};
   }
+}
+
+function errorPage(message: string, detail?: string): Response {
+  const body = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In Failed — Signatis</title>
+  <style>
+    body { font-family: system-ui, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #f7f9fb; color: #1e293b; }
+    .card { background: white; border-radius: 12px; padding: 2.5rem; max-width: 480px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    h1 { font-size: 1.25rem; margin: 0 0 0.75rem; }
+    p { color: #64748b; margin: 0 0 1.5rem; font-size: 0.9375rem; }
+    .detail { font-size: 0.8125rem; color: #94a3b8; word-break: break-all; margin-bottom: 1.5rem; }
+    a { display: inline-block; background: #0f172a; color: white; text-decoration: none; padding: 0.625rem 1.5rem; border-radius: 8px; font-weight: 500; font-size: 0.875rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Sign In Failed</h1>
+    <p>${message}</p>
+    ${detail ? `<div class="detail">${detail}</div>` : ""}
+    <a href="/login">Try Again</a>
+  </div>
+</body>
+</html>`;
+  return new Response(body, {
+    status: 400,
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
 }
 
 export default async (req: Request) => {
   const env = getEnv();
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
+  const error = url.searchParams.get("error");
 
-  if (!code) {
-    return Response.redirect(new URL("/login", req.url).toString(), 302);
+  // If Scalekit itself returned an error (e.g. access_denied), show it — don't loop.
+  if (error) {
+    const desc = url.searchParams.get("error_description") ?? "";
+    console.error("Scalekit returned error:", error, desc);
+    return errorPage(
+      `Authentication was not completed.`,
+      desc || `Error code: ${error}`,
+    );
   }
 
-  if (!env.WORKOS_API_KEY || !env.WORKOS_CLIENT_ID || !env.WORKOS_COOKIE_PASSWORD) {
+  if (!code) {
+    console.error("Callback missing authorization code — redirecting to login with error.");
+    return Response.redirect(new URL("/login?error=missing_code", req.url).toString(), 302);
+  }
+
+  if (!env.SCALEKIT_CLIENT_ID || !env.SCALEKIT_CLIENT_SECRET || !env.SCALEKIT_ENV_URL || !env.SCALEKIT_REDIRECT_URI) {
     return Response.json(
       {
-        error: "WorkOS callback is not configured.",
-        required: ["WORKOS_API_KEY", "WORKOS_CLIENT_ID", "WORKOS_COOKIE_PASSWORD"],
+        error: "Scalekit callback is not configured.",
+        required: ["SCALEKIT_CLIENT_ID", "SCALEKIT_CLIENT_SECRET", "SCALEKIT_ENV_URL", "SCALEKIT_REDIRECT_URI"],
       },
       { status: 500 },
     );
   }
 
-  const workos = new WorkOS(env.WORKOS_API_KEY, {
-    clientId: env.WORKOS_CLIENT_ID,
-  });
+  const scalekit = new ScalekitClient(
+    env.SCALEKIT_ENV_URL,
+    env.SCALEKIT_CLIENT_ID,
+    env.SCALEKIT_CLIENT_SECRET
+  );
+
+  const statePayload = decodeState(url.searchParams.get("state"));
 
   try {
-    const auth = await workos.userManagement.authenticateWithCode({
-      clientId: env.WORKOS_CLIENT_ID,
+    const authResp = await scalekit.authenticateWithCode(
       code,
-      session: {
-        sealSession: true,
-        cookiePassword: env.WORKOS_COOKIE_PASSWORD,
-      },
-    });
+      env.SCALEKIT_REDIRECT_URI,
+      // PKCE: pass the code verifier stored in state during the authorization request.
+      statePayload.codeVerifier ? { codeVerifier: statePayload.codeVerifier } : undefined,
+    );
 
-    if (!auth.sealedSession) {
-      return Response.redirect(new URL("/login", req.url).toString(), 302);
+    // Use the already-parsed user object from the SDK — no need for a separate validateToken round-trip.
+    const user = authResp.user;
+    if (!user?.id || !user?.email) {
+      console.error("Authentication response missing user id or email");
+      return Response.redirect(new URL("/login?error=incomplete_user", req.url).toString(), 302);
     }
 
+    const sessionUser = {
+      id: user.id,
+      email: user.email,
+      firstName: user.givenName || user.name?.split(" ")[0] || "Signatis",
+      lastName: user.familyName || user.name?.split(" ").slice(1).join(" ") || "Agent",
+    };
+
     const db = createSignatisDb(env);
-    await ensureAgentWorkspace(db, {
-      id: auth.user.id,
-      email: auth.user.email,
-      firstName: auth.user.firstName,
-      lastName: auth.user.lastName,
-    });
+    await ensureAgentWorkspace(db, sessionUser);
+
+    const secret = env.SESSION_SECRET || env.WORKOS_COOKIE_PASSWORD || "fallback-secret-for-signing-session-tokens-at-least-32-chars";
+    const sealedSession = await sealSession(sessionUser, secret);
 
     const headers = new Headers();
-    headers.append("Set-Cookie", buildCookie(SESSION_COOKIE, auth.sealedSession));
-    headers.append("Location", decodeReturnTo(url.searchParams.get("state")));
+    const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    headers.append("Set-Cookie", buildCookie(SESSION_COOKIE, sealedSession, { secure: !isLocal }));
+    headers.append("Location", statePayload.returnTo || "/dashboard");
 
     return new Response(null, {
       status: 302,
       headers,
     });
-  } catch {
-    return Response.redirect(new URL("/login", req.url).toString(), 302);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Scalekit authentication error:", message);
+    // Redirect with error param — login.ts will detect this and show an error page instead of looping.
+    return Response.redirect(new URL(`/login?error=auth_failed&detail=${encodeURIComponent(message)}`, req.url).toString(), 302);
   }
 };
 

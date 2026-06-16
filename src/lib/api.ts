@@ -22,29 +22,20 @@ export interface BootstrapData {
   demoMode: boolean;
 }
 
-export type AccessTokenProvider = () => Promise<string>;
-
-export async function buildApiHeaders(getAccessToken?: AccessTokenProvider): Promise<Record<string, string>> {
-  const headers: Record<string, string> = {
+export async function buildApiHeaders(): Promise<Record<string, string>> {
+  return {
     "Content-Type": "application/json",
   };
-
-  if (getAccessToken) {
-    headers.Authorization = `Bearer ${await getAccessToken()}`;
-  }
-
-  return headers;
 }
 
 async function apiJson<T>(
   path: string,
   init: RequestInit = {},
-  getAccessToken?: AccessTokenProvider,
 ): Promise<T> {
   const response = await fetch(path, {
     credentials: "same-origin",
     headers: {
-      ...(await buildApiHeaders(getAccessToken)),
+      ...(await buildApiHeaders()),
       ...(init.headers ?? {}),
     },
     ...init,
@@ -59,10 +50,8 @@ async function apiJson<T>(
 
 export async function loadBootstrapData({
   authMode = "demo",
-  getAccessToken,
 }: {
   authMode?: "demo" | "workos";
-  getAccessToken?: AccessTokenProvider;
 } = {}): Promise<BootstrapData> {
   if (authMode === "demo") {
     return {
@@ -80,11 +69,11 @@ export async function loadBootstrapData({
 
   try {
     const [dashboard, leads, reports, settings, csrf] = await Promise.all([
-      apiJson<DashboardData>("/api/dashboard", {}, getAccessToken),
-      apiJson<{ leads: Lead[] }>("/api/leads", {}, getAccessToken),
-      apiJson<{ reports: PropertyReport[] }>("/api/reports", {}, getAccessToken),
-      apiJson<{ agent: Agent; integrations: Integration[] }>("/api/settings", {}, getAccessToken),
-      apiJson<{ csrfToken: string }>("/api/csrf-token", {}, getAccessToken),
+      apiJson<DashboardData>("/api/dashboard"),
+      apiJson<{ leads: Lead[] }>("/api/leads"),
+      apiJson<{ reports: PropertyReport[] }>("/api/reports"),
+      apiJson<{ agent: Agent; integrations: Integration[] }>("/api/settings"),
+      apiJson<{ csrfToken: string }>("/api/csrf-token"),
     ]);
 
     return {
@@ -100,19 +89,17 @@ export async function loadBootstrapData({
   }
 }
 
-export async function createReportApi(input: PropertyReportInput, getAccessToken?: AccessTokenProvider): Promise<PropertyReport> {
+export async function createReportApi(input: PropertyReportInput): Promise<PropertyReport> {
   const response = await apiJson<{ report: PropertyReport }>("/api/reports/create", {
     method: "POST",
     body: JSON.stringify(input),
-  }, getAccessToken);
+  });
   return response.report;
 }
 
-export async function getReportApi(reportId: string, getAccessToken?: AccessTokenProvider): Promise<PropertyReport> {
+export async function getReportApi(reportId: string): Promise<PropertyReport> {
   const response = await apiJson<{ report: PropertyReport }>(
     buildReportDetailUrl(reportId),
-    {},
-    getAccessToken,
   );
   return response.report;
 }
@@ -139,46 +126,41 @@ export function buildSharedReportPdfUrl(token: string): string {
 
 export async function saveSettingsApi(
   input: Omit<Agent, "id" | "workosUserId" | "plan" | "avatarInitials" | "ingestionAddress">,
-  getAccessToken?: AccessTokenProvider,
 ) {
   return apiJson<{ agent: Agent; integrations: Integration[] }>("/api/settings", {
     method: "POST",
     body: JSON.stringify(input),
-  }, getAccessToken);
+  });
 }
 
 export async function submitSupportRequestApi(
   input: Pick<SupportRequest, "name" | "category" | "subject" | "message">,
-  getAccessToken?: AccessTokenProvider,
 ) {
   return apiJson<{ request: SupportRequest }>("/api/support-requests", {
     method: "POST",
     body: JSON.stringify(input),
-  }, getAccessToken);
+  });
 }
 
 export async function connectIntegrationApi(
   id: string,
   name: string,
   description: string,
-  getAccessToken?: AccessTokenProvider,
 ): Promise<{ integrations: Integration[] }> {
   return apiJson<{ integrations: Integration[] }>("/api/integrations/connect", {
     method: "POST",
     body: JSON.stringify({ id, name, description }),
-  }, getAccessToken);
+  });
 }
 
 export async function disconnectIntegrationApi(
   id: string,
-  getAccessToken?: AccessTokenProvider,
 ): Promise<{ integrations: Integration[] }> {
   return apiJson<{ integrations: Integration[] }>("/api/integrations/disconnect", {
     method: "POST",
     body: JSON.stringify({ id }),
-  }, getAccessToken);
+  });
 }
-
 
 export async function logoutApi(csrfToken: string): Promise<void> {
   const response = await fetch("/logout", {
@@ -217,27 +199,23 @@ export async function createLeadApi(
     budget: string;
     message?: string;
   },
-  getAccessToken?: AccessTokenProvider,
 ): Promise<{ success: boolean; lead: Lead }> {
   return apiJson<{ success: boolean; lead: Lead }>("/api/leads/create", {
     method: "POST",
     body: JSON.stringify(input),
-  }, getAccessToken);
+  });
 }
 
 export async function deleteLeadApi(
   leadId: string,
-  getAccessToken?: AccessTokenProvider,
 ): Promise<{ success: boolean }> {
   return apiJson<{ success: boolean }>(`/api/leads/${encodeURIComponent(leadId)}`, {
     method: "DELETE",
-  }, getAccessToken);
+  });
 }
 
 export async function getLeadEventsApi(
   leadId: string,
-  getAccessToken?: AccessTokenProvider,
 ): Promise<{ events: LeadEvent[] }> {
-  return apiJson<{ events: LeadEvent[] }>(`/api/leads/${encodeURIComponent(leadId)}/events`, {}, getAccessToken);
+  return apiJson<{ events: LeadEvent[] }>(`/api/leads/${encodeURIComponent(leadId)}/events`);
 }
-

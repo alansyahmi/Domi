@@ -13,10 +13,9 @@
   "dependencies": {
     "@netlify/functions": "^4.2.6",
     "@netlify/vite-plugin": "^2.0.3",
+    "@scalekit-sdk/node": "^2.6.3",
     "@tailwindcss/vite": "^4.1.18",
     "@tursodatabase/serverless": "^1.0.11",
-    "@workos-inc/authkit-react": "^0.16.1",
-    "@workos-inc/node": "^7.75.0",
     "jose": "^5.6.3",
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",

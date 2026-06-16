@@ -1,6 +1,5 @@
 import type { Config } from "@netlify/functions";
-import { WorkOS } from "@workos-inc/node";
-import { createCsrfToken, requireSession, verifyWorkosToken, type SessionResult } from "../../src/server/auth";
+import { createCsrfToken, requireSession, type SessionResult } from "../../src/server/auth";
 import {
   createSignatisDb,
   createSupportRequest,
@@ -50,17 +49,6 @@ function pdf(data: Uint8Array, filename: string): Response {
   });
 }
 
-function getWorkos() {
-  const runtimeEnv = getRuntimeEnv();
-  if (!runtimeEnv.WORKOS_API_KEY || !runtimeEnv.WORKOS_CLIENT_ID) {
-    return null;
-  }
-
-  return new WorkOS(runtimeEnv.WORKOS_API_KEY, {
-    clientId: runtimeEnv.WORKOS_CLIENT_ID,
-  });
-}
-
 async function readJson<T>(req: Request): Promise<T> {
   if (!req.body) return {} as T;
   return (await req.json()) as T;
@@ -77,31 +65,11 @@ async function authenticatedContext(req: Request): Promise<
 > {
   const runtimeEnv = getRuntimeEnv();
   const responseHeaders = new Headers();
-  const authHeader = req.headers.get("Authorization");
-  const workos = getWorkos();
 
-  let session: SessionResult | null = null;
-
-  if (authHeader && authHeader.startsWith("Bearer ") && workos) {
-    const token = authHeader.substring(7);
-    try {
-      const verifiedUser = await verifyWorkosToken(token, workos, runtimeEnv.WORKOS_CLIENT_ID ?? "");
-      session = {
-        authenticated: true,
-        user: verifiedUser,
-      };
-    } catch (error) {
-      console.error("Bearer token verification failed:", error);
-    }
-  }
-
-  if (!session || !session.authenticated) {
-    session = await requireSession({
-      cookieHeader: req.headers.get("cookie"),
-      workos,
-      env: runtimeEnv,
-    });
-  }
+  const session = await requireSession({
+    cookieHeader: req.headers.get("cookie"),
+    env: runtimeEnv,
+  });
 
   if (!session.authenticated) {
     return {
@@ -115,8 +83,8 @@ async function authenticatedContext(req: Request): Promise<
   }
 
   const db = createSignatisDb(runtimeEnv);
-
   let sessionUser = session.user;
+
   if (!sessionUser.email) {
     try {
       const existing = await db.execute<Record<string, unknown>>({
@@ -132,17 +100,9 @@ async function authenticatedContext(req: Request): Promise<
           firstName: fullName.split(" ")[0],
           lastName: fullName.split(" ").slice(1).join(" ") || null,
         };
-      } else if (workos) {
-        const workosUser = await workos.userManagement.getUser(sessionUser.id);
-        sessionUser = {
-          id: workosUser.id,
-          email: workosUser.email,
-          firstName: workosUser.firstName,
-          lastName: workosUser.lastName,
-        };
       }
-    } catch (dbOrWorkosError) {
-      console.error("Error retrieving user details:", dbOrWorkosError);
+    } catch (dbError) {
+      console.error("Error retrieving user details:", dbError);
       sessionUser = {
         id: sessionUser.id,
         email: "agent@signatis.app",

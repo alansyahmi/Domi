@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { SignJWT, jwtVerify } from "jose";
 
 export const SESSION_COOKIE = "wos-session";
 export const CSRF_COOKIE = "signatis-csrf";
@@ -26,34 +26,11 @@ export interface UnauthenticatedSession {
 
 export type SessionResult = AuthenticatedSession | UnauthenticatedSession;
 
-interface WorkosSessionLike {
-  authenticate(): Promise<{
-    authenticated: boolean;
-    reason?: string;
-    user?: SessionUser;
-  }>;
-  refresh?(): Promise<{
-    authenticated: boolean;
-    sealedSession?: string;
-    user?: SessionUser;
-  }>;
-}
-
-export interface WorkosLike {
-  userManagement: {
-    loadSealedSession(options: {
-      sessionData: string;
-      cookiePassword: string;
-    }): WorkosSessionLike;
-  };
-}
-
 export interface AuthEnv {
-  WORKOS_COOKIE_PASSWORD?: string;
+  SESSION_SECRET?: string;
+  WORKOS_COOKIE_PASSWORD?: string; // fallback
   CSRF_SECRET?: string;
 }
-
-export type VerifyAccessToken = (token: string) => Promise<SessionUser>;
 
 export function parseCookies(cookieHeader = ""): Record<string, string> {
   return cookieHeader
@@ -92,27 +69,47 @@ export function clearCookie(name: string): string {
   return `${name}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
 }
 
+export async function sealSession(user: SessionUser, secret: string): Promise<string> {
+  const secretKey = new TextEncoder().encode(secret);
+  return await new SignJWT({
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("14d")
+    .sign(secretKey);
+}
+
+export async function unsealSession(token: string, secret: string): Promise<SessionUser | null> {
+  try {
+    const secretKey = new TextEncoder().encode(secret);
+    const { payload } = await jwtVerify(token, secretKey);
+    return {
+      id: String(payload.id),
+      email: String(payload.email),
+      firstName: payload.firstName ? String(payload.firstName) : null,
+      lastName: payload.lastName ? String(payload.lastName) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function requireSession({
   cookieHeader,
-  workos,
   env,
 }: {
   cookieHeader: string | null | undefined;
-  workos: WorkosLike | null;
+  workos?: any; // kept for signature compatibility
   env: AuthEnv;
 }): Promise<SessionResult> {
-  const cookiePassword = env.WORKOS_COOKIE_PASSWORD;
+  const secret = env.SESSION_SECRET || env.WORKOS_COOKIE_PASSWORD || "fallback-secret-for-signing-session-tokens-at-least-32-chars";
   const sessionData = parseCookies(cookieHeader ?? "")[SESSION_COOKIE];
 
-  if (!cookiePassword || cookiePassword.length < 32) {
-    return {
-      authenticated: false,
-      status: 401,
-      reason: "WorkOS cookie password is not configured.",
-    };
-  }
-
-  if (!sessionData || !workos) {
+  if (!sessionData) {
     return {
       authenticated: false,
       status: 401,
@@ -120,75 +117,19 @@ export async function requireSession({
     };
   }
 
-  try {
-    const session = workos.userManagement.loadSealedSession({
-      sessionData,
-      cookiePassword,
-    });
-    const authResult = await session.authenticate();
-
-    if (authResult.authenticated && authResult.user) {
-      return {
-        authenticated: true,
-        user: authResult.user,
-      };
-    }
-
-    if (session.refresh) {
-      const refreshResult = await session.refresh();
-      if (refreshResult.authenticated && refreshResult.user && refreshResult.sealedSession) {
-        return {
-          authenticated: true,
-          user: refreshResult.user,
-          sealedSession: refreshResult.sealedSession,
-          setCookie: buildCookie(SESSION_COOKIE, refreshResult.sealedSession),
-        };
-      }
-    }
-
-    return {
-      authenticated: false,
-      status: 401,
-      reason: authResult.reason ?? "Session is not authenticated.",
-    };
-  } catch {
-    return {
-      authenticated: false,
-      status: 401,
-      reason: "Session could not be verified.",
-    };
-  }
-}
-
-export async function requireBearerSession({
-  authorizationHeader,
-  verifyAccessToken,
-}: {
-  authorizationHeader: string | null | undefined;
-  verifyAccessToken: VerifyAccessToken;
-}): Promise<SessionResult> {
-  const [scheme, token] = authorizationHeader?.split(/\s+/, 2) ?? [];
-
-  if (scheme !== "Bearer" || !token) {
-    return {
-      authenticated: false,
-      status: 401,
-      reason: "No bearer token.",
-    };
-  }
-
-  try {
+  const user = await unsealSession(sessionData, secret);
+  if (user) {
     return {
       authenticated: true,
-      user: await verifyAccessToken(token),
-    };
-  } catch {
-    return {
-      authenticated: false,
-      status: 401,
-      reason: "Bearer token could not be verified.",
+      user,
     };
   }
+
+  return {
+    authenticated: false,
+    status: 401,
+    reason: "Session is not authenticated or expired.",
+  };
 }
 
 export function createCsrfToken(secret: string): string {
@@ -207,33 +148,4 @@ export function verifyCsrfToken(token: string | null | undefined, secret: string
   const right = Buffer.from(expected);
 
   return left.length === right.length && timingSafeEqual(left, right);
-}
-
-let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
-
-export async function verifyWorkosToken(
-  token: string,
-  workos: { userManagement: { getJwksUrl(clientId: string): string } },
-  clientId: string,
-): Promise<SessionUser> {
-  if (!clientId) {
-    throw new Error("WorkOS client ID is not configured.");
-  }
-  if (!jwks) {
-    const jwksUrl = workos.userManagement.getJwksUrl(clientId);
-    jwks = createRemoteJWKSet(new URL(jwksUrl));
-  }
-
-  const { payload } = await jwtVerify(token, jwks);
-  const userId = payload.sub;
-  if (!userId) {
-    throw new Error("Invalid token: sub claim is missing.");
-  }
-
-  return {
-    id: userId,
-    email: (payload.email as string) || "",
-    firstName: (payload.firstName as string) || null,
-    lastName: (payload.lastName as string) || null,
-  };
 }

@@ -1,4 +1,3 @@
-import { useAuth } from "@workos-inc/authkit-react";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { buildReportDraft, buildReportPropertyKey, normalizeReportInput } from "./domain/reports";
@@ -107,8 +106,7 @@ function buildLocalReport(input: PropertyReportInput, agentId: string): Property
 }
 
 function WorkosApp() {
-  const auth = useAuth();
-  return <SignatisWorkspace auth={auth} authMode="workos" />;
+  return <SignatisWorkspace authMode="workos" />;
 }
 
 export default function App({ authMode }: { authMode: SignatisAuthMode }) {
@@ -127,10 +125,8 @@ export default function App({ authMode }: { authMode: SignatisAuthMode }) {
 
 function SignatisWorkspace({
   authMode,
-  auth,
 }: {
   authMode: SignatisAuthMode;
-  auth?: ReturnType<typeof useAuth>;
 }) {
   const location = useLocation();
   const [data, setData] = useState<AppData | null>(null);
@@ -139,22 +135,15 @@ function SignatisWorkspace({
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    if (authMode === "workos" && auth?.isLoading) return;
-    if (authMode === "workos" && !auth?.user) {
-      setData(null);
-      return;
-    }
-
     setError(null);
     void loadBootstrapData({
       authMode,
-      getAccessToken: authMode === "workos" ? auth?.getAccessToken : undefined,
     })
       .then(setData)
       .catch((loadError: unknown) => {
         setError(loadError instanceof Error ? loadError.message : "Unable to load Signatis.");
       });
-  }, [authMode, auth?.isLoading, auth?.user, auth?.getAccessToken, retryCount]);
+  }, [authMode, retryCount]);
 
   const dashboard = useMemo(() => {
     if (!data) return null;
@@ -175,7 +164,7 @@ function SignatisWorkspace({
     if (!data) throw new Error("Signatis is still loading.");
     const report = data.demoMode
       ? buildLocalReport(input, data.settings.agent.id)
-      : await createReportApi(input, auth?.getAccessToken);
+      : await createReportApi(input);
     setData({
       ...data,
       reports: [report, ...data.reports],
@@ -195,7 +184,7 @@ function SignatisWorkspace({
           agent: { ...data.settings.agent, ...input },
           integrations: data.settings.integrations,
         }
-      : await saveSettingsApi(input, auth?.getAccessToken);
+      : await saveSettingsApi(input);
 
     setData({
       ...data,
@@ -217,7 +206,7 @@ function SignatisWorkspace({
             { id, agentId: data.settings.agent.id, name, description, status: "connected" as const }
           ]
         }
-      : await connectIntegrationApi(id, name, description, auth?.getAccessToken);
+      : await connectIntegrationApi(id, name, description);
 
     setData({
       ...data,
@@ -236,7 +225,7 @@ function SignatisWorkspace({
       ? {
           integrations: data.settings.integrations.filter((item) => item.id !== id)
         }
-      : await disconnectIntegrationApi(id, auth?.getAccessToken);
+      : await disconnectIntegrationApi(id);
 
     setData({
       ...data,
@@ -250,11 +239,10 @@ function SignatisWorkspace({
     }
   }
 
-
   async function submitSupport(input: Pick<SupportRequest, "name" | "category" | "subject" | "message">): Promise<void> {
     if (!data) return;
     if (!data.demoMode) {
-      await submitSupportRequestApi(input, auth?.getAccessToken);
+      await submitSupportRequestApi(input);
     }
     setNotice("Support request submitted.");
   }
@@ -311,7 +299,7 @@ function SignatisWorkspace({
         createdAt: new Date().toISOString(),
       };
     } else {
-      const res = await createLeadApi(input, auth?.getAccessToken);
+      const res = await createLeadApi(input);
       lead = res.lead;
     }
 
@@ -329,7 +317,7 @@ function SignatisWorkspace({
     if (!lead) return;
 
     if (!data.demoMode) {
-      await deleteLeadApi(leadId, auth?.getAccessToken);
+      await deleteLeadApi(leadId);
     }
 
     setData({
@@ -375,31 +363,42 @@ function SignatisWorkspace({
       });
       return events;
     } else {
-      const res = await getLeadEventsApi(leadId, auth?.getAccessToken);
+      const res = await getLeadEventsApi(leadId);
       return res.events;
     }
   }
 
   async function logout(): Promise<void> {
     if (!data || data.demoMode) {
-      setNotice("Demo mode does not have an active WorkOS session.");
+      setNotice("Demo mode does not have an active session.");
       return;
     }
-    auth?.signOut({ returnTo: `${window.location.origin}/dashboard` });
+
+    // Call local logout API endpoint
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/logout";
+    
+    const csrfInput = document.createElement("input");
+    csrfInput.type = "hidden";
+    csrfInput.name = "csrfToken"; // Wait, netlify logout expects CSRF in header but standard form submit might not have it.
+    // Instead of form submit, let's call logout via standard POST API fetch, then redirect!
+    try {
+      await fetch("/logout", {
+        method: "POST",
+        headers: {
+          "x-csrf-token": data.csrfToken,
+        },
+      });
+    } catch {
+      // Ignore error and redirect anyway
+    }
+    window.location.href = "/login";
   }
 
-  if (authMode === "workos" && auth?.isLoading) {
-    return (
-      <main className="min-h-screen grid place-items-center bg-[#f7f9fb]">
-        <div className="card p-8 text-center">
-          <div className="brand-mark mx-auto mb-4">S</div>
-          <p className="text-slate-600">Authenticating...</p>
-        </div>
-      </main>
-    );
-  }
+  const isUnauthorized = error?.includes("401") || error?.includes("Unauthorized");
 
-  if (authMode === "workos" && !auth?.user) {
+  if (isUnauthorized) {
     return (
       <main className="min-h-screen grid place-items-center p-6">
         <section className="card max-w-xl p-8 text-center">
@@ -408,10 +407,12 @@ function SignatisWorkspace({
           <p className="mt-4 text-slate-600">Sign in to access your real estate workspace</p>
           <button
             className="primary-button mt-6"
-            onClick={() => void auth?.signIn({ state: { returnTo: window.location.pathname } })}
+            onClick={() => {
+              window.location.href = `/login?returnTo=${encodeURIComponent(location.pathname)}`;
+            }}
             type="button"
           >
-            Sign in with WorkOS
+            Sign in with Scalekit
           </button>
         </section>
       </main>
