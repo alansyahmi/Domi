@@ -151,6 +151,8 @@ export interface ReportResearchEnv {
   TAVILY_API_KEY?: string;
   TAVILY_SEARCH_DEPTH?: string;
   TAVILY_MAX_RESULTS?: string;
+  /** Set to "off" to skip the per-listing page extraction step. Defaults on. */
+  TAVILY_EXTRACT?: string;
 }
 
 interface TavilyResult {
@@ -162,6 +164,53 @@ interface TavilyResult {
 interface TavilyResponse {
   answer?: string;
   results?: TavilyResult[];
+}
+
+interface TavilyExtractItem {
+  url?: string;
+  raw_content?: string;
+}
+
+interface TavilyExtractResponse {
+  results?: TavilyExtractItem[];
+  failed_results?: unknown[];
+}
+
+const MAX_EXTRACT_CONTENT_CHARS = 8000;
+
+/**
+ * Pull the full page content for a handful of listing URLs via Tavily's
+ * /extract endpoint. Search only returns short snippets; extract returns the
+ * full listing body so we can parse exact price/sqft/bed/bath.
+ *
+ * Fully defensive: any failure returns an empty map so callers transparently
+ * fall back to the search snippet. Caps URLs to control credit spend.
+ */
+async function tavilyExtractListings(apiKey: string, urls: string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const target = urls.slice(0, MAX_TAVILY_RESULTS_PER_LANE);
+  if (target.length === 0) return map;
+
+  try {
+    const response = await fetch("https://api.tavily.com/extract", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ urls: target, extract_depth: "advanced" }),
+    });
+    if (!response.ok) return map;
+    const payload = (await response.json()) as TavilyExtractResponse;
+    for (const item of payload.results ?? []) {
+      if (item.url && item.raw_content?.trim()) {
+        map.set(item.url.trim().toLowerCase(), item.raw_content);
+      }
+    }
+  } catch {
+    // Network/parse failure — fall back to snippets.
+  }
+  return map;
 }
 
 interface TavilyLaneResult {
@@ -218,7 +267,11 @@ function inferListingIntent(text: string, fallback?: ListingIntent): ListingInte
   return fallback === "sale" || fallback === "rent" ? fallback : undefined;
 }
 
-function extractComparableListing(input: PropertyReportInput, result: TavilyResult): ReportComparableListing | null {
+function extractComparableListing(
+  input: PropertyReportInput,
+  result: TavilyResult,
+  fullContent?: string,
+): ReportComparableListing | null {
   if (!result.title?.trim() || !result.url?.trim() || !isHttpUrl(result.url)) return null;
   if (!isTrustedListingUrl(result.url) || isSocialListingUrl(result.url)) return null;
 
@@ -233,7 +286,9 @@ function extractComparableListing(input: PropertyReportInput, result: TavilyResu
                       /\b\d+\s+items\b/i.test(title);
   if (isDirectory) return null;
 
-  const text = compact(`${result.title} ${result.content ?? ""}`);
+  // Prefer the full extracted page content (exact specs) over the search snippet.
+  const detail = (fullContent?.trim() ? fullContent : result.content ?? "").slice(0, MAX_EXTRACT_CONTENT_CHARS);
+  const text = compact(`${result.title} ${detail}`);
   const parsedPrice = parseAskingPriceRm(text);
 
   const intent = inferListingIntent(text, input.listingIntent);
@@ -255,6 +310,78 @@ function extractComparableListing(input: PropertyReportInput, result: TavilyResu
     bathrooms: parseBathrooms(text),
     listingIntent: intent,
     snippet: result.content ? compact(result.content) : undefined,
+  };
+}
+
+interface ParsedListingCard {
+  title: string;
+  url: string;
+  askingPriceRm?: number;
+  builtUpSqft?: number;
+  bedrooms?: number;
+  bathrooms?: number;
+}
+
+// A PropertyGuru listing index page renders each unit as a compact data line:
+//   "RM <price> RM <psf> psf ### <name> <bed> <bath> <carpark> <sqft> sqft"
+// Real pages wrap these in markdown with nested ![Image] tags, so we match the
+// data line directly (bracket-free) and grab the nearest property-listing URL.
+const PG_DATA_RE = /RM\s*([\d,]+)\s+RM\s*[\d.,]+\s*psf\s*#{2,3}\s*(.+?)\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d,]+)\s*sq\s?\.?\s*ft/gi;
+const PG_LISTING_URL_RE = /https:\/\/www\.propertyguru\.com\.my\/property-listing\/[^\s)"']+/i;
+
+export function parsePropertyGuruCards(rawContent: string): ParsedListingCard[] {
+  const cards: ParsedListingCard[] = [];
+  const seen = new Set<string>();
+  PG_DATA_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = PG_DATA_RE.exec(rawContent)) !== null) {
+    const title = compact(match[2]);
+    if (!title) continue;
+
+    // The unit's listing link follows its data line; search a forward window.
+    const urlMatch = rawContent.slice(match.index, match.index + 1500).match(PG_LISTING_URL_RE);
+    const url = urlMatch?.[0] ?? "";
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+
+    const price = Number(match[1].replace(/,/g, ""));
+    cards.push({
+      title,
+      url,
+      askingPriceRm: price > 0 ? price : undefined,
+      bedrooms: Number(match[3]) || undefined,
+      bathrooms: Number(match[4]) || undefined,
+      builtUpSqft: Number(match[6].replace(/,/g, "")) || undefined,
+    });
+  }
+  return cards;
+}
+
+function buildComparableFromCard(
+  input: PropertyReportInput,
+  card: ParsedListingCard,
+): ReportComparableListing | null {
+  const propertyName = normalizeReportInput(input).propertyName;
+  const gateText = compact(`${card.title} ${card.url}`);
+  if (!matchesPropertyName(propertyName, gateText, true)) return null;
+  if (conflictsWithPropertyName(propertyName, card.title)) return null;
+  if (isLandedListingTitle(card.title)) return null;
+
+  const intent = inferListingIntent(card.title, input.listingIntent);
+  if (card.askingPriceRm !== undefined) {
+    if (intent === "rent" && card.askingPriceRm < 150) return null;
+    if (intent === "sale" && card.askingPriceRm < 30000) return null;
+  }
+
+  return {
+    title: compact(card.title),
+    sourceName: sourceNameFromUrl(card.url),
+    url: compact(card.url),
+    askingPriceRm: card.askingPriceRm,
+    builtUpSqft: card.builtUpSqft,
+    bedrooms: card.bedrooms,
+    bathrooms: card.bathrooms,
+    listingIntent: intent,
   };
 }
 
@@ -375,12 +502,47 @@ export function createTavilyResearchProvider(env: ReportResearchEnv): ReportRese
             sourceType,
           }))
           .slice(0, parseMaxResults(env.TAVILY_MAX_RESULTS));
-        const comparableListings = sourceType === "comparable_listing"
-          ? sortedResults
-            .map((result) => extractComparableListing(input, result))
-            .filter((listing): listing is ReportComparableListing => Boolean(listing))
-            .slice(0, parseMaxResults(env.TAVILY_MAX_RESULTS))
-          : undefined;
+        let extracted = new Map<string, string>();
+        if (sourceType === "comparable_listing" && env.TAVILY_EXTRACT !== "off") {
+          const listingUrls = sortedResults
+            .map((result) => result.url)
+            .filter((url): url is string => typeof url === "string" && url !== "" && isHttpUrl(url) && isTrustedListingUrl(url) && !isSocialListingUrl(url));
+          extracted = await tavilyExtractListings(env.TAVILY_API_KEY as string, listingUrls);
+        }
+        let comparableListings: ReportComparableListing[] | undefined;
+        if (sourceType === "comparable_listing") {
+          const collected: ReportComparableListing[] = [];
+          const seenUrls = new Set<string>();
+          for (const result of sortedResults) {
+            const key = result.url?.trim().toLowerCase();
+            const rawContent = key ? extracted.get(key) : undefined;
+            // A directory/index page can expand into many fully-specced unit cards.
+            const cards = rawContent && key && /propertyguru\.com\.my/.test(key)
+              ? parsePropertyGuruCards(rawContent)
+              : [];
+            const cardListings = cards
+              .map((card) => buildComparableFromCard(input, card))
+              .filter((listing): listing is ReportComparableListing => Boolean(listing) && !seenUrls.has(listing!.url));
+            if (cardListings.length > 0) {
+              for (const listing of cardListings) {
+                seenUrls.add(listing.url);
+                collected.push(listing);
+              }
+            } else {
+              // No usable cards (thin template / different layout) — fall back to
+              // single-listing extraction so we never do worse than the snippet.
+              const listing = extractComparableListing(input, result, rawContent);
+              if (listing && !seenUrls.has(listing.url)) {
+                seenUrls.add(listing.url);
+                collected.push(listing);
+              }
+            }
+          }
+          // Prefer listings with concrete specs (price or size) up front.
+          comparableListings = collected
+            .sort((a, b) => Number(Boolean(b.askingPriceRm || b.builtUpSqft)) - Number(Boolean(a.askingPriceRm || a.builtUpSqft)))
+            .slice(0, 8);
+        }
 
         return {
           answer: compact(payload.answer ?? sortedResults.find((result) => result.content?.trim())?.content ?? ""),

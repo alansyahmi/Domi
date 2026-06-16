@@ -1,6 +1,39 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createReportResearchProvider, createTavilyResearchProvider } from "./report-research";
+import { createReportResearchProvider, createTavilyResearchProvider, parsePropertyGuruCards } from "./report-research";
 import type { PropertyReportInput } from "../types";
+
+describe("parsePropertyGuruCards", () => {
+  // Real raw_content shape captured from a PropertyGuru Mont Kiara index page.
+  const fixture = `[Beautiful 2 Bedroom Condo Available For Sale in Jalan Kiara 3 * * * RM 660,000 RM 702.13 psf ### Inspirasi Jalan Kiara 3, Mont Kiara, Kuala Lumpur 3 2 1 940 sqft Condominium Leasehold Built: 2021 MRT 7 min Contact Agent](https://www.propertyguru.com.my/property-listing/inspirasi-for-sale-by-gordon-goh-501421695 "For Sale Inspirasi")
+[Spacious unit For Sale * * RM 1,300,000 RM 690.21 psf ### Verticas Residensi, Mont Kiara, Kuala Lumpur 4 4 2 1,883 sqft Condominium Freehold Built: 2016 Contact Agent](https://www.propertyguru.com.my/property-listing/verticas-501120042 "For Sale Verticas")`;
+
+  it("parses multiple unit cards with full specs from one index page", () => {
+    const cards = parsePropertyGuruCards(fixture);
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toMatchObject({
+      title: expect.stringContaining("Inspirasi"),
+      url: "https://www.propertyguru.com.my/property-listing/inspirasi-for-sale-by-gordon-goh-501421695",
+      askingPriceRm: 660000,
+      bedrooms: 3,
+      bathrooms: 2,
+      builtUpSqft: 940,
+    });
+    expect(cards[1]).toMatchObject({
+      askingPriceRm: 1300000,
+      bedrooms: 4,
+      bathrooms: 4,
+      builtUpSqft: 1883,
+    });
+  });
+
+  it("dedupes repeated listing urls", () => {
+    expect(parsePropertyGuruCards(fixture + "\n" + fixture)).toHaveLength(2);
+  });
+
+  it("returns nothing for pages without card markup", () => {
+    expect(parsePropertyGuruCards("just some nav text and links")).toHaveLength(0);
+  });
+});
 
 const reportInput: PropertyReportInput = {
   propertyName: "The Estate KL",
@@ -222,6 +255,11 @@ describe("Tavily report research provider", () => {
             { title: "JQ apartment for rent", url: "https://www.propertyguru.com.my/listing-3", content: "For rent at RM 2,800 per month, 1 bed, 1 bath." },
           ],
         }),
+      })
+      // 4th call: /extract for the comparable listing URLs (empty → snippet fallback)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ results: [], failed_results: [] }),
       });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -230,7 +268,10 @@ describe("Tavily report research provider", () => {
     });
     const result = await provider.research({ propertyName: "Jesselton Quay KK, Sabah" });
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    // 3 search lanes + 1 extract call for the comparable listings
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    const extractCall = fetchMock.mock.calls.find((call) => call[0] === "https://api.tavily.com/extract");
+    expect(extractCall).toBeDefined();
     const officialCall = fetchMock.mock.calls.find((call) => JSON.parse(call[1].body).query.includes("official"));
     const communityCall = fetchMock.mock.calls.find((call) => JSON.parse(call[1].body).query.includes("review"));
     const comparableCall = fetchMock.mock.calls.find((call) => JSON.parse(call[1].body).query.includes("site:iproperty.com.my"));
@@ -332,6 +373,85 @@ describe("Tavily report research provider", () => {
       askingPriceRm: 1200000,
       listingIntent: "sale"
     }));
+  });
+
+  it("enriches comparable specs from the extracted listing page, not just the snippet", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ answer: "Official.", results: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ answer: "Community.", results: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          answer: "Listings.",
+          results: [
+            {
+              // snippet is vague — no specs at all
+              title: "The Estate KL condo for sale",
+              url: "https://www.iproperty.com.my/the-estate-kl-unit",
+              content: "Premium unit available at The Estate KL.",
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          // extract returns the full page with exact specs
+          results: [
+            {
+              url: "https://www.iproperty.com.my/the-estate-kl-unit",
+              raw_content:
+                "The Estate KL — luxury condo for sale. Asking price RM 1,850,000. Built-up 1,432 sqft, 3 bedrooms, 2 bathrooms. Freehold.",
+            },
+          ],
+          failed_results: [],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = createTavilyResearchProvider({
+      TAVILY_API_KEY: "tvly-test",
+    });
+    const result = await provider.research({ propertyName: "The Estate KL", listingIntent: "sale" });
+
+    const extractCall = fetchMock.mock.calls.find((call) => call[0] === "https://api.tavily.com/extract");
+    expect(extractCall).toBeDefined();
+    expect(JSON.parse(extractCall![1].body)).toMatchObject({
+      urls: ["https://www.iproperty.com.my/the-estate-kl-unit"],
+      extract_depth: "advanced",
+    });
+    // Specs come from the extracted page, which the snippet alone could not provide.
+    expect(result.comparableListings?.[0]).toMatchObject({
+      title: "The Estate KL condo for sale",
+      askingPriceRm: 1850000,
+      builtUpSqft: 1432,
+      bedrooms: 3,
+      bathrooms: 2,
+      listingIntent: "sale",
+    });
+  });
+
+  it("skips the extract step when TAVILY_EXTRACT is off", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ answer: "x", results: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = createTavilyResearchProvider({
+      TAVILY_API_KEY: "tvly-test",
+      TAVILY_EXTRACT: "off",
+    });
+    await provider.research({ propertyName: "The Estate KL" }).catch(() => undefined);
+
+    const extractCall = fetchMock.mock.calls.find((call) => call[0] === "https://api.tavily.com/extract");
+    expect(extractCall).toBeUndefined();
   });
 
   it("rejects social posts and sibling developments for strict comparable searches", async () => {
