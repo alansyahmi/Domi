@@ -678,6 +678,76 @@ export async function getAgentById(db: SignatisDbClient, agentId: string): Promi
   return result.rows[0] ? mapAgent(result.rows[0]) : null;
 }
 
+export async function getAgentByIngestionAddress(
+  db: SignatisDbClient,
+  address: string,
+): Promise<Agent | null> {
+  const normalized = address.trim().toLowerCase();
+  const result = await db.execute<Record<string, unknown>>({
+    sql: "SELECT * FROM agents WHERE LOWER(ingestion_address) = ? LIMIT 1",
+    args: [normalized],
+  });
+  return result.rows[0] ? mapAgent(result.rows[0]) : null;
+}
+
+/**
+ * Record an engagement event (email open or link click) against a lead,
+ * increment the matching behavioural counter, recompute the score/tier/intent,
+ * and append a lead_event. Returns the updated lead, or null if not found.
+ *
+ * Used by the tracking pixel and redirect routes — the only context available
+ * is the lead id, so the agent is resolved from the lead row.
+ */
+export async function recordLeadEngagement(
+  db: SignatisDbClient,
+  leadId: string,
+  type: "email_open" | "link_click",
+  label?: string,
+): Promise<Lead | null> {
+  const existing = await db.execute<Record<string, unknown>>({
+    sql: "SELECT * FROM leads WHERE id = ? LIMIT 1",
+    args: [leadId],
+  });
+  if (!existing.rows[0]) return null;
+  const lead = mapLead(existing.rows[0]);
+
+  const emailOpens = lead.emailOpens + (type === "email_open" ? 1 : 0);
+  const linkClicks = lead.linkClicks + (type === "link_click" ? 1 : 0);
+  const score = computeLeadScore({
+    emailOpens,
+    linkClicks,
+    reportViews: lead.reportViews,
+    inquirySentiment: lead.inquirySentiment,
+  });
+
+  await db.execute({
+    sql: `UPDATE leads SET email_opens = ?, link_clicks = ?, score = ?, intent = ?, tier = ? WHERE id = ?`,
+    args: [emailOpens, linkClicks, score.score, score.intent, score.tier, leadId],
+  });
+
+  await db.execute({
+    sql: `INSERT INTO lead_events (id, lead_id, agent_id, event_type, event_label, occurred_at)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [
+      `event_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      leadId,
+      lead.agentId,
+      type,
+      label ?? (type === "email_open" ? "Opened an email" : "Clicked a tracked link"),
+      new Date().toISOString(),
+    ],
+  });
+
+  return {
+    ...lead,
+    emailOpens,
+    linkClicks,
+    score: score.score,
+    intent: score.intent,
+    tier: score.tier,
+  };
+}
+
 export async function getPropertyIntelligenceCache(
   db: SignatisDbClient,
   propertyKey: string,

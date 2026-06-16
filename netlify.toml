@@ -33,6 +33,16 @@
   status = 200
 
 [[redirects]]
+  from = "/inbound-email"
+  to = "/.netlify/functions/inbound-email"
+  status = 200
+
+[[redirects]]
+  from = "/t/*"
+  to = "/.netlify/functions/track"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

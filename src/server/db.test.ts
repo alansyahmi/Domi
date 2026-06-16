@@ -199,6 +199,74 @@ describe("database helpers", () => {
       });
     });
 
+    it("getAgentByIngestionAddress matches case-insensitively", async () => {
+      const executeMock = vi.fn().mockResolvedValue({ rows: [] });
+      const dbMock = { execute: executeMock };
+
+      const { getAgentByIngestionAddress } = await import("./db");
+      await getAgentByIngestionAddress(dbMock as any, "  Inbound+AB12CD@Leads.Signatis.App  ");
+
+      expect(executeMock).toHaveBeenCalledWith({
+        sql: expect.stringContaining("LOWER(ingestion_address) = ?"),
+        args: ["inbound+ab12cd@leads.signatis.app"],
+      });
+    });
+
+    it("recordLeadEngagement increments opens, rescores, and logs an event", async () => {
+      const leadRow = {
+        id: "lead_456",
+        agent_id: "agent_123",
+        name: "Ahmad",
+        email: "a@b.com",
+        phone: "012",
+        source: "PropertyGuru",
+        property_interest: "Condo",
+        budget: "RM 900k",
+        email_opens: 2,
+        link_clicks: 1,
+        report_views: 1,
+        inquiry_sentiment: 0.5,
+        sentiment: "positive",
+        score: 9,
+        intent: 0,
+        tier: "Cold",
+        stage: "new",
+        preferred_channel: "whatsapp",
+        created_at: "2026-06-11T00:00:00.000Z",
+      };
+      const executeMock = vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [leadRow] }) // SELECT lead
+        .mockResolvedValue({ rows: [] }); // UPDATE + INSERT event
+      const dbMock = { execute: executeMock };
+
+      const { recordLeadEngagement } = await import("./db");
+      const updated = await recordLeadEngagement(dbMock as any, "lead_456", "email_open");
+
+      // opens 2->3; score = 3 + 1*3 + 1*4 + round(0.5*4)=2 => 12
+      expect(updated?.emailOpens).toBe(3);
+      expect(updated?.score).toBe(12);
+      expect(executeMock).toHaveBeenNthCalledWith(2, {
+        sql: expect.stringContaining("UPDATE leads SET email_opens = ?"),
+        args: [3, 1, 12, expect.any(Number), "Warm", "lead_456"],
+      });
+      expect(executeMock).toHaveBeenNthCalledWith(3, {
+        sql: expect.stringContaining("INSERT INTO lead_events"),
+        args: expect.arrayContaining(["lead_456", "agent_123", "email_open"]),
+      });
+    });
+
+    it("recordLeadEngagement returns null when the lead is missing", async () => {
+      const executeMock = vi.fn().mockResolvedValue({ rows: [] });
+      const dbMock = { execute: executeMock };
+
+      const { recordLeadEngagement } = await import("./db");
+      const result = await recordLeadEngagement(dbMock as any, "nope", "link_click");
+
+      expect(result).toBeNull();
+      expect(executeMock).toHaveBeenCalledTimes(1);
+    });
+
     it("getLeadEvents queries events in chronological order", async () => {
       const executeMock = vi.fn().mockResolvedValue({
         rows: [
