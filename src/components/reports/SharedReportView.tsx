@@ -16,6 +16,7 @@ export default function SharedReportView({
     email: "",
     phone: "",
     message: "",
+    preferredChannel: "whatsapp",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -37,7 +38,7 @@ export default function SharedReportView({
       const res = await submitLeadInquiryApi(report.shareToken, form);
       if (res.success) {
         setIsSuccess(true);
-        setForm({ name: "", email: "", phone: "", message: "" });
+        setForm({ name: "", email: "", phone: "", message: "", preferredChannel: "whatsapp" });
       } else {
         setErrorMessage("Unable to submit your inquiry. Please try again.");
       }
@@ -218,6 +219,21 @@ export default function SharedReportView({
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Preferred Contact Channel *</label>
+                  <select
+                    className="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:border-[#041627] bg-white"
+                    value={form.preferredChannel}
+                    onChange={(e) => setForm({ ...form, preferredChannel: e.target.value })}
+                  >
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="telegram">Telegram</option>
+                    <option value="messenger">Facebook Messenger</option>
+                    <option value="instagram">Instagram</option>
+                    <option value="email">Email</option>
+                    <option value="phone">Phone Call</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Message (Optional)</label>

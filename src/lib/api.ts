@@ -181,7 +181,7 @@ export async function logoutApi(csrfToken: string): Promise<void> {
 
 export async function submitLeadInquiryApi(
   shareToken: string,
-  input: { name: string; email: string; phone: string; message: string }
+  input: { name: string; email: string; phone: string; message: string; preferredChannel?: string }
 ): Promise<{ success: boolean; lead: Lead }> {
   return apiJson<{ success: boolean; lead: Lead }>(`/api/reports/share/${encodeURIComponent(shareToken)}/inquiry`, {
     method: "POST",
@@ -198,11 +198,22 @@ export async function createLeadApi(
     propertyInterest: string;
     budget: string;
     message?: string;
+    preferredChannel?: string;
   },
 ): Promise<{ success: boolean; lead: Lead }> {
   return apiJson<{ success: boolean; lead: Lead }>("/api/leads/create", {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+export async function updateLeadStageApi(
+  leadId: string,
+  stage: string,
+): Promise<{ success: boolean }> {
+  return apiJson<{ success: boolean }>(`/api/leads/${encodeURIComponent(leadId)}/stage`, {
+    method: "POST",
+    body: JSON.stringify({ stage }),
   });
 }
 

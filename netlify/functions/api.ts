@@ -17,11 +17,17 @@ import {
   createLead,
   deleteLead,
   getLeadEvents,
+  updateLeadStage,
+  getCredentials,
+  saveCredentials,
+  deleteCredentials,
 } from "../../src/server/db";
 import { getRuntimeEnv } from "../../src/server/runtime-env";
 import { validateReportInput } from "../../src/domain/reports";
 import { generatePropertyReport } from "../../src/server/report-pipeline";
 import { generateReportPdf } from "../../src/server/report-pdf";
+import { verifyWhatsAppCredentials, sendWhatsAppMessage } from "../../src/server/notifications/whatsapp";
+import { notifyAgentNewLead } from "../../src/server/notifications";
 import type { Agent, PropertyReportInput } from "../../src/types";
 
 function json(data: unknown, init: ResponseInit = {}): Response {
@@ -142,10 +148,15 @@ export default async (req: Request) => {
     if (!report) {
       return json({ error: "Shared report not found." }, { status: 404 });
     }
-    const body = await readJson<{ name?: string; email?: string; phone?: string; message?: string }>(req);
+    const body = await readJson<{ name?: string; email?: string; phone?: string; message?: string; preferredChannel?: string }>(req);
     if (!body.name || !body.email || !body.phone) {
       return json({ error: "Name, email, and phone are required." }, { status: 422 });
     }
+
+    const validChannels = ["whatsapp", "telegram", "messenger", "instagram", "email", "phone"] as const;
+    const preferredChannel = body.preferredChannel && validChannels.includes(body.preferredChannel as typeof validChannels[number])
+      ? (body.preferredChannel as "whatsapp" | "telegram" | "messenger" | "instagram" | "email" | "phone")
+      : "whatsapp";
 
     const budget = report.inputSnapshot.askingPriceRm > 0
       ? `RM ${report.inputSnapshot.askingPriceRm.toLocaleString("en-MY")}`
@@ -159,7 +170,22 @@ export default async (req: Request) => {
       propertyInterest: report.propertyName || report.address,
       budget,
       message: body.message,
+      preferredChannel,
     });
+
+    // Fire-and-forget notification to the agent
+    const agent = await getAgentById(db, report.agentId);
+    if (agent) {
+      notifyAgentNewLead(
+        agent,
+        lead,
+        {
+          eventLabel: "New lead from Report Shared Link",
+          assetUrl: `https://signatis.app/reports/share/${report.shareToken}`,
+          prospectMessage: body.message,
+        },
+      ).catch((err) => console.error("[Notify] Failed:", err));
+    }
 
     return json({ success: true, lead });
   }
@@ -210,10 +236,17 @@ export default async (req: Request) => {
         propertyInterest?: string;
         budget?: string;
         message?: string;
+        preferredChannel?: string;
       }>(req);
       if (!body.name || !body.email || !body.phone) {
         return json({ error: "Name, email, and phone are required." }, { status: 422, headers: responseHeaders });
       }
+
+      const validChannels = ["whatsapp", "telegram", "messenger", "instagram", "email", "phone"] as const;
+      const preferredChannel = body.preferredChannel && validChannels.includes(body.preferredChannel as typeof validChannels[number])
+        ? (body.preferredChannel as "whatsapp" | "telegram" | "messenger" | "instagram" | "email" | "phone")
+        : "whatsapp";
+
       const lead = await createLead(db, agent.id, {
         name: body.name.trim(),
         email: body.email.trim(),
@@ -222,7 +255,19 @@ export default async (req: Request) => {
         propertyInterest: body.propertyInterest?.trim() || "General Interest",
         budget: body.budget?.trim() || "TBD",
         message: body.message,
+        preferredChannel,
       });
+
+      // Fire-and-forget notification to the agent
+      notifyAgentNewLead(
+        agent,
+        lead,
+        {
+          eventLabel: `New lead from ${lead.source}`,
+          prospectMessage: body.message,
+        },
+      ).catch((err) => console.error("[Notify] Failed:", err));
+
       return json({ success: true, lead }, { status: 201, headers: responseHeaders });
     }
 
@@ -236,6 +281,17 @@ export default async (req: Request) => {
     if (leadEventsMatch && req.method === "GET") {
       const events = await getLeadEvents(db, agent.id, leadEventsMatch[1]);
       return json({ events }, { headers: responseHeaders });
+    }
+
+    const leadStageMatch = endpoint.match(/^leads\/([^/]+)\/stage$/);
+    if (leadStageMatch && req.method === "POST") {
+      const body = await readJson<{ stage?: string }>(req);
+      const validStages = ["new", "contacted", "engaged", "viewing", "negotiating", "closed_won", "closed_lost"] as const;
+      if (!body.stage || !validStages.includes(body.stage as typeof validStages[number])) {
+        return json({ error: "Invalid stage." }, { status: 422, headers: responseHeaders });
+      }
+      await updateLeadStage(db, agent.id, leadStageMatch[1], body.stage as "new" | "contacted" | "engaged" | "viewing" | "negotiating" | "closed_won" | "closed_lost");
+      return json({ success: true }, { headers: responseHeaders });
     }
 
     if (endpoint === "reports" && req.method === "GET") {
@@ -320,6 +376,48 @@ export default async (req: Request) => {
       return json({ integrations: await getIntegrations(db, agent.id) }, { headers: responseHeaders });
     }
 
+    // ── WhatsApp Integration ──────────────────────────────────
+
+    if (endpoint === "integrations/whatsapp/status" && req.method === "GET") {
+      const creds = await getCredentials(db, agent.id, "whatsapp");
+      return json({ connected: creds !== null }, { headers: responseHeaders });
+    }
+
+    if (endpoint === "integrations/whatsapp/connect" && req.method === "POST") {
+      const body = await readJson<{ phoneNumberId?: string; accessToken?: string }>(req);
+      if (!body.phoneNumberId || !body.accessToken) {
+        return json({ error: "Phone Number ID and Access Token are required." }, { status: 422, headers: responseHeaders });
+      }
+      // Validate credentials before saving
+      const verifyResult = await verifyWhatsAppCredentials({ phoneNumberId: body.phoneNumberId, accessToken: body.accessToken });
+      if (!verifyResult.valid) {
+        return json({ error: verifyResult.error ?? "Invalid WhatsApp credentials." }, { status: 400, headers: responseHeaders });
+      }
+      await saveCredentials(db, agent.id, "whatsapp", body.accessToken, { phoneNumberId: body.phoneNumberId });
+      return json({ success: true }, { headers: responseHeaders });
+    }
+
+    if (endpoint === "integrations/whatsapp/disconnect" && req.method === "POST") {
+      await deleteCredentials(db, agent.id, "whatsapp");
+      return json({ success: true }, { headers: responseHeaders });
+    }
+
+    if (endpoint === "integrations/whatsapp/test" && req.method === "POST") {
+      const creds = await getCredentials(db, agent.id, "whatsapp");
+      if (!creds) {
+        return json({ error: "WhatsApp not connected." }, { status: 400, headers: responseHeaders });
+      }
+      const metadata = creds.metadata as { phoneNumberId?: string };
+      const result = await sendWhatsAppMessage(
+        { phoneNumberId: metadata.phoneNumberId ?? "", accessToken: creds.encryptedValue },
+        agent.whatsappNumber || agent.phone,
+        "✅ Signatis WhatsApp integration is working! You'll receive lead notifications here.",
+      );
+      if (!result.success) {
+        return json({ error: result.error ?? "Failed to send test message." }, { status: 500, headers: responseHeaders });
+      }
+      return json({ success: true, messageId: result.messageId }, { headers: responseHeaders });
+    }
 
     if (endpoint === "support-requests" && req.method === "POST") {
       const body = await readJson<{

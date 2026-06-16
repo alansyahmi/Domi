@@ -7,6 +7,8 @@ import type {
   Integration,
   Lead,
   LeadEvent,
+  LeadStage,
+  PreferredChannel,
   PropertyReport,
   PropertyReportInput,
   ReportAnalytics,
@@ -121,6 +123,9 @@ const schemaStatements = [
     score INTEGER NOT NULL,
     intent INTEGER NOT NULL,
     tier TEXT NOT NULL,
+    stage TEXT NOT NULL DEFAULT 'new',
+    preferred_channel TEXT NOT NULL DEFAULT 'whatsapp',
+    last_contacted_at TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY(agent_id) REFERENCES agents(id)
   )`,
@@ -183,6 +188,16 @@ const schemaStatements = [
     created_at TEXT NOT NULL,
     FOREIGN KEY(agent_id) REFERENCES agents(id)
   )`,
+  `CREATE TABLE IF NOT EXISTS agent_credentials (
+    id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    encrypted_value TEXT NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(agent_id) REFERENCES agents(id)
+  )`,
 ];
 
 export async function ensureSchema(db: SignatisDbClient): Promise<void> {
@@ -205,6 +220,20 @@ export async function ensureSchema(db: SignatisDbClient): Promise<void> {
       await db.execute(`ALTER TABLE agents ADD COLUMN ${col}`);
     } catch {
       // Column already exists, safe to ignore
+    }
+  }
+
+  const leadCols = [
+    "stage TEXT NOT NULL DEFAULT 'new'",
+    "preferred_channel TEXT NOT NULL DEFAULT 'whatsapp'",
+    "last_contacted_at TEXT",
+  ];
+
+  for (const col of leadCols) {
+    try {
+      await db.execute(`ALTER TABLE leads ADD COLUMN ${col}`);
+    } catch {
+      // Column already exists, safe to ignore.
     }
   }
 
@@ -266,6 +295,9 @@ export function mapLead(row: Record<string, unknown>): Lead {
     score: Number(row.score),
     intent: Number(row.intent) === 1 ? 1 : 0,
     tier: String(row.tier) as Lead["tier"],
+    stage: (String(row.stage ?? "new")) as LeadStage,
+    preferredChannel: (String(row.preferred_channel ?? "whatsapp")) as PreferredChannel,
+    lastContactedAt: row.last_contacted_at ? String(row.last_contacted_at) : undefined,
     createdAt: String(row.created_at),
   };
 }
@@ -763,6 +795,53 @@ export async function disconnectIntegration(
   });
 }
 
+// ── Agent Credentials (WhatsApp, etc.) ──────────────────────────
+
+export async function getCredentials(
+  db: SignatisDbClient,
+  agentId: string,
+  provider: string,
+): Promise<{ id: string; encryptedValue: string; metadata: Record<string, unknown> } | null> {
+  const result = await db.execute<Record<string, unknown>>({
+    sql: "SELECT id, encrypted_value, metadata_json FROM agent_credentials WHERE agent_id = ? AND provider = ? LIMIT 1",
+    args: [agentId, provider],
+  });
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    id: String(row.id),
+    encryptedValue: String(row.encrypted_value),
+    metadata: parseJson<Record<string, unknown>>(row.metadata_json, {}),
+  };
+}
+
+export async function saveCredentials(
+  db: SignatisDbClient,
+  agentId: string,
+  provider: string,
+  encryptedValue: string,
+  metadata: Record<string, unknown> = {},
+): Promise<void> {
+  const id = `cred_${provider}_${agentId}`;
+  const now = new Date().toISOString();
+  await db.execute({
+    sql: `INSERT OR REPLACE INTO agent_credentials (id, agent_id, provider, encrypted_value, metadata_json, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM agent_credentials WHERE id = ?), ?), ?)`,
+    args: [id, agentId, provider, encryptedValue, JSON.stringify(metadata), id, now, now],
+  });
+}
+
+export async function deleteCredentials(
+  db: SignatisDbClient,
+  agentId: string,
+  provider: string,
+): Promise<void> {
+  await db.execute({
+    sql: "DELETE FROM agent_credentials WHERE agent_id = ? AND provider = ?",
+    args: [agentId, provider],
+  });
+}
+
 
 export async function createReport(
   db: SignatisDbClient,
@@ -907,6 +986,7 @@ export async function createLead(
     propertyInterest: string;
     budget: string;
     message?: string;
+    preferredChannel?: PreferredChannel;
   }
 ): Promise<Lead> {
   const id = `lead_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -946,6 +1026,8 @@ export async function createLead(
     score: scoreObj.score,
     intent: scoreObj.intent,
     tier: scoreObj.tier,
+    stage: "new",
+    preferredChannel: input.preferredChannel ?? "whatsapp",
     createdAt: new Date().toISOString(),
   };
 
@@ -953,8 +1035,8 @@ export async function createLead(
     sql: `INSERT INTO leads (
       id, agent_id, name, email, phone, source, property_interest, budget,
       email_opens, link_clicks, report_views, inquiry_sentiment, sentiment,
-      score, intent, tier, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      score, intent, tier, stage, preferred_channel, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       lead.id,
       lead.agentId,
@@ -972,6 +1054,8 @@ export async function createLead(
       lead.score,
       lead.intent,
       lead.tier,
+      lead.stage,
+      lead.preferredChannel,
       lead.createdAt,
     ],
   });
@@ -1005,6 +1089,41 @@ export async function deleteLead(
   await db.execute({
     sql: "DELETE FROM leads WHERE id = ? AND agent_id = ?",
     args: [leadId, agentId],
+  });
+}
+
+export async function updateLeadStage(
+  db: SignatisDbClient,
+  agentId: string,
+  leadId: string,
+  newStage: LeadStage,
+): Promise<void> {
+  const now = new Date().toISOString();
+  await db.execute({
+    sql: "UPDATE leads SET stage = ?, last_contacted_at = ? WHERE id = ? AND agent_id = ?",
+    args: [newStage, now, leadId, agentId],
+  });
+  await db.execute({
+    sql: `INSERT INTO lead_events (id, lead_id, agent_id, event_type, event_label, occurred_at)
+          VALUES (?, ?, ?, 'stage_change', ?, ?)`,
+    args: [
+      `event_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      leadId,
+      agentId,
+      `Stage changed to ${newStage}`,
+      now,
+    ],
+  });
+}
+
+export async function updateLeadLastContacted(
+  db: SignatisDbClient,
+  agentId: string,
+  leadId: string,
+): Promise<void> {
+  await db.execute({
+    sql: "UPDATE leads SET last_contacted_at = ? WHERE id = ? AND agent_id = ?",
+    args: [new Date().toISOString(), leadId, agentId],
   });
 }
 

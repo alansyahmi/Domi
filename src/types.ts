@@ -8,6 +8,10 @@ export type ReportIndexLookupStatus = "fresh_hit" | "stale_hit" | "miss";
 export type ReportLiveSearchStatus = "not_needed" | "validated" | "limited" | "failed";
 export type ReportCitationSourceType = "official" | "community" | "comparable_listing" | "model" | "other";
 
+export type PreferredChannel = "whatsapp" | "telegram" | "messenger" | "instagram" | "email" | "phone";
+
+export type LeadStage = "new" | "contacted" | "engaged" | "viewing" | "negotiating" | "closed_won" | "closed_lost";
+
 export interface Agent {
   id: string;
   workosUserId: string;
@@ -42,6 +46,9 @@ export interface Lead {
   score: number;
   intent: Intent;
   tier: "Hot" | "Warm" | "Cold";
+  stage: LeadStage;
+  preferredChannel: PreferredChannel;
+  lastContactedAt?: string;
   createdAt: string;
 }
 
@@ -49,7 +56,7 @@ export interface LeadEvent {
   id: string;
   leadId: string;
   agentId: string;
-  eventType: "email_open" | "link_click" | "report_view" | "manual_note";
+  eventType: "email_open" | "link_click" | "report_view" | "manual_note" | "stage_change";
   eventLabel: string;
   occurredAt: string;
 }

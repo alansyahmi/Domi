@@ -1,7 +1,8 @@
 import { Download, Filter, Frown, Meh, Search, SlidersHorizontal, Smile, Eye, Trash2, Plus, X, Calendar, Activity, Mail, Phone, DollarSign, MapPin } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { initials, sourceTone } from "../lib/format";
-import type { Lead, Sentiment, LeadEvent } from "../types";
+import type { Lead, LeadStage, Sentiment, LeadEvent } from "../types";
+import { ChannelContactButton, ChannelBadge } from "../components/leads/ChannelContactButton";
 
 function SentimentIcon({ sentiment }: { sentiment: Sentiment }) {
   if (sentiment === "positive") return <Smile size={22} className="text-emerald-600" aria-hidden="true" />;
@@ -14,6 +15,7 @@ export default function LeadManagementPage({
   onCreateLead,
   onDeleteLead,
   onGetLeadEvents,
+  onUpdateLeadStage,
 }: {
   leads: Lead[];
   onCreateLead: (input: {
@@ -24,14 +26,17 @@ export default function LeadManagementPage({
     propertyInterest: string;
     budget: string;
     message?: string;
+    preferredChannel?: string;
   }) => Promise<Lead>;
   onDeleteLead: (leadId: string) => Promise<void>;
   onGetLeadEvents: (leadId: string) => Promise<LeadEvent[]>;
+  onUpdateLeadStage: (leadId: string, stage: string) => Promise<void>;
 }) {
   const [query, setQuery] = useState("");
   const [intent, setIntent] = useState("all");
   const [source, setSource] = useState("all");
   const [sentiment, setSentiment] = useState("all");
+  const [stageFilter, setStageFilter] = useState("all");
 
   // Detail Modal / Drawer State
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -48,6 +53,7 @@ export default function LeadManagementPage({
     propertyInterest: "",
     budget: "",
     message: "",
+    preferredChannel: "whatsapp",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -72,7 +78,8 @@ export default function LeadManagementPage({
       search.includes(query.toLowerCase()) &&
       (intent === "all" || String(lead.intent) === intent) &&
       (source === "all" || lead.source === source) &&
-      (sentiment === "all" || lead.sentiment === sentiment)
+      (sentiment === "all" || lead.sentiment === sentiment) &&
+      (stageFilter === "all" || lead.stage === stageFilter)
     );
   });
   
@@ -99,6 +106,7 @@ export default function LeadManagementPage({
         propertyInterest: "",
         budget: "",
         message: "",
+        preferredChannel: "whatsapp",
       });
     } catch (err) {
       console.error(err);
@@ -106,6 +114,19 @@ export default function LeadManagementPage({
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  function stageColor(stage: string): string {
+    const map: Record<string, string> = {
+      new: "tag-muted",
+      contacted: "tag-blue",
+      engaged: "tag-violet",
+      viewing: "tag-blue",
+      negotiating: "tag-violet",
+      closed_won: "tag-blue",
+      closed_lost: "tag-muted",
+    };
+    return map[stage] ?? "tag-muted";
   }
 
   async function handleDeleteLead(leadId: string) {
@@ -144,7 +165,7 @@ export default function LeadManagementPage({
       </div>
 
       <section className="card mt-8 p-5">
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(14rem,1fr)_repeat(3,12rem)_auto] gap-4 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(14rem,1fr)_repeat(4,12rem)_auto] gap-4 items-center">
           <label className="flex items-center gap-3 rounded-full border border-slate-300 bg-white px-4 py-2">
             <Search size={20} className="text-slate-500" aria-hidden="true" />
             <input
@@ -173,6 +194,16 @@ export default function LeadManagementPage({
             <option value="neutral">Neutral</option>
             <option value="negative">Negative</option>
           </select>
+          <select className="select" value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}>
+            <option value="all">Stage: All</option>
+            <option value="new">New</option>
+            <option value="contacted">Contacted</option>
+            <option value="engaged">Engaged</option>
+            <option value="viewing">Viewing</option>
+            <option value="negotiating">Negotiating</option>
+            <option value="closed_won">Closed Won</option>
+            <option value="closed_lost">Closed Lost</option>
+          </select>
           <button
             className="ghost-button"
             onClick={() => {
@@ -180,6 +211,7 @@ export default function LeadManagementPage({
               setIntent("all");
               setSource("all");
               setSentiment("all");
+              setStageFilter("all");
             }}
           >
             Clear Filters
@@ -212,18 +244,19 @@ export default function LeadManagementPage({
       </div>
 
       <section className="card mt-8 overflow-hidden">
-        <div className="hidden lg:grid grid-cols-[2fr_0.7fr_1.7fr_1.2fr_1.1fr_auto] gap-6 px-8 py-5 bg-slate-100 eyebrow">
+        <div className="hidden lg:grid grid-cols-[2fr_0.7fr_1.2fr_1.2fr_1.2fr_1fr_auto] gap-6 px-8 py-5 bg-slate-100 eyebrow">
           <span>Prospect Name</span>
           <span>Score</span>
           <span>Engagement</span>
           <span>Sentiment</span>
+          <span>Stage</span>
           <span>Source</span>
           <span>Actions</span>
         </div>
         {filtered.map((lead) => (
           <article
             key={lead.id}
-            className={`grid grid-cols-1 lg:grid-cols-[2fr_0.7fr_1.7fr_1.2fr_1.1fr_auto] gap-4 lg:gap-6 px-6 lg:px-8 py-6 border-t border-slate-200 items-center ${
+            className={`grid grid-cols-1 lg:grid-cols-[2fr_0.7fr_1.2fr_1.2fr_1.2fr_1fr_auto] gap-4 lg:gap-6 px-6 lg:px-8 py-6 border-t border-slate-200 items-center ${
               lead.intent === 1 ? "border-l-4 border-l-[#ffd45a]" : ""
             }`}
           >
@@ -232,6 +265,7 @@ export default function LeadManagementPage({
               <div>
                 <h2 className="m-0 text-xl font-extrabold">{lead.name}</h2>
                 <p className="m-0 text-slate-600">{lead.email}</p>
+                <span className="mt-0.5 inline-block"><ChannelBadge channel={lead.preferredChannel} /></span>
               </div>
             </div>
             <div className={`intent-badge ${lead.intent === 0 ? "zero" : ""}`}>{lead.intent}</div>
@@ -250,6 +284,9 @@ export default function LeadManagementPage({
             <div className="flex items-center gap-2">
               <SentimentIcon sentiment={lead.sentiment} />
               <span className="capitalize">{lead.sentiment}</span>
+            </div>
+            <div>
+              <span className={`tag ${stageColor(lead.stage)}`}>{lead.stage.replace("_", " ")}</span>
             </div>
             <div>
               <span className={`tag ${sourceTone(lead.source)}`}>{lead.source}</span>
@@ -320,6 +357,35 @@ export default function LeadManagementPage({
                 </div>
               </div>
 
+              {/* Pipeline Stage */}
+              <div>
+                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Pipeline Stage</h3>
+                <div className="flex flex-wrap gap-2">
+                  {(["new", "contacted", "engaged", "viewing", "negotiating", "closed_won", "closed_lost"] as const).map((stage) => (
+                    <button
+                      key={stage}
+                      onClick={() => {
+                        onUpdateLeadStage(selectedLead.id, stage);
+                        setSelectedLead({ ...selectedLead, stage, lastContactedAt: new Date().toISOString() });
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                        selectedLead.stage === stage
+                          ? "bg-[#041627] text-white border-[#041627]"
+                          : "bg-white text-slate-600 border-slate-300 hover:border-slate-500"
+                      }`}
+                    >
+                      {stage.replace("_", " ")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Preferred Channel */}
+              <div>
+                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Preferred Contact</h3>
+                <ChannelBadge channel={selectedLead.preferredChannel} />
+              </div>
+
               {/* Contact Information */}
               <div>
                 <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Contact Information</h3>
@@ -331,6 +397,9 @@ export default function LeadManagementPage({
                   <div className="flex items-center gap-3 text-slate-700">
                     <Phone size={18} className="text-slate-400" />
                     <a href={`tel:${selectedLead.phone}`} className="hover:underline">{selectedLead.phone}</a>
+                  </div>
+                  <div className="pt-2">
+                    <ChannelContactButton lead={selectedLead} />
                   </div>
                 </div>
               </div>
@@ -521,6 +590,22 @@ export default function LeadManagementPage({
                   <option value="WhatsApp">WhatsApp Message</option>
                   <option value="Cold Call">Cold Call</option>
                   <option value="Referral">Referral</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Preferred Contact Channel</label>
+                <select
+                  className="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:border-[#041627] bg-white"
+                  value={newLeadForm.preferredChannel}
+                  onChange={(e) => setNewLeadForm({ ...newLeadForm, preferredChannel: e.target.value })}
+                >
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="telegram">Telegram</option>
+                  <option value="messenger">Facebook Messenger</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="email">Email</option>
+                  <option value="phone">Phone Call</option>
                 </select>
               </div>
 

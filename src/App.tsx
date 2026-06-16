@@ -12,6 +12,7 @@ import {
   createLeadApi,
   deleteLeadApi,
   getLeadEventsApi,
+  updateLeadStageApi,
   type BootstrapData,
 } from "./lib/api";
 import Layout from "./components/Layout";
@@ -255,6 +256,7 @@ function SignatisWorkspace({
     propertyInterest: string;
     budget: string;
     message?: string;
+    preferredChannel?: string;
   }): Promise<Lead> {
     if (!data) throw new Error("Signatis is still loading.");
     let lead: Lead;
@@ -296,6 +298,8 @@ function SignatisWorkspace({
         score: scoreObj.score,
         intent: scoreObj.intent,
         tier: scoreObj.tier,
+        stage: "new",
+        preferredChannel: (input.preferredChannel ?? "whatsapp") as "whatsapp" | "telegram" | "messenger" | "instagram" | "email" | "phone",
         createdAt: new Date().toISOString(),
       };
     } else {
@@ -309,6 +313,19 @@ function SignatisWorkspace({
     });
     setNotice(`Prospect ${lead.name} added.`);
     return lead;
+  }
+
+  async function updateLeadStage(leadId: string, stage: string): Promise<void> {
+    if (!data) return;
+    if (!data.demoMode) {
+      await updateLeadStageApi(leadId, stage);
+    }
+    setData({
+      ...data,
+      leads: data.leads.map((l) =>
+        l.id === leadId ? { ...l, stage: stage as Lead["stage"], lastContactedAt: new Date().toISOString() } : l,
+      ),
+    });
   }
 
   async function deleteLead(leadId: string): Promise<void> {
@@ -466,6 +483,7 @@ function SignatisWorkspace({
                 onCreateLead={createLead}
                 onDeleteLead={deleteLead}
                 onGetLeadEvents={getLeadEvents}
+                onUpdateLeadStage={updateLeadStage}
               />
             }
           />

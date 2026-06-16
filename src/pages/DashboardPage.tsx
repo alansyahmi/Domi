@@ -1,7 +1,8 @@
-import { Mail, Phone, RefreshCw, TrendingUp } from "lucide-react";
+import { RefreshCw, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { formatDateTime, initials } from "../lib/format";
 import type { DashboardData, PropertyReport } from "../types";
+import { ChannelContactButton } from "../components/leads/ChannelContactButton";
 
 function MetricCard({
   label,
@@ -64,12 +65,7 @@ export default function DashboardPage({ dashboard }: { dashboard: DashboardData 
                   <div className="eyebrow">Intent</div>
                   <div className="text-3xl font-extrabold">{lead.intent}</div>
                 </div>
-                <button className="icon-button bg-slate-100" aria-label={`Email ${lead.name}`}>
-                  <Mail size={22} aria-hidden="true" />
-                </button>
-                <button className="icon-button bg-[#ffd45a]" aria-label={`Call ${lead.name}`}>
-                  <Phone size={21} aria-hidden="true" />
-                </button>
+                <ChannelContactButton lead={lead} size="sm" />
               </article>
             ))}
           </div>

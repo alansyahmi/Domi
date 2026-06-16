@@ -39,6 +39,8 @@ export const demoLeads: Lead[] = [
     score: 31,
     intent: 1,
     tier: "Hot",
+    stage: "engaged",
+    preferredChannel: "whatsapp",
     createdAt: "2026-06-09T10:30:00.000Z",
   },
   {
@@ -58,6 +60,8 @@ export const demoLeads: Lead[] = [
     score: 2,
     intent: 0,
     tier: "Cold",
+    stage: "new",
+    preferredChannel: "messenger",
     createdAt: "2026-06-08T15:20:00.000Z",
   },
   {
@@ -77,6 +81,8 @@ export const demoLeads: Lead[] = [
     score: 43,
     intent: 1,
     tier: "Hot",
+    stage: "negotiating",
+    preferredChannel: "telegram",
     createdAt: "2026-06-07T12:15:00.000Z",
   },
   {
@@ -96,6 +102,8 @@ export const demoLeads: Lead[] = [
     score: 1,
     intent: 0,
     tier: "Cold",
+    stage: "new",
+    preferredChannel: "phone",
     createdAt: "2026-06-05T08:00:00.000Z",
   },
 ];
