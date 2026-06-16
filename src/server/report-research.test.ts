@@ -41,6 +41,24 @@ describe("parseListingIndexCards", () => {
     expect(parseListingIndexCards(fixture + "\n" + fixture)).toHaveLength(2);
   });
 
+  it("drops implausible bed/bath clusters (e.g. '1 7') but keeps price/sqft", () => {
+    const noisy = `[junk RM 4,100,000 RM 1099.49 psf ### 11 Mont Kiara @ MK11 Jalan Kiara 1, Mont Kiara 1 7 3729 sqft Condominium](https://www.propertyguru.com.my/property-listing/mk11-501999111 "x")`;
+    const cards = parseListingIndexCards(noisy);
+    expect(cards).toHaveLength(1);
+    expect(cards[0].askingPriceRm).toBe(4100000);
+    expect(cards[0].builtUpSqft).toBe(3729);
+    expect(cards[0].bedrooms).toBeUndefined();
+    expect(cards[0].bathrooms).toBeUndefined();
+  });
+
+  it("drops implausible sqft values but keeps the card", () => {
+    const tiny = `[x RM 500,000 RM 5000 psf ### Some Place, Mont Kiara 2 2 150 sqft Condo](https://www.propertyguru.com.my/property-listing/x-501000999 "x")`;
+    const cards = parseListingIndexCards(tiny);
+    expect(cards).toHaveLength(1);
+    expect(cards[0].askingPriceRm).toBe(500000);
+    expect(cards[0].builtUpSqft).toBeUndefined(); // 150 < 200 floor
+  });
+
   it("returns nothing for pages without card markup", () => {
     expect(parseListingIndexCards("just some nav text and links")).toHaveLength(0);
   });

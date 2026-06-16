@@ -339,6 +339,29 @@ const CARD_PRICE_BEFORE_RE = /RM\s*([\d,]+)(?:\s*-\s*RM\s*[\d,]+)?\s+RM\s*[\d.,]
 const CARD_SPECS_AFTER_RE = /(?:(\d{1,2})\s+(\d{1,2})(?:\s+(\d{1,2}))?\s+)?([\d,]{3,})\s*Sq\s?\.?\s*ft/i;
 const CARD_LISTING_URL_RE = /https:\/\/www\.propertyguru\.com\.my\/property-listing\/[^\s)"']+|https:\/\/www\.iproperty\.com\.my\/[^\s)"']*?(?:sale|rent)-\d+[^\s)"']*/i;
 
+const MIN_PLAUSIBLE_SQFT = 200;
+const MAX_PLAUSIBLE_SQFT = 50000;
+
+/**
+ * Reject implausible room counts from a mis-read number cluster. Beds/baths sit
+ * in 1..20; a bath count far above beds (e.g. "1 7") almost always means the
+ * cluster was misaligned, so drop both rather than show wrong data.
+ */
+function sanitizeRoomCounts(bed?: number, bath?: number): { bedrooms?: number; bathrooms?: number } {
+  const bedrooms = bed && bed >= 1 && bed <= 20 ? bed : undefined;
+  let bathrooms = bath && bath >= 1 && bath <= 20 ? bath : undefined;
+  if (bedrooms !== undefined && bathrooms !== undefined && bathrooms > bedrooms + 3) {
+    return { bedrooms: undefined, bathrooms: undefined };
+  }
+  // A bath count with no bed count comes from an unreliable cluster read.
+  if (bedrooms === undefined) bathrooms = undefined;
+  return { bedrooms, bathrooms };
+}
+
+function sanitizeSqft(value?: number): number | undefined {
+  return value && value >= MIN_PLAUSIBLE_SQFT && value <= MAX_PLAUSIBLE_SQFT ? value : undefined;
+}
+
 export function parseListingIndexCards(rawContent: string): ParsedListingCard[] {
   const cards: ParsedListingCard[] = [];
   const seen = new Set<string>();
@@ -365,13 +388,17 @@ export function parseListingIndexCards(rawContent: string): ParsedListingCard[] 
     seen.add(url);
 
     const price = Number(priceMatch[1].replace(/,/g, ""));
+    const { bedrooms, bathrooms } = sanitizeRoomCounts(
+      specMatch[1] ? Number(specMatch[1]) : undefined,
+      specMatch[2] ? Number(specMatch[2]) : undefined,
+    );
     cards.push({
       title,
       url,
       askingPriceRm: price > 0 ? price : undefined,
-      bedrooms: specMatch[1] ? Number(specMatch[1]) || undefined : undefined,
-      bathrooms: specMatch[2] ? Number(specMatch[2]) || undefined : undefined,
-      builtUpSqft: Number(specMatch[4].replace(/,/g, "")) || undefined,
+      bedrooms,
+      bathrooms,
+      builtUpSqft: sanitizeSqft(Number(specMatch[4].replace(/,/g, ""))),
     });
   }
   return cards;
@@ -533,6 +560,18 @@ export function createTavilyResearchProvider(env: ReportResearchEnv): ReportRese
         if (sourceType === "comparable_listing") {
           const collected: ReportComparableListing[] = [];
           const seenUrls = new Set<string>();
+          const seenContent = new Set<string>();
+          // Same physical unit can appear under different URLs; collapse on
+          // title+price+size so the table does not repeat near-identical rows.
+          const contentKey = (l: ReportComparableListing): string =>
+            `${l.title.toLowerCase().replace(/\s+/g, " ").trim()}|${l.askingPriceRm ?? ""}|${l.builtUpSqft ?? ""}`;
+          const pushUnique = (listing: ReportComparableListing): void => {
+            const ck = contentKey(listing);
+            if (seenUrls.has(listing.url) || seenContent.has(ck)) return;
+            seenUrls.add(listing.url);
+            seenContent.add(ck);
+            collected.push(listing);
+          };
           for (const result of sortedResults) {
             const key = result.url?.trim().toLowerCase();
             const rawContent = key ? extracted.get(key) : undefined;
@@ -542,20 +581,14 @@ export function createTavilyResearchProvider(env: ReportResearchEnv): ReportRese
               : [];
             const cardListings = cards
               .map((card) => buildComparableFromCard(input, card))
-              .filter((listing): listing is ReportComparableListing => Boolean(listing) && !seenUrls.has(listing!.url));
+              .filter((listing): listing is ReportComparableListing => Boolean(listing));
             if (cardListings.length > 0) {
-              for (const listing of cardListings) {
-                seenUrls.add(listing.url);
-                collected.push(listing);
-              }
+              cardListings.forEach(pushUnique);
             } else {
               // No usable cards (thin template / different layout) — fall back to
               // single-listing extraction so we never do worse than the snippet.
               const listing = extractComparableListing(input, result, rawContent);
-              if (listing && !seenUrls.has(listing.url)) {
-                seenUrls.add(listing.url);
-                collected.push(listing);
-              }
+              if (listing) pushUnique(listing);
             }
           }
           // Prefer listings with concrete specs (price or size) up front.
