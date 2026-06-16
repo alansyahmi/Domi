@@ -23,6 +23,11 @@
     "react-router-dom": "^7.11.0",
     "tailwindcss": "^4.1.18"
   },
+  "overrides": {
+    "@scalekit-sdk/node": {
+      "jose": "5.10.0"
+    }
+  },
   "devDependencies": {
     "@types/node": "^24.10.2",
     "@types/react": "^19.2.7",
