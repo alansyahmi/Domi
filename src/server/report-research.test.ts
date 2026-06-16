@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createReportResearchProvider, createTavilyResearchProvider, parsePropertyGuruCards } from "./report-research";
+import { createReportResearchProvider, createTavilyResearchProvider, parseListingIndexCards } from "./report-research";
 import type { PropertyReportInput } from "../types";
 
-describe("parsePropertyGuruCards", () => {
-  // Real raw_content shape captured from a PropertyGuru Mont Kiara index page.
+describe("parseListingIndexCards", () => {
+  // Real raw_content shapes captured from PropertyGuru + iProperty Mont Kiara index pages.
   const fixture = `[Beautiful 2 Bedroom Condo Available For Sale in Jalan Kiara 3 * * * RM 660,000 RM 702.13 psf ### Inspirasi Jalan Kiara 3, Mont Kiara, Kuala Lumpur 3 2 1 940 sqft Condominium Leasehold Built: 2021 MRT 7 min Contact Agent](https://www.propertyguru.com.my/property-listing/inspirasi-for-sale-by-gordon-goh-501421695 "For Sale Inspirasi")
 [Spacious unit For Sale * * RM 1,300,000 RM 690.21 psf ### Verticas Residensi, Mont Kiara, Kuala Lumpur 4 4 2 1,883 sqft Condominium Freehold Built: 2016 Contact Agent](https://www.propertyguru.com.my/property-listing/verticas-501120042 "For Sale Verticas")`;
 
-  it("parses multiple unit cards with full specs from one index page", () => {
-    const cards = parsePropertyGuruCards(fixture);
+  it("parses multiple PropertyGuru unit cards with full specs", () => {
+    const cards = parseListingIndexCards(fixture);
     expect(cards).toHaveLength(2);
     expect(cards[0]).toMatchObject({
       title: expect.stringContaining("Inspirasi"),
@@ -18,20 +18,31 @@ describe("parsePropertyGuruCards", () => {
       bathrooms: 2,
       builtUpSqft: 940,
     });
-    expect(cards[1]).toMatchObject({
-      askingPriceRm: 1300000,
-      bedrooms: 4,
-      bathrooms: 4,
-      builtUpSqft: 1883,
+    expect(cards[1]).toMatchObject({ askingPriceRm: 1300000, bedrooms: 4, bathrooms: 4, builtUpSqft: 1883 });
+  });
+
+  it("parses iProperty cards with price/size ranges and '* * *' bed/bath", () => {
+    // Real iProperty index shape: price + psf ranges, '* * *' instead of bed/bath numbers, "Sqft - Sqft" range.
+    const ipFixture = `[RM 1,099,741 - RM 4,170,578 RM 438.49 psf - RM 1,662.91 psf ### Kiaramas deDaun phase 2 Jalan Desa Kiara, Mont Kiara, Kuala Lumpur * * * 1313 Sqft - 4693 Sqft Condominium Listed on May 26, 2025](https://www.iproperty.com.my/new-property/property/mont-kiara/kiaramas-de-daun-phase-2/sale-501120041/ "For Sale")
+[RM 1,250,000 RM 909.75 psf ### Twy Duplex Condos, Mont Kiara Jalan Dutamas 3 2 1374 Sqft Condominium](https://www.iproperty.com.my/property/mont-kiara/twy-duplex-condos/sale-501099302/ "For Sale Twy")`;
+    const cards = parseListingIndexCards(ipFixture);
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toMatchObject({
+      title: expect.stringContaining("Kiaramas"),
+      url: expect.stringContaining("iproperty.com.my"),
+      askingPriceRm: 1099741, // lower bound of the range
+      builtUpSqft: 1313, // lower bound of the range
     });
+    expect(cards[0].bedrooms).toBeUndefined(); // '* * *' → unknown
+    expect(cards[1]).toMatchObject({ askingPriceRm: 1250000, builtUpSqft: 1374 });
   });
 
   it("dedupes repeated listing urls", () => {
-    expect(parsePropertyGuruCards(fixture + "\n" + fixture)).toHaveLength(2);
+    expect(parseListingIndexCards(fixture + "\n" + fixture)).toHaveLength(2);
   });
 
   it("returns nothing for pages without card markup", () => {
-    expect(parsePropertyGuruCards("just some nav text and links")).toHaveLength(0);
+    expect(parseListingIndexCards("just some nav text and links")).toHaveLength(0);
   });
 });
 

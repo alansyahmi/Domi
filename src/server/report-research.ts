@@ -322,36 +322,56 @@ interface ParsedListingCard {
   bathrooms?: number;
 }
 
-// A PropertyGuru listing index page renders each unit as a compact data line:
-//   "RM <price> RM <psf> psf ### <name> <bed> <bath> <carpark> <sqft> sqft"
-// Real pages wrap these in markdown with nested ![Image] tags, so we match the
-// data line directly (bracket-free) and grab the nearest property-listing URL.
-const PG_DATA_RE = /RM\s*([\d,]+)\s+RM\s*[\d.,]+\s*psf\s*#{2,3}\s*(.+?)\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d,]+)\s*sq\s?\.?\s*ft/gi;
-const PG_LISTING_URL_RE = /https:\/\/www\.propertyguru\.com\.my\/property-listing\/[^\s)"']+/i;
+// PropertyGuru and iProperty index pages both render each unit as a compact
+// data line: "RM <price>[ - RM <max>] RM <psf> psf ### <name> [<bed> <bath>
+// <carpark> | * * *] <sqft>[ Sqft - <max>] sqft". Individual listing-detail
+// pages are blocked by portal anti-bot, but these SEO index pages extract fine,
+// so we parse the repeated unit cards out of them.
+//
+// Parsing is window-based around each "###" heading (robust to nested ![Image]
+// markdown and template variance) rather than bracket-scoped.
+const CARD_HEADING_RE = /#{2,3}[ \t]+/g;
+// The "RM <price> RM <psf> psf" pair must sit immediately before the heading.
+const CARD_PRICE_BEFORE_RE = /RM\s*([\d,]+)(?:\s*-\s*RM\s*[\d,]+)?\s+RM\s*[\d.,]+\s*psf(?:\s*-\s*RM\s*[\d.,]+\s*psf)?\s*$/i;
+// After the heading: "<name> [<bed> <bath> [<carpark>]] <sqft> sqft". Beds/baths
+// are 1-2 digit counts; sqft is 3+ digits — so it never swallows a count. The
+// optional count cluster (or iProperty's "* * *") is stripped from the title.
+const CARD_SPECS_AFTER_RE = /(?:(\d{1,2})\s+(\d{1,2})(?:\s+(\d{1,2}))?\s+)?([\d,]{3,})\s*Sq\s?\.?\s*ft/i;
+const CARD_LISTING_URL_RE = /https:\/\/www\.propertyguru\.com\.my\/property-listing\/[^\s)"']+|https:\/\/www\.iproperty\.com\.my\/[^\s)"']*?(?:sale|rent)-\d+[^\s)"']*/i;
 
-export function parsePropertyGuruCards(rawContent: string): ParsedListingCard[] {
+export function parseListingIndexCards(rawContent: string): ParsedListingCard[] {
   const cards: ParsedListingCard[] = [];
   const seen = new Set<string>();
-  PG_DATA_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = PG_DATA_RE.exec(rawContent)) !== null) {
-    const title = compact(match[2]);
+  CARD_HEADING_RE.lastIndex = 0;
+  let heading: RegExpExecArray | null;
+  while ((heading = CARD_HEADING_RE.exec(rawContent)) !== null) {
+    const beforeWindow = compact(rawContent.slice(Math.max(0, heading.index - 240), heading.index));
+    const priceMatch = beforeWindow.match(CARD_PRICE_BEFORE_RE);
+    if (!priceMatch) continue; // heading is not a priced listing card
+
+    const afterStart = heading.index + heading[0].length;
+    const afterWindow = compact(rawContent.slice(afterStart, afterStart + 440));
+    const specMatch = afterWindow.match(CARD_SPECS_AFTER_RE);
+    if (!specMatch || specMatch.index === undefined) continue;
+    // Title is everything before the spec cluster, minus trailing "* * *"/punctuation.
+    const title = compact(afterWindow.slice(0, specMatch.index)).replace(/[\s*,–-]+$/, "").trim();
     if (!title) continue;
 
-    // The unit's listing link follows its data line; search a forward window.
-    const urlMatch = rawContent.slice(match.index, match.index + 1500).match(PG_LISTING_URL_RE);
-    const url = urlMatch?.[0] ?? "";
+    // The listing URL closes the card markup after the data line, so search
+    // forward only — a backward window would grab the previous card's URL.
+    const urlWindow = rawContent.slice(afterStart, afterStart + 1400);
+    const url = urlWindow.match(CARD_LISTING_URL_RE)?.[0] ?? "";
     if (!url || seen.has(url)) continue;
     seen.add(url);
 
-    const price = Number(match[1].replace(/,/g, ""));
+    const price = Number(priceMatch[1].replace(/,/g, ""));
     cards.push({
       title,
       url,
       askingPriceRm: price > 0 ? price : undefined,
-      bedrooms: Number(match[3]) || undefined,
-      bathrooms: Number(match[4]) || undefined,
-      builtUpSqft: Number(match[6].replace(/,/g, "")) || undefined,
+      bedrooms: specMatch[1] ? Number(specMatch[1]) || undefined : undefined,
+      bathrooms: specMatch[2] ? Number(specMatch[2]) || undefined : undefined,
+      builtUpSqft: Number(specMatch[4].replace(/,/g, "")) || undefined,
     });
   }
   return cards;
@@ -517,8 +537,8 @@ export function createTavilyResearchProvider(env: ReportResearchEnv): ReportRese
             const key = result.url?.trim().toLowerCase();
             const rawContent = key ? extracted.get(key) : undefined;
             // A directory/index page can expand into many fully-specced unit cards.
-            const cards = rawContent && key && /propertyguru\.com\.my/.test(key)
-              ? parsePropertyGuruCards(rawContent)
+            const cards = rawContent && key && /(?:propertyguru|iproperty)\.com\.my/.test(key)
+              ? parseListingIndexCards(rawContent)
               : [];
             const cardListings = cards
               .map((card) => buildComparableFromCard(input, card))
