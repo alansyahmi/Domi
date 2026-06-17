@@ -1,4 +1,4 @@
-import { BadgeDollarSign, BarChart3, Database, FileText, Gauge, KeyRound, SearchCheck, ShieldCheck, Sparkles, TrendingUp } from "lucide-react";
+import { BadgeDollarSign, BarChart3, Database, FileText, Gauge, KeyRound, MapPin, SearchCheck, ShieldCheck, Sparkles, Star, TrendingUp } from "lucide-react";
 import type { PropertyReport } from "../../types";
 import ReportActionBar from "./ReportActionBar";
 import ReportCitationList from "./ReportCitationList";
@@ -118,6 +118,44 @@ export default function ReportResultPanel({
       </div>
 
       <ReportPricingPanel report={report} variant="agent" />
+
+      {report.analytics.neighborhoodVibe && (
+        <div className="mb-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                <MapPin size={20} aria-hidden="true" />
+              </div>
+              <div>
+                <h3 className="m-0 text-lg font-bold text-slate-800">Neighborhood Vibe</h3>
+                <p className="m-0 text-sm text-slate-500">{report.analytics.neighborhoodVibe.label}</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-end">
+              <span className="text-2xl font-black text-slate-800 flex items-center gap-1">
+                {report.analytics.neighborhoodVibe.score.toFixed(1)} <Star size={20} className="fill-yellow-400 text-yellow-400" />
+              </span>
+              <span className="text-xs text-slate-500 font-medium">Google Places</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {report.analytics.neighborhoodVibe.amenities.map((amenity, i) => (
+              <div key={i} className="flex flex-col rounded-lg bg-slate-50 p-3 border border-slate-100">
+                <span className="text-xs font-bold uppercase text-slate-400 mb-1">{amenity.type}</span>
+                <span className="text-sm font-semibold text-slate-800 truncate">{amenity.name}</span>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-xs text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">{amenity.distance}</span>
+                  {amenity.rating && (
+                    <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                      {amenity.rating.toFixed(1)} <Star size={12} className="fill-yellow-400 text-yellow-400" />
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4">
         {report.contentSections.map((section) => (

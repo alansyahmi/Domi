@@ -63,17 +63,21 @@ export default function SettingsPage({
   onSave,
   onConnectIntegration,
   onDisconnectIntegration,
+  onSaveWhatsAppCredentials,
+  onDeleteWhatsAppCredentials,
 }: {
   agent: Agent;
   integrations: Integration[];
   onSave: (input: Omit<Agent, "id" | "workosUserId" | "plan" | "avatarInitials" | "ingestionAddress">) => Promise<void>;
   onConnectIntegration: (id: string, name: string, description: string) => Promise<void>;
   onDisconnectIntegration: (id: string) => Promise<void>;
+  onSaveWhatsAppCredentials?: (phoneNumberId: string, accessToken: string) => Promise<void>;
+  onDeleteWhatsAppCredentials?: () => Promise<void>;
 }) {
   const [form, setForm] = useState({
-    fullName: agent.fullName,
-    email: agent.email,
-    phone: agent.phone,
+    fullName: agent.fullName || "",
+    email: agent.email || "",
+    phone: agent.phone || "",
     renNumber: agent.renNumber || "",
     agencyName: agent.agencyName || "",
     whatsappNumber: agent.whatsappNumber || "",
@@ -81,6 +85,13 @@ export default function SettingsPage({
     companyLogoUrl: agent.companyLogoUrl || "",
     bio: agent.bio || "",
   });
+
+  const [whatsappForm, setWhatsappForm] = useState({
+    phoneNumberId: "",
+    accessToken: "",
+  });
+  const [isSavingWhatsApp, setIsSavingWhatsApp] = useState(false);
+
   const [copied, setCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isFailing, setIsFailing] = useState(false);
@@ -218,6 +229,24 @@ export default function SettingsPage({
       await onDisconnectIntegration(integrationId);
     } catch (error) {
       console.error(error);
+    }
+  }
+
+  async function handleSaveWhatsApp(event: FormEvent) {
+    event.preventDefault();
+    if (!onSaveWhatsAppCredentials) return;
+    setIsSavingWhatsApp(true);
+    try {
+      await onSaveWhatsAppCredentials(whatsappForm.phoneNumberId, whatsappForm.accessToken);
+      // We simulate successful connection by local state, but App.tsx triggers a re-fetch?
+      // For this demo, let's just alert success
+      alert("WhatsApp Business connected successfully!");
+      setWhatsappForm({ phoneNumberId: "", accessToken: "" });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save WhatsApp credentials.");
+    } finally {
+      setIsSavingWhatsApp(false);
     }
   }
 
@@ -438,7 +467,63 @@ export default function SettingsPage({
 
             {/* Available Lead Sources to Add */}
             <div className="mt-8">
-              <h3 className="m-0 text-2xl font-extrabold border-b border-slate-200 pb-4">Available Lead Sources</h3>
+              <h3 className="m-0 text-2xl font-extrabold border-b border-slate-200 pb-4">Messaging Integrations</h3>
+              <div className="mt-5">
+                <article className="rounded-md border border-slate-200 bg-white p-6">
+                  <div className="flex items-center gap-4 border-b border-slate-100 pb-4 mb-4">
+                    <div className="flex items-center justify-center font-black text-white text-xl rounded-sm w-10 h-10 bg-emerald-500">
+                      W
+                    </div>
+                    <div>
+                      <h4 className="m-0 text-xl font-extrabold text-slate-800">WhatsApp Business API</h4>
+                      <p className="m-0 text-sm text-slate-500">Send direct WhatsApp messages using your Meta Developer credentials.</p>
+                    </div>
+                  </div>
+                  <form className="grid gap-4" onSubmit={(e) => void handleSaveWhatsApp(e)}>
+                    <label className="form-field">
+                      <span className="form-label text-sm text-slate-700 font-bold">Phone Number ID</span>
+                      <input
+                        className="input bg-slate-50 border-slate-200"
+                        placeholder="e.g. 102345678901234"
+                        value={whatsappForm.phoneNumberId}
+                        onChange={(e) => setWhatsappForm({ ...whatsappForm, phoneNumberId: e.target.value })}
+                        required
+                      />
+                    </label>
+                    <label className="form-field">
+                      <span className="form-label text-sm text-slate-700 font-bold">Permanent Access Token</span>
+                      <input
+                        type="password"
+                        className="input bg-slate-50 border-slate-200"
+                        placeholder="EAAB..."
+                        value={whatsappForm.accessToken}
+                        onChange={(e) => setWhatsappForm({ ...whatsappForm, accessToken: e.target.value })}
+                        required
+                      />
+                    </label>
+                    <div className="flex justify-end gap-3 mt-2">
+                      {onDeleteWhatsAppCredentials && (
+                        <button
+                          type="button"
+                          className="px-4 py-2 text-red-600 font-semibold hover:bg-red-50 rounded-md transition-colors"
+                          onClick={() => void onDeleteWhatsAppCredentials()}
+                        >
+                          Disconnect
+                        </button>
+                      )}
+                      <button
+                        type="submit"
+                        className="primary-button bg-emerald-600 hover:bg-emerald-700 !py-2 !px-6"
+                        disabled={isSavingWhatsApp}
+                      >
+                        {isSavingWhatsApp ? "Saving..." : "Connect WhatsApp"}
+                      </button>
+                    </div>
+                  </form>
+                </article>
+              </div>
+
+              <h3 className="m-0 text-2xl font-extrabold border-b border-slate-200 pb-4 mt-10">Available Lead Sources</h3>
               {availablePortalsToConnect.length === 0 ? (
                 <p className="mt-4 text-slate-500 text-sm">All available portals are connected.</p>
               ) : (

@@ -1,4 +1,4 @@
-import { Download, Filter, Frown, Meh, Search, SlidersHorizontal, Smile, Eye, Trash2, Plus, X, Calendar, Activity, Mail, Phone, DollarSign, MapPin } from "lucide-react";
+import { Download, Filter, Frown, Meh, Search, SlidersHorizontal, Smile, Eye, Trash2, Plus, X, Calendar, Activity, Mail, Phone, DollarSign, MapPin, Sparkles, Send } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { initials, sourceTone } from "../lib/format";
 import type { Lead, LeadStage, Sentiment, LeadEvent } from "../types";
@@ -16,6 +16,7 @@ export default function LeadManagementPage({
   onDeleteLead,
   onGetLeadEvents,
   onUpdateLeadStage,
+  onSendLeadMessage,
 }: {
   leads: Lead[];
   onCreateLead: (input: {
@@ -43,6 +44,7 @@ export default function LeadManagementPage({
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [leadEvents, setLeadEvents] = useState<LeadEvent[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   // Manual Add Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -139,6 +141,23 @@ export default function LeadManagementPage({
         console.error(err);
         alert("Failed to delete prospect.");
       }
+    }
+  }
+
+  async function handleActionableOutreach() {
+    if (!selectedLead || !onSendLeadMessage) return;
+    setIsSendingMessage(true);
+    try {
+      const template = `Hi ${selectedLead.name.split(" ")[0]}, I saw you were looking at ${selectedLead.propertyInterest || "some properties"} recently. Are you still searching? I have some new exclusive insights I can share with you!`;
+      await onSendLeadMessage(selectedLead.id, template);
+      // Wait to allow local App.tsx to update stage
+      setTimeout(() => {
+        setIsSendingMessage(false);
+      }, 500);
+    } catch (e) {
+      alert("Failed to send message.");
+      console.error(e);
+      setIsSendingMessage(false);
     }
   }
 
@@ -404,6 +423,40 @@ export default function LeadManagementPage({
                   </div>
                 </div>
               </div>
+
+              {/* Actionable Insights (Phase 3) */}
+              {(selectedLead.intent === 1 || selectedLead.score > 50 || selectedLead.stage === "new") && (
+                <div className="bg-gradient-to-br from-[#041627] to-[#0a2e4a] rounded-xl p-5 text-white shadow-md relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <Sparkles size={80} />
+                  </div>
+                  <div className="relative z-10">
+                    <h3 className="text-sm font-bold text-sky-300 uppercase tracking-wider mb-2 flex items-center gap-2">
+                      <Sparkles size={16} />
+                      Actionable Insight
+                    </h3>
+                    <p className="text-sm text-slate-200 mb-4 leading-relaxed">
+                      This prospect shows high intent. Based on their recent activity, we recommend sending a personalized WhatsApp outreach.
+                    </p>
+                    <div className="bg-white/10 rounded-lg p-3 text-sm text-slate-100 italic mb-4 border border-white/20">
+                      "Hi {selectedLead.name.split(" ")[0]}, I saw you were looking at {selectedLead.propertyInterest || "some properties"} recently. Are you still searching? I have some new exclusive insights I can share with you!"
+                    </div>
+                    <button 
+                      className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white py-2.5 rounded-lg font-bold transition-all shadow-sm disabled:opacity-50"
+                      onClick={() => void handleActionableOutreach()}
+                      disabled={isSendingMessage || selectedLead.stage !== "new"}
+                    >
+                      {isSendingMessage ? (
+                        "Sending..."
+                      ) : selectedLead.stage !== "new" ? (
+                        <><Send size={18} /> Outreach Sent</>
+                      ) : (
+                        <><Send size={18} /> Send WhatsApp Outreach</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Property Interests */}
               <div>

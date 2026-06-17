@@ -346,8 +346,16 @@ button {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding-left: 0.75rem;
+  padding: 0.35rem 0.6rem 0.35rem 0.75rem;
+  margin-left: 0.25rem;
   border-left: 1px solid var(--line);
+  cursor: pointer;
+  border-radius: 999px;
+  transition: background 140ms ease;
+}
+
+.profile-group:hover {
+  background: rgba(0, 0, 0, 0.03);
 }
 
 .profile-info {
@@ -540,13 +548,19 @@ button {
   padding: 0;
   background: transparent;
   color: #2b3440;
+  cursor: pointer;
+  border-radius: 999px; /* make it circular */
 }
 
 .primary-button:hover,
 .secondary-button:hover,
-.ghost-button:hover,
-.icon-button:hover {
+.ghost-button:hover {
   transform: translateY(-1px);
+}
+
+.icon-button:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--navy);
 }
 
 .card {

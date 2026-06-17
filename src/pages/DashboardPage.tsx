@@ -1,8 +1,36 @@
-import { RefreshCw, TrendingUp } from "lucide-react";
+import { useEffect, useState } from "react";
+import { RefreshCw, TrendingUp, UserPlus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { formatDateTime, initials } from "../lib/format";
 import type { DashboardData, PropertyReport } from "../types";
 import { ChannelContactButton } from "../components/leads/ChannelContactButton";
+
+function AnimatedNumber({ value }: { value: number | string }) {
+  const [displayValue, setDisplayValue] = useState(0);
+  const numericValue = typeof value === "string" ? parseFloat(value.replace(/,/g, "")) : value;
+
+  useEffect(() => {
+    let startTimestamp: number | null = null;
+    const duration = 1000;
+
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      // easeOutQuart
+      const ease = 1 - Math.pow(1 - progress, 4);
+      setDisplayValue(numericValue * ease);
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+    window.requestAnimationFrame(step);
+  }, [numericValue]);
+
+  if (typeof value === "string" && !value.includes(".")) {
+    return <>{Math.floor(displayValue).toLocaleString()}</>;
+  }
+  return <>{displayValue.toFixed(2)}</>;
+}
 
 function MetricCard({
   label,
@@ -11,7 +39,7 @@ function MetricCard({
   gold,
 }: {
   label: string;
-  value: string;
+  value: string | number;
   hint: string;
   gold?: boolean;
 }) {
@@ -19,7 +47,9 @@ function MetricCard({
     <section className={`card metric-card ${gold ? "gold" : ""}`}>
       <p className="metric-label">{label}</p>
       <div className="mt-4 flex items-end gap-4">
-        <strong className="metric-value">{value}</strong>
+        <strong className="metric-value">
+          <AnimatedNumber value={value} />
+        </strong>
         <span className="mb-2 text-emerald-600 font-semibold">{hint}</span>
       </div>
     </section>
@@ -34,22 +64,39 @@ function ReportStatus({ report }: { report: PropertyReport }) {
   );
 }
 
-export default function DashboardPage({ dashboard }: { dashboard: DashboardData }) {
+export default function DashboardPage({ 
+  dashboard,
+  onInjectDemoLead 
+}: { 
+  dashboard: DashboardData;
+  onInjectDemoLead?: () => void;
+}) {
   return (
     <main className="page">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <MetricCard label="Total Leads Scored" value={dashboard.totals.leadsScored.toLocaleString()} hint="+12%" />
+        <MetricCard label="Total Leads Scored" value={dashboard.totals.leadsScored} hint="+12%" />
         <MetricCard label="Average Intent Score" value={dashboard.totals.averageIntentScore.toFixed(2)} hint="High" gold />
-        <MetricCard label="Reports Generated" value={dashboard.totals.reportsGenerated.toLocaleString()} hint="This Month" />
+        <MetricCard label="Reports Generated" value={dashboard.totals.reportsGenerated} hint="This Month" />
       </div>
 
       <div className="mt-12 grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(24rem,1fr)] gap-10">
         <section>
           <div className="dashboard-section-header">
             <h2 className="section-title">High-Intent Leads</h2>
-            <Link to="/leads" className="secondary-button">
-              View All
-            </Link>
+            <div className="flex gap-2">
+              {onInjectDemoLead && (
+                <button 
+                  onClick={onInjectDemoLead}
+                  className="secondary-button !px-3"
+                  title="Simulate incoming lead"
+                >
+                  <UserPlus size={18} />
+                </button>
+              )}
+              <Link to="/leads" className="secondary-button">
+                View All
+              </Link>
+            </div>
           </div>
           <div className="grid gap-4">
             {dashboard.highIntentLeads.map((lead) => (

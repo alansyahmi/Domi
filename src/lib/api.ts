@@ -44,7 +44,7 @@ async function apiJson<T>(
   if (!response.ok) {
     let msg = `${response.status} ${response.statusText}`;
     try {
-      const errJson = await response.json();
+      const errJson = (await response.json()) as { error?: string };
       if (errJson.error) msg = errJson.error;
     } catch (e) {
       // ignore
@@ -224,11 +224,15 @@ export async function updateLeadStageApi(
   });
 }
 
-export async function deleteLeadApi(
-  leadId: string,
-): Promise<{ success: boolean }> {
-  return apiJson<{ success: boolean }>(`/api/leads/${encodeURIComponent(leadId)}`, {
+export async function deleteLeadApi(leadId: string): Promise<{ success: boolean }> {
+  return await apiJson<{ success: boolean }>(`/api/leads/${leadId}`, {
     method: "DELETE",
+  });
+}
+
+export async function injectDemoLeadApi(): Promise<{ success: boolean; lead: Lead }> {
+  return await apiJson<{ success: boolean; lead: Lead }>("/api/leads/demo-inject", {
+    method: "POST",
   });
 }
 
@@ -241,6 +245,22 @@ export async function sendLeadMessageApi(leadId: string, text: string): Promise<
   return await apiJson<{ success: boolean; error?: string }>(`/api/leads/${leadId}/message`, {
     method: "POST",
     body: JSON.stringify({ text }),
+  });
+}
+
+export async function saveWhatsAppCredentialsApi(
+  phoneNumberId: string,
+  accessToken: string
+): Promise<{ success: boolean }> {
+  return await apiJson<{ success: boolean }>(`/api/settings/whatsapp`, {
+    method: "POST",
+    body: JSON.stringify({ phoneNumberId, accessToken }),
+  });
+}
+
+export async function deleteWhatsAppCredentialsApi(): Promise<{ success: boolean }> {
+  return await apiJson<{ success: boolean }>(`/api/settings/whatsapp`, {
+    method: "DELETE",
   });
 }
 

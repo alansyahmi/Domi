@@ -32,6 +32,7 @@ import {
   type ReportResearchProvider,
   type ReportResearchResult,
 } from "./report-research";
+import { fetchNeighborhoodVibe, type NeighborhoodVibe } from "./places";
 import { getRuntimeEnv } from "./runtime-env";
 
 const CACHE_FRESHNESS_DAYS = 7;
@@ -166,7 +167,7 @@ function createIndexLookup(
   };
 }
 
-function buildAnalytics(research: ReportResearchResult, cacheStatus: ReportCacheStatus, freshnessDays: number): ReportAnalytics {
+function buildAnalytics(research: ReportResearchResult, cacheStatus: ReportCacheStatus, freshnessDays: number, neighborhoodVibe?: NeighborhoodVibe): ReportAnalytics {
   const comparableCount = sanitizeComparableListings(research.comparableListings, research.propertyName).length;
   const sourceWeight = Math.min(0.22, research.sources.length * 0.035);
   const comparableWeight = comparableCount >= 2 ? 0.04 : comparableCount === 1 ? 0.01 : -0.05;
@@ -176,6 +177,7 @@ function buildAnalytics(research: ReportResearchResult, cacheStatus: ReportCache
     pricingTrend: research.pricingTrend,
     confidenceScore: clampConfidence(0.68 + sourceWeight + comparableWeight + cacheWeight - Math.min(0.12, freshnessDays * 0.01)),
     freshnessDays,
+    neighborhoodVibe,
   };
 }
 
@@ -422,9 +424,17 @@ export async function generatePropertyReport(
     }
   }
 
+  // Fetch neighborhood vibe async
+  let vibe: NeighborhoodVibe | undefined;
+  try {
+    vibe = await fetchNeighborhoodVibe(normalized.address);
+  } catch (err) {
+    console.error("Failed to fetch neighborhood vibe:", err);
+  }
+
   const citations = sanitizeCitations(research.sources);
   const comparableListings = sanitizeComparableListings(research.comparableListings, normalized.propertyName);
-  const analytics = buildAnalytics(research, cacheStatus, cacheStatus === "hit" ? cachedFreshnessDays : 0);
+  const analytics = buildAnalytics(research, cacheStatus, cacheStatus === "hit" ? cachedFreshnessDays : 0, vibe);
   const contentSections = buildContentSections(research, analytics, normalized, limitedSourceCoverage);
   const draft = buildReportDraft(normalized);
   const report: PropertyReport = {

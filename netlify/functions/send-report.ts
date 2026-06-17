@@ -12,7 +12,7 @@ export default async function handler(request: Request, context: Context) {
 
   let body: Record<string, any>;
   try {
-    body = await request.json();
+    body = (await request.json()) as Record<string, any>;
   } catch (e) {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400 });
   }

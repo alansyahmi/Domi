@@ -13,7 +13,11 @@ import {
   deleteLeadApi,
   getLeadEventsApi,
   updateLeadStageApi,
+  sendLeadMessageApi,
+  saveWhatsAppCredentialsApi,
+  deleteWhatsAppCredentialsApi,
   sendReportApi,
+  injectDemoLeadApi,
   type BootstrapData,
 } from "./lib/api";
 import Layout from "./components/Layout";
@@ -252,9 +256,40 @@ function SignatisWorkspace({
         integrations: result.integrations,
       },
     });
-    if (integration) {
-      setNotice(`${integration.name} disconnected.`);
+    setNotice(`${integration?.name || "Integration"} disconnected.`);
+  }
+
+  async function saveWhatsAppCredentials(phoneNumberId: string, accessToken: string): Promise<void> {
+    if (!data) return;
+    if (!data.demoMode) {
+      await saveWhatsAppCredentialsApi(phoneNumberId, accessToken);
     }
+    setData({
+      ...data,
+      settings: {
+        ...data.settings,
+        integrations: [
+          ...data.settings.integrations.filter((i) => i.id !== "whatsapp"),
+          { id: "whatsapp", agentId: data.settings.agent.id, name: "WhatsApp Business API", description: "Meta Developer API", status: "connected" }
+        ],
+      },
+    });
+    setNotice("WhatsApp Business API connected.");
+  }
+
+  async function deleteWhatsAppCredentials(): Promise<void> {
+    if (!data) return;
+    if (!data.demoMode) {
+      await deleteWhatsAppCredentialsApi();
+    }
+    setData({
+      ...data,
+      settings: {
+        ...data.settings,
+        integrations: data.settings.integrations.filter((i) => i.id !== "whatsapp"),
+      },
+    });
+    setNotice("WhatsApp Business API disconnected.");
   }
 
   async function submitSupport(input: Pick<SupportRequest, "name" | "category" | "subject" | "message">): Promise<void> {
@@ -350,7 +385,6 @@ function SignatisWorkspace({
     if (data.demoMode) {
       console.log(`[Demo] Simulating WhatsApp message to lead ${leadId}: ${text}`);
       await new Promise(resolve => setTimeout(resolve, 800));
-      // In demo mode, simulate the stage update that backend does
       setData({
         ...data,
         leads: data.leads.map((lead) => (lead.id === leadId && lead.stage === "new" ? { ...lead, stage: "contacted" } : lead)),
@@ -362,7 +396,6 @@ function SignatisWorkspace({
         throw new Error(result.error || "Failed to send message.");
       }
       setNotice("WhatsApp message dispatched.");
-      // Backend updates the stage to 'contacted', we need to reflect it locally if it was 'new'
       setData({
         ...data,
         leads: data.leads.map((lead) => (lead.id === leadId && lead.stage === "new" ? { ...lead, stage: "contacted" } : lead)),
@@ -433,15 +466,10 @@ function SignatisWorkspace({
       return;
     }
 
-    // Call local logout API endpoint
     const form = document.createElement("form");
     form.method = "POST";
     form.action = "/logout";
     
-    const csrfInput = document.createElement("input");
-    csrfInput.type = "hidden";
-    csrfInput.name = "csrfToken"; // Wait, netlify logout expects CSRF in header but standard form submit might not have it.
-    // Instead of form submit, let's call logout via standard POST API fetch, then redirect!
     try {
       await fetch("/logout", {
         method: "POST",
@@ -450,7 +478,6 @@ function SignatisWorkspace({
         },
       });
     } catch {
-      // Ignore error and redirect anyway
     }
     window.location.href = "/login";
   }
@@ -476,6 +503,26 @@ function SignatisWorkspace({
         </section>
       </main>
     );
+  }
+
+  async function handleInjectDemoLead() {
+    if (!data) return;
+    if (data.demoMode) {
+      alert("Please connect to the real backend database (authMode='workos') to inject leads via API, or we can mock it here if needed.");
+      return;
+    }
+    try {
+      const res = await injectDemoLeadApi();
+      if (res.success) {
+        setNotice("Inbound lead simulated successfully!");
+        setData({
+          ...data,
+          leads: [res.lead, ...data.leads],
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to inject demo lead.");
+    }
   }
 
   if (error) {
@@ -512,7 +559,7 @@ function SignatisWorkspace({
       <div className="route-transition" key={location.pathname}>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPage dashboard={dashboard} />} />
+          <Route path="/dashboard" element={<DashboardPage dashboard={dashboard} onInjectDemoLead={handleInjectDemoLead} />} />
           <Route
             path="/report-generator"
             element={<ReportGeneratorPage reports={data.reports} leads={data.leads} onCreateReport={createReport} onSendReport={sendReport} />}
@@ -539,6 +586,8 @@ function SignatisWorkspace({
                 onSave={saveSettings}
                 onConnectIntegration={connectIntegration}
                 onDisconnectIntegration={disconnectIntegration}
+                onSaveWhatsAppCredentials={saveWhatsAppCredentials}
+                onDeleteWhatsAppCredentials={deleteWhatsAppCredentials}
               />
             }
           />

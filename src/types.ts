@@ -173,6 +173,16 @@ export interface ReportAnalytics {
   pricingTrend: string;
   confidenceScore: number;
   freshnessDays: number;
+  neighborhoodVibe?: {
+    score: number;
+    label: string;
+    amenities: Array<{
+      name: string;
+      type: string;
+      rating?: number;
+      distance?: string;
+    }>;
+  };
 }
 
 export interface ReportIndexLookup {
