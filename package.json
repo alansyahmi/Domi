@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 58234",
-    "preview": "wrangler pages dev dist --port 58233",
+    "preview": "wrangler dev --port 58233",
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "typecheck": "tsc -b --pretty false"

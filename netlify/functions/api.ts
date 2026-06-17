@@ -47,7 +47,7 @@ function getEndpoint(req: Request): string {
 }
 
 function pdf(data: Uint8Array, filename: string): Response {
-  return new Response(data, {
+  return new Response(data as any, {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="${filename}"`,

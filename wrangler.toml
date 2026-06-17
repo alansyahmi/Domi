@@ -1,5 +1,9 @@
-# wrangler.toml configures the Cloudflare Pages deployment.
+# wrangler.toml configures the Cloudflare Workers with Assets deployment.
 name = "signatis-real-estate-saas"
-pages_build_output_dir = "dist"
+main = "src/worker.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = [ "nodejs_compat" ]
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
