@@ -520,12 +520,13 @@ function SignatisWorkspace({
           <Route
             path="/leads"
             element={
-              <LeadManagementPage
-                leads={data.leads}
-                onCreateLead={createLead}
-                onDeleteLead={deleteLead}
+              <LeadManagementPage 
+                leads={data.leads} 
+                onCreateLead={createLead} 
+                onDeleteLead={deleteLead} 
                 onGetLeadEvents={getLeadEvents}
                 onUpdateLeadStage={updateLeadStage}
+                onSendLeadMessage={sendLeadMessage}
               />
             }
           />

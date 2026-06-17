@@ -31,6 +31,7 @@ export default function LeadManagementPage({
   onDeleteLead: (leadId: string) => Promise<void>;
   onGetLeadEvents: (leadId: string) => Promise<LeadEvent[]>;
   onUpdateLeadStage: (leadId: string, stage: string) => Promise<void>;
+  onSendLeadMessage?: (leadId: string, text: string) => Promise<void>;
 }) {
   const [query, setQuery] = useState("");
   const [intent, setIntent] = useState("all");
