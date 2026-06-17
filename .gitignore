@@ -7,3 +7,9 @@ dist
 .env.local
 .env
 tmp-netlify-home/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example

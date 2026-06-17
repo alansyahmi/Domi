@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 58234",
-    "preview": "node scripts/serve-dist.mjs 58233",
+    "preview": "npm run build && wrangler dev",
     "build": "tsc -b && vite build",
     "test": "vitest run",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "@google/genai": "^2.8.0",
@@ -30,12 +31,14 @@
     }
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.41.0",
     "@types/node": "^24.10.2",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
     "typescript": "^5.9.3",
     "vite": "^8.0.16",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.16",
+    "wrangler": "^4.101.0"
   }
 }
