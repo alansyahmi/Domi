@@ -224,18 +224,18 @@ export default function LandingPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link
-              to="/dashboard"
+            <a
+              href="/login"
               className="hidden text-sm font-semibold text-[#041627] transition-opacity hover:opacity-70 sm:inline"
             >
               Sign in
-            </Link>
-            <Link
-              to="/dashboard"
+            </a>
+            <a
+              href="/login"
               className="landing-lift inline-flex h-10 items-center gap-1.5 rounded-full bg-[#041627] px-5 text-sm font-bold text-white"
             >
               Start free
-            </Link>
+            </a>
           </div>
         </nav>
       </header>
