@@ -27,6 +27,7 @@ import LegalSupportPage from "./pages/LegalSupportPage";
 import ReportGeneratorPage from "./pages/ReportGeneratorPage";
 import SettingsPage from "./pages/SettingsPage";
 import SharedReportPage from "./pages/SharedReportPage";
+import LandingPage from "./pages/LandingPage";
 import type { Agent, Integration, PropertyReport, PropertyReportInput, SupportRequest, Lead, LeadEvent } from "./types";
 import type { SignatisAuthMode } from "./lib/auth-mode";
 
@@ -117,6 +118,10 @@ function WorkosApp() {
 
 export default function App({ authMode }: { authMode: SignatisAuthMode }) {
   const location = useLocation();
+
+  if (location.pathname === "/") {
+    return <LandingPage />;
+  }
 
   if (location.pathname.startsWith("/reports/share/")) {
     return <SharedReportPage />;
@@ -456,7 +461,7 @@ function SignatisWorkspace({
       return events;
     } else {
       const res = await getLeadEventsApi(leadId);
-      return res.events;
+      return res;
     }
   }
 
