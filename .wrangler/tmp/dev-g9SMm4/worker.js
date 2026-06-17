@@ -3042,6 +3042,157 @@ function decodeJwt(jwt) {
 }
 __name(decodeJwt, "decodeJwt");
 
+// src/server/scalekit.ts
+init_strip_cf_connecting_ip_header();
+init_modules_watch_stub();
+init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
+init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
+init_performance2();
+var IdTokenClaimToUserMap = {
+  sub: "id",
+  name: "name",
+  preferred_username: "username",
+  given_name: "givenName",
+  family_name: "familyName",
+  email: "email",
+  email_verified: "emailVerified",
+  phone_number: "phoneNumber",
+  phone_number_verified: "phoneNumberVerified",
+  profile: "profile",
+  picture: "picture",
+  gender: "gender",
+  birthdate: "birthDate",
+  zoneinfo: "zoneInfo",
+  locale: "locale",
+  updated_at: "updatedAt",
+  identities: "identities",
+  metadata: "metadata"
+};
+function toBase64url(input) {
+  return btoa(input).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+__name(toBase64url, "toBase64url");
+function fromBase64url(input) {
+  let base64 = input.replace(/-/g, "+").replace(/_/g, "/");
+  while (base64.length % 4 !== 0) {
+    base64 += "=";
+  }
+  return atob(base64);
+}
+__name(fromBase64url, "fromBase64url");
+function base64ToBase64url(base64) {
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+__name(base64ToBase64url, "base64ToBase64url");
+function generateCodeVerifier() {
+  return base64ToBase64url(randomBytes(64).toString("base64"));
+}
+__name(generateCodeVerifier, "generateCodeVerifier");
+function computeCodeChallenge(verifier) {
+  return base64ToBase64url(createHash("sha256").update(verifier).digest("base64"));
+}
+__name(computeCodeChallenge, "computeCodeChallenge");
+function encodeState(returnTo, codeVerifier) {
+  return toBase64url(JSON.stringify({ returnTo, codeVerifier }));
+}
+__name(encodeState, "encodeState");
+function decodeState(state) {
+  if (!state)
+    return {};
+  try {
+    const parsed = JSON.parse(fromBase64url(state));
+    return {
+      returnTo: parsed.returnTo?.startsWith("/") ? parsed.returnTo : void 0,
+      codeVerifier: parsed.codeVerifier
+    };
+  } catch {
+    return {};
+  }
+}
+__name(decodeState, "decodeState");
+function getAuthorizationUrl(envUrl, clientId, redirectUri, options = {}) {
+  const params = new URLSearchParams();
+  params.set("response_type", "code");
+  params.set("client_id", clientId);
+  params.set("redirect_uri", redirectUri);
+  params.set("scope", (options.scopes ?? ["openid", "profile", "email"]).join(" "));
+  if (options.state)
+    params.set("state", options.state);
+  if (options.nonce)
+    params.set("nonce", options.nonce);
+  if (options.loginHint)
+    params.set("login_hint", options.loginHint);
+  if (options.domainHint) {
+    params.set("domain_hint", options.domainHint);
+    params.set("domain", options.domainHint);
+  }
+  if (options.connectionId)
+    params.set("connection_id", options.connectionId);
+  if (options.organizationId)
+    params.set("organization_id", options.organizationId);
+  if (options.codeChallenge)
+    params.set("code_challenge", options.codeChallenge);
+  if (options.codeChallengeMethod)
+    params.set("code_challenge_method", options.codeChallengeMethod);
+  if (options.provider)
+    params.set("provider", options.provider);
+  if (options.prompt)
+    params.set("prompt", options.prompt);
+  const base = envUrl.replace(/\/+$/, "");
+  return `${base}/oauth/authorize?${params.toString()}`;
+}
+__name(getAuthorizationUrl, "getAuthorizationUrl");
+async function authenticateWithCode(envUrl, clientId, clientSecret, code, redirectUri, codeVerifier) {
+  const body = new URLSearchParams();
+  body.set("code", code);
+  body.set("redirect_uri", redirectUri);
+  body.set("grant_type", "authorization_code");
+  body.set("client_id", clientId);
+  body.set("client_secret", clientSecret);
+  if (codeVerifier) {
+    body.set("code_verifier", codeVerifier);
+  }
+  const base = envUrl.replace(/\/+$/, "");
+  const response = await fetch(`${base}/oauth/token`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": "Scalekit-Workers/1.0",
+      "X-Sdk-Version": "Scalekit-Workers/1.0",
+      "X-Api-Version": "20260612"
+    },
+    body: body.toString()
+  });
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const errBody = await response.text();
+      detail = errBody.slice(0, 500);
+    } catch {
+    }
+    throw new Error(
+      `Scalekit token exchange failed (${response.status}): ${detail || response.statusText}`
+    );
+  }
+  const data = await response.json();
+  const claims = decodeJwt(data.id_token);
+  const user = {};
+  for (const [key, value] of Object.entries(claims)) {
+    const mappedKey = IdTokenClaimToUserMap[key];
+    if (mappedKey) {
+      user[mappedKey] = value;
+    }
+  }
+  return {
+    user,
+    idToken: data.id_token,
+    accessToken: data.access_token,
+    expiresIn: data.expires_in,
+    refreshToken: data.refresh_token
+  };
+}
+__name(authenticateWithCode, "authenticateWithCode");
+
 // src/server/auth.ts
 var SESSION_COOKIE = "wos-session";
 function parseCookies(cookieHeader = "") {
@@ -3125,8 +3276,8 @@ async function requireSession({
 }
 __name(requireSession, "requireSession");
 function createCsrfToken(secret) {
-  const nonce = randomBytes(18).toString("base64url");
-  const signature = createHmac("sha256", secret).update(nonce).digest("base64url");
+  const nonce = base64ToBase64url(randomBytes(18).toString("base64"));
+  const signature = base64ToBase64url(createHmac("sha256", secret).update(nonce).digest("base64"));
   return `${nonce}.${signature}`;
 }
 __name(createCsrfToken, "createCsrfToken");
@@ -3136,7 +3287,7 @@ function verifyCsrfToken(token, secret) {
   const [nonce, signature] = token.split(".");
   if (!nonce || !signature)
     return false;
-  const expected = createHmac("sha256", secret).update(nonce).digest("base64url");
+  const expected = base64ToBase64url(createHmac("sha256", secret).update(nonce).digest("base64"));
   const left = Buffer.from(signature);
   const right = Buffer.from(expected);
   return left.length === right.length && timingSafeEqual(left, right);
@@ -6476,7 +6627,7 @@ var MIN_INDEX_CITATIONS = 2;
 var MAX_REPORT_CITATIONS = 9;
 var DAY_MS = 24 * 60 * 60 * 1e3;
 function createId(prefix) {
-  return `${prefix}_${Date.now().toString(36)}_${randomBytes(8).toString("base64url")}`;
+  return `${prefix}_${Date.now().toString(36)}_${base64ToBase64url(randomBytes(8).toString("base64"))}`;
 }
 __name(createId, "createId");
 function clampConfidence(value) {
@@ -7907,155 +8058,6 @@ init_modules_watch_stub();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
 init_performance2();
-
-// src/server/scalekit.ts
-init_strip_cf_connecting_ip_header();
-init_modules_watch_stub();
-init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
-init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
-init_performance2();
-var IdTokenClaimToUserMap = {
-  sub: "id",
-  name: "name",
-  preferred_username: "username",
-  given_name: "givenName",
-  family_name: "familyName",
-  email: "email",
-  email_verified: "emailVerified",
-  phone_number: "phoneNumber",
-  phone_number_verified: "phoneNumberVerified",
-  profile: "profile",
-  picture: "picture",
-  gender: "gender",
-  birthdate: "birthDate",
-  zoneinfo: "zoneInfo",
-  locale: "locale",
-  updated_at: "updatedAt",
-  identities: "identities",
-  metadata: "metadata"
-};
-function toBase64url(input) {
-  return btoa(input).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-__name(toBase64url, "toBase64url");
-function fromBase64url(input) {
-  let base64 = input.replace(/-/g, "+").replace(/_/g, "/");
-  while (base64.length % 4 !== 0) {
-    base64 += "=";
-  }
-  return atob(base64);
-}
-__name(fromBase64url, "fromBase64url");
-function generateCodeVerifier() {
-  return randomBytes(64).toString("base64url");
-}
-__name(generateCodeVerifier, "generateCodeVerifier");
-function computeCodeChallenge(verifier) {
-  return createHash("sha256").update(verifier).digest("base64url");
-}
-__name(computeCodeChallenge, "computeCodeChallenge");
-function encodeState(returnTo, codeVerifier) {
-  return toBase64url(JSON.stringify({ returnTo, codeVerifier }));
-}
-__name(encodeState, "encodeState");
-function decodeState(state) {
-  if (!state)
-    return {};
-  try {
-    const parsed = JSON.parse(fromBase64url(state));
-    return {
-      returnTo: parsed.returnTo?.startsWith("/") ? parsed.returnTo : void 0,
-      codeVerifier: parsed.codeVerifier
-    };
-  } catch {
-    return {};
-  }
-}
-__name(decodeState, "decodeState");
-function getAuthorizationUrl(envUrl, clientId, redirectUri, options = {}) {
-  const params = new URLSearchParams();
-  params.set("response_type", "code");
-  params.set("client_id", clientId);
-  params.set("redirect_uri", redirectUri);
-  params.set("scope", (options.scopes ?? ["openid", "profile", "email"]).join(" "));
-  if (options.state)
-    params.set("state", options.state);
-  if (options.nonce)
-    params.set("nonce", options.nonce);
-  if (options.loginHint)
-    params.set("login_hint", options.loginHint);
-  if (options.domainHint) {
-    params.set("domain_hint", options.domainHint);
-    params.set("domain", options.domainHint);
-  }
-  if (options.connectionId)
-    params.set("connection_id", options.connectionId);
-  if (options.organizationId)
-    params.set("organization_id", options.organizationId);
-  if (options.codeChallenge)
-    params.set("code_challenge", options.codeChallenge);
-  if (options.codeChallengeMethod)
-    params.set("code_challenge_method", options.codeChallengeMethod);
-  if (options.provider)
-    params.set("provider", options.provider);
-  if (options.prompt)
-    params.set("prompt", options.prompt);
-  const base = envUrl.replace(/\/+$/, "");
-  return `${base}/oauth/authorize?${params.toString()}`;
-}
-__name(getAuthorizationUrl, "getAuthorizationUrl");
-async function authenticateWithCode(envUrl, clientId, clientSecret, code, redirectUri, codeVerifier) {
-  const body = new URLSearchParams();
-  body.set("code", code);
-  body.set("redirect_uri", redirectUri);
-  body.set("grant_type", "authorization_code");
-  body.set("client_id", clientId);
-  body.set("client_secret", clientSecret);
-  if (codeVerifier) {
-    body.set("code_verifier", codeVerifier);
-  }
-  const base = envUrl.replace(/\/+$/, "");
-  const response = await fetch(`${base}/oauth/token`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent": "Scalekit-Workers/1.0",
-      "X-Sdk-Version": "Scalekit-Workers/1.0",
-      "X-Api-Version": "20260612"
-    },
-    body: body.toString()
-  });
-  if (!response.ok) {
-    let detail = "";
-    try {
-      const errBody = await response.text();
-      detail = errBody.slice(0, 500);
-    } catch {
-    }
-    throw new Error(
-      `Scalekit token exchange failed (${response.status}): ${detail || response.statusText}`
-    );
-  }
-  const data = await response.json();
-  const claims = decodeJwt(data.id_token);
-  const user = {};
-  for (const [key, value] of Object.entries(claims)) {
-    const mappedKey = IdTokenClaimToUserMap[key];
-    if (mappedKey) {
-      user[mappedKey] = value;
-    }
-  }
-  return {
-    user,
-    idToken: data.id_token,
-    accessToken: data.access_token,
-    expiresIn: data.expires_in,
-    refreshToken: data.refresh_token
-  };
-}
-__name(authenticateWithCode, "authenticateWithCode");
-
-// netlify/functions/login.ts
 function getEnv() {
   const runtimeEnv = getRuntimeEnv();
   return {
@@ -27688,12 +27690,34 @@ var track_default = /* @__PURE__ */ __name(async (req) => {
   return new Response("Not found", { status: 404 });
 }, "default");
 
+// src/server/auth-config.ts
+init_strip_cf_connecting_ip_header();
+init_modules_watch_stub();
+init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
+init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
+init_performance2();
+function handleAuthConfig() {
+  const env2 = getRuntimeEnv();
+  const configured = Boolean(
+    env2.SCALEKIT_CLIENT_ID && env2.SCALEKIT_CLIENT_SECRET && env2.SCALEKIT_ENV_URL && env2.SCALEKIT_REDIRECT_URI
+  );
+  const body = {
+    configured,
+    clientId: env2.SCALEKIT_CLIENT_ID ?? null
+  };
+  return Response.json(body);
+}
+__name(handleAuthConfig, "handleAuthConfig");
+
 // src/worker.ts
 var worker_default = {
   async fetch(request, env2, ctx) {
     const url = new URL(request.url);
     const pathname = url.pathname;
     return envStorage.run(env2, async () => {
+      if (pathname === "/api/auth-config") {
+        return handleAuthConfig();
+      }
       if (pathname.startsWith("/api/send-report")) {
         return handler(request, ctx);
       }

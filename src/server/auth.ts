@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
+import { base64ToBase64url } from "./scalekit";
 
 export const SESSION_COOKIE = "wos-session";
 export const CSRF_COOKIE = "signatis-csrf";
@@ -133,8 +134,8 @@ export async function requireSession({
 }
 
 export function createCsrfToken(secret: string): string {
-  const nonce = randomBytes(18).toString("base64url");
-  const signature = createHmac("sha256", secret).update(nonce).digest("base64url");
+  const nonce = base64ToBase64url(randomBytes(18).toString("base64"));
+  const signature = base64ToBase64url(createHmac("sha256", secret).update(nonce).digest("base64"));
   return `${nonce}.${signature}`;
 }
 
@@ -143,7 +144,7 @@ export function verifyCsrfToken(token: string | null | undefined, secret: string
   const [nonce, signature] = token.split(".");
   if (!nonce || !signature) return false;
 
-  const expected = createHmac("sha256", secret).update(nonce).digest("base64url");
+  const expected = base64ToBase64url(createHmac("sha256", secret).update(nonce).digest("base64"));
   const left = Buffer.from(signature);
   const right = Buffer.from(expected);
 

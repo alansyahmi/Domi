@@ -5,6 +5,7 @@ import callbackHandler from "../netlify/functions/callback";
 import logoutHandler from "../netlify/functions/logout";
 import inboundEmailHandler from "../netlify/functions/inbound-email";
 import trackHandler from "../netlify/functions/track";
+import { handleAuthConfig } from "./server/auth-config";
 import { envStorage } from "./server/runtime-env";
 
 interface Env {
@@ -20,6 +21,9 @@ export default {
 
     return envStorage.run(env as Record<string, string>, async () => {
       // API routing
+      if (pathname === "/api/auth-config") {
+        return handleAuthConfig();
+      }
       if (pathname.startsWith("/api/send-report")) {
         return sendReportHandler(request, ctx);
       }

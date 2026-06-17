@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { base64ToBase64url } from "./scalekit";
 import {
   buildReportDraft,
   buildReportPropertyKey,
@@ -46,7 +47,7 @@ interface GenerateOptions {
 }
 
 function createId(prefix: string): string {
-  return `${prefix}_${Date.now().toString(36)}_${randomBytes(8).toString("base64url")}`;
+  return `${prefix}_${Date.now().toString(36)}_${base64ToBase64url(randomBytes(8).toString("base64"))}`;
 }
 
 function clampConfidence(value: number): number {

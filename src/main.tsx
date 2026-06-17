@@ -1,23 +1,42 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
-import { resolveAuthMode } from "./lib/auth-mode";
+import {
+  type SignatisAuthMode,
+  fetchAuthConfig,
+  resolveAuthModeFromConfig,
+} from "./lib/auth-mode";
 import "./styles.css";
 
-const clientId = import.meta.env.VITE_SCALEKIT_CLIENT_ID;
+function Root() {
+  const [authMode, setAuthMode] = useState<SignatisAuthMode | null>(null);
 
-const authMode = resolveAuthMode({
-  dev: import.meta.env.DEV,
-  prod: import.meta.env.PROD,
-  mode: import.meta.env.VITE_SIGNATIS_AUTH_MODE,
-  workosConfigured: Boolean(clientId), // Keep parameter name to avoid breaking resolveAuthMode signature
-});
+  useEffect(() => {
+    fetchAuthConfig()
+      .then(resolveAuthModeFromConfig)
+      .then(setAuthMode)
+      .catch(() => setAuthMode("demo"));
+  }, []);
+
+  if (authMode === null) {
+    return (
+      <main className="min-h-screen grid place-items-center bg-[#f7f9fb]">
+        <div className="card p-8 text-center">
+          <div className="brand-mark mx-auto mb-4">S</div>
+          <p className="text-slate-600">Loading Signatis workspace...</p>
+        </div>
+      </main>
+    );
+  }
+
+  return <App authMode={authMode} />;
+}
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App authMode={authMode} />
+      <Root />
     </BrowserRouter>
   </React.StrictMode>,
 );

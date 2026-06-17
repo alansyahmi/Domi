@@ -104,18 +104,29 @@ function fromBase64url(input: string): string {
   return atob(base64);
 }
 
+/**
+ * Convert a standard base64 string to base64url (URL-safe base64).
+ *
+ * Cloudflare Workers' node:crypto polyfill may not support the "base64url"
+ * encoding for Buffer.toString() or Hash.digest(). We work around this by
+ * using standard "base64" and converting afterward.
+ */
+export function base64ToBase64url(base64: string): string {
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 // ---------------------------------------------------------------------------
 // PKCE helpers
 // ---------------------------------------------------------------------------
 
 /** Generate a cryptographically random PKCE code verifier (base64url, 64 bytes → ~86 chars). */
 export function generateCodeVerifier(): string {
-  return randomBytes(64).toString("base64url");
+  return base64ToBase64url(randomBytes(64).toString("base64"));
 }
 
 /** Compute the S256 PKCE code challenge from a verifier. */
 export function computeCodeChallenge(verifier: string): string {
-  return createHash("sha256").update(verifier).digest("base64url");
+  return base64ToBase64url(createHash("sha256").update(verifier).digest("base64"));
 }
 
 // ---------------------------------------------------------------------------
