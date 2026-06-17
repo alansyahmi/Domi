@@ -1,6 +1,10 @@
-import { randomBytes, createHash } from "node:crypto";
+import {
+  getAuthorizationUrl,
+  generateCodeVerifier,
+  computeCodeChallenge,
+  encodeState,
+} from "../../src/server/scalekit";
 import type { Config } from "@netlify/functions";
-import { ScalekitClient } from "@scalekit-sdk/node";
 import { getRuntimeEnv } from "../../src/server/runtime-env";
 
 interface LoginEnv {
@@ -18,20 +22,6 @@ function getEnv(): LoginEnv {
     SCALEKIT_ENV_URL: runtimeEnv.SCALEKIT_ENV_URL,
     SCALEKIT_REDIRECT_URI: runtimeEnv.SCALEKIT_REDIRECT_URI,
   };
-}
-
-/** Generate a cryptographically random PKCE code verifier (base64url, 64 bytes → ~86 chars). */
-function generateCodeVerifier(): string {
-  return randomBytes(64).toString("base64url");
-}
-
-/** Compute the S256 PKCE code challenge from a verifier. */
-function computeCodeChallenge(verifier: string): string {
-  return createHash("sha256").update(verifier).digest("base64url");
-}
-
-function encodeState(returnTo: string, codeVerifier: string): string {
-  return Buffer.from(JSON.stringify({ returnTo, codeVerifier }), "utf8").toString("base64url");
 }
 
 function errorPage(message: string, detail?: string): Response {
@@ -95,23 +85,22 @@ export default async (req: Request) => {
     );
   }
 
-  const scalekit = new ScalekitClient(
-    env.SCALEKIT_ENV_URL,
-    env.SCALEKIT_CLIENT_ID,
-    env.SCALEKIT_CLIENT_SECRET
-  );
-
   // PKCE flow: generate verifier + challenge, store verifier in state for the callback.
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = computeCodeChallenge(codeVerifier);
 
-  const authorizationUrl = scalekit.getAuthorizationUrl(env.SCALEKIT_REDIRECT_URI, {
-    state: encodeState(returnTo, codeVerifier),
-    scopes: ["openid", "profile", "email"],
-    provider: "google",
-    codeChallenge,
-    codeChallengeMethod: "S256",
-  });
+  const authorizationUrl = getAuthorizationUrl(
+    env.SCALEKIT_ENV_URL,
+    env.SCALEKIT_CLIENT_ID,
+    env.SCALEKIT_REDIRECT_URI,
+    {
+      state: encodeState(returnTo, codeVerifier),
+      scopes: ["openid", "profile", "email"],
+      provider: "google",
+      codeChallenge,
+      codeChallengeMethod: "S256",
+    },
+  );
 
   return Response.redirect(authorizationUrl, 302);
 };

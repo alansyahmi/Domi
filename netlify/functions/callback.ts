@@ -1,5 +1,5 @@
 import type { Config } from "@netlify/functions";
-import { ScalekitClient } from "@scalekit-sdk/node";
+import { authenticateWithCode, decodeState } from "../../src/server/scalekit";
 import { buildCookie, sealSession, SESSION_COOKIE } from "../../src/server/auth";
 import { createSignatisDb, ensureAgentWorkspace } from "../../src/server/db";
 import { getRuntimeEnv } from "../../src/server/runtime-env";
@@ -27,25 +27,6 @@ function getEnv(): CallbackEnv {
     TURSO_DATABASE_URL: runtimeEnv.TURSO_DATABASE_URL,
     TURSO_AUTH_TOKEN: runtimeEnv.TURSO_AUTH_TOKEN,
   };
-}
-
-interface StatePayload {
-  returnTo?: string;
-  codeVerifier?: string;
-}
-
-function decodeState(state: string | null): StatePayload {
-  if (!state) return {};
-
-  try {
-    const parsed = JSON.parse(Buffer.from(state, "base64url").toString("utf8")) as StatePayload;
-    return {
-      returnTo: parsed.returnTo?.startsWith("/") ? parsed.returnTo : undefined,
-      codeVerifier: parsed.codeVerifier,
-    };
-  } catch {
-    return {};
-  }
 }
 
 function errorPage(message: string, detail?: string): Response {
@@ -110,20 +91,17 @@ export default async (req: Request) => {
     );
   }
 
-  const scalekit = new ScalekitClient(
-    env.SCALEKIT_ENV_URL,
-    env.SCALEKIT_CLIENT_ID,
-    env.SCALEKIT_CLIENT_SECRET
-  );
-
   const statePayload = decodeState(url.searchParams.get("state"));
 
   try {
-    const authResp = await scalekit.authenticateWithCode(
+    // PKCE: pass the code verifier stored in state during the authorization request.
+    const authResp = await authenticateWithCode(
+      env.SCALEKIT_ENV_URL,
+      env.SCALEKIT_CLIENT_ID,
+      env.SCALEKIT_CLIENT_SECRET,
       code,
       env.SCALEKIT_REDIRECT_URI,
-      // PKCE: pass the code verifier stored in state during the authorization request.
-      statePayload.codeVerifier ? { codeVerifier: statePayload.codeVerifier } : undefined,
+      statePayload.codeVerifier,
     );
 
     // Use the already-parsed user object from the SDK — no need for a separate validateToken round-trip.
