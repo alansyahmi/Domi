@@ -471,10 +471,6 @@ function SignatisWorkspace({
       return;
     }
 
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = "/logout";
-    
     try {
       await fetch("/logout", {
         method: "POST",
@@ -484,7 +480,8 @@ function SignatisWorkspace({
       });
     } catch {
     }
-    window.location.href = "/";
+    // Force a full page reload to "/" to ensure routing is re-evaluated
+    window.location.href = "/?logout=true";
   }
 
   const isUnauthorized = error?.includes("401") || error?.includes("Unauthorized");
@@ -563,7 +560,6 @@ function SignatisWorkspace({
     <Layout agent={data.settings.agent} demoMode={data.demoMode} notice={notice} onLogout={logout}>
       <div className="route-transition" key={location.pathname}>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage dashboard={dashboard} onInjectDemoLead={handleInjectDemoLead} />} />
           <Route
             path="/report-generator"
