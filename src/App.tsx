@@ -467,7 +467,7 @@ function SignatisWorkspace({
 
   async function logout(): Promise<void> {
     if (!data || data.demoMode) {
-      setNotice("Demo mode does not have an active session.");
+      window.location.href = "/";
       return;
     }
 
@@ -484,7 +484,7 @@ function SignatisWorkspace({
       });
     } catch {
     }
-    window.location.href = "/login";
+    window.location.href = "/";
   }
 
   const isUnauthorized = error?.includes("401") || error?.includes("Unauthorized");
