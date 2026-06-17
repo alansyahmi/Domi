@@ -16,6 +16,7 @@ export interface EmailAttachment {
 }
 
 export interface SendEmailInput {
+  from?: string;
   to: string | string[];
   subject: string;
   html: string;
@@ -39,8 +40,9 @@ export async function sendEmail(
   const to = Array.isArray(input.to) ? input.to : [input.to];
 
   try {
+    const fromEmail = input.from || process.env.RESEND_FROM_EMAIL || "Signatis <reports@signatis.app>";
     const body: Record<string, unknown> = {
-      from: "Signatis <reports@signatis.app>",
+      from: fromEmail,
       to,
       subject: input.subject,
       html: input.html,
@@ -157,7 +159,14 @@ export function buildReportDeliveryHtml(params: {
   prospectName: string;
   propertyName: string;
   shareUrl: string;
+  trackedShareUrl?: string;
+  pixelUrl?: string;
 }): string {
+  const finalUrl = params.trackedShareUrl ?? params.shareUrl;
+  const pixelHtml = params.pixelUrl 
+    ? `\n  <img src="${escapeHtml(params.pixelUrl)}" width="1" height="1" alt="" style="display:none;" />`
+    : "";
+
   return `
 <!DOCTYPE html>
 <html>
@@ -170,10 +179,10 @@ export function buildReportDeliveryHtml(params: {
     <div style="padding: 2rem;">
       <p style="color: #475569;">Hi <strong>${escapeHtml(params.prospectName)}</strong>,</p>
       <p style="color: #475569;">Thanks for your interest in <strong>${escapeHtml(params.propertyName)}</strong>. Here's the full market analysis report you requested.</p>
-      <a href="${escapeHtml(params.shareUrl)}" style="display: inline-block; padding: 0.75rem 2rem; background: #041627; color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">View Full Report</a>
+      <a href="${escapeHtml(finalUrl)}" style="display: inline-block; padding: 0.75rem 2rem; background: #041627; color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">View Full Report</a>
       <p style="color: #94a3b8; font-size: 0.875rem; margin-top: 1.5rem;">If you have any questions, simply reply to this email or reach out to your agent directly.</p>
     </div>
-  </div>
+  </div>${pixelHtml}
 </body>
 </html>`.trim();
 }

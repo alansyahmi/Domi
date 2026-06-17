@@ -1,7 +1,8 @@
 import type { Config } from "@netlify/functions";
 import { getRuntimeEnv } from "../../src/server/runtime-env";
 import { createSignatisDb, createLead, getAgentByIngestionAddress } from "../../src/server/db";
-import { parseLeadEmail, extractEmailAddress, type InboundEmail } from "../../src/server/lead-email-parser";
+import { extractEmailAddress, type InboundEmail } from "../../src/server/lead-email-parser";
+import { parseEmailForLead } from "../../src/server/emailParser";
 import { notifyAgentNewLead } from "../../src/server/notifications";
 
 function json(data: unknown, init: ResponseInit = {}): Response {
@@ -84,9 +85,17 @@ export default async (req: Request) => {
     return json({ skipped: "unknown_recipient" });
   }
 
-  const parsed = parseLeadEmail(email);
-  if (!parsed) {
-    console.warn(`[Inbound] Unparseable email for ${ingestionAddress} (subject: ${email.subject})`);
+  let parsed;
+  try {
+    const rawBody = (email.text && email.text.trim() ? email.text : email.html ?? "").trim();
+    parsed = await parseEmailForLead(`From: ${email.from}\nSubject: ${email.subject}\n\n${rawBody}`);
+  } catch (error) {
+    console.warn(`[Inbound] LLM parsing failed for ${ingestionAddress} (subject: ${email.subject})`, error);
+    return json({ error: "Failed to parse email with LLM", details: error instanceof Error ? error.message : String(error) }, { status: 500 });
+  }
+
+  if (!parsed || !parsed.email) {
+    console.warn(`[Inbound] LLM couldn't find contact info for ${ingestionAddress} (subject: ${email.subject})`);
     return json({ skipped: "unparseable" });
   }
 
@@ -97,12 +106,12 @@ export default async (req: Request) => {
     source: parsed.source,
     propertyInterest: parsed.propertyInterest,
     budget: parsed.budget,
-    message: parsed.message,
+    message: parsed.inquiryMessage,
   });
 
   notifyAgentNewLead(agent, lead, {
     eventLabel: `New lead from ${lead.source} (forwarded email)`,
-    prospectMessage: parsed.message,
+    prospectMessage: parsed.inquiryMessage,
   }).catch((err) => console.error("[Inbound] Notify failed:", err));
 
   return json({ success: true, leadId: lead.id });

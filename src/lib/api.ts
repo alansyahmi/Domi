@@ -42,7 +42,14 @@ async function apiJson<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
+    let msg = `${response.status} ${response.statusText}`;
+    try {
+      const errJson = await response.json();
+      if (errJson.error) msg = errJson.error;
+    } catch (e) {
+      // ignore
+    }
+    throw new Error(msg);
   }
 
   return (await response.json()) as T;
@@ -225,8 +232,24 @@ export async function deleteLeadApi(
   });
 }
 
-export async function getLeadEventsApi(
+export async function getLeadEventsApi(leadId: string): Promise<LeadEvent[]> {
+  const result = await apiJson<{ events: LeadEvent[] }>(`/api/leads/${leadId}/events`);
+  return result.events;
+}
+
+export async function sendLeadMessageApi(leadId: string, text: string): Promise<{ success: boolean; error?: string }> {
+  return await apiJson<{ success: boolean; error?: string }>(`/api/leads/${leadId}/message`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function sendReportApi(
+  reportId: string,
   leadId: string,
-): Promise<{ events: LeadEvent[] }> {
-  return apiJson<{ events: LeadEvent[] }>(`/api/leads/${encodeURIComponent(leadId)}/events`);
+): Promise<{ success: boolean; message?: string }> {
+  return apiJson<{ success: boolean; message?: string }>("/api/send-report", {
+    method: "POST",
+    body: JSON.stringify({ reportId, leadId }),
+  });
 }

@@ -43,7 +43,15 @@ function lookupDetail(report: PropertyReport): string {
   return `${freshness} | ${report.indexLookup.citationsCount} source${report.indexLookup.citationsCount === 1 ? "" : "s"}`;
 }
 
-export default function ReportResultPanel({ report }: { report: PropertyReport }) {
+export default function ReportResultPanel({ 
+  report, 
+  leads, 
+  onSendReport 
+}: { 
+  report: PropertyReport;
+  leads?: import("../../types").Lead[];
+  onSendReport?: (reportId: string, leadId: string) => Promise<void>;
+}) {
   const input = report.inputSnapshot;
 
   return (
@@ -60,7 +68,7 @@ export default function ReportResultPanel({ report }: { report: PropertyReport }
         <span className="status-chip status-ready">{cacheLabel(report.cacheStatus)}</span>
       </div>
 
-      <ReportActionBar report={report} />
+      <ReportActionBar report={report} leads={leads} onSendReport={onSendReport} />
 
       <div className="report-index-status">
         <span className="report-index-icon">

@@ -13,6 +13,7 @@ import {
   deleteLeadApi,
   getLeadEventsApi,
   updateLeadStageApi,
+  sendReportApi,
   type BootstrapData,
 } from "./lib/api";
 import Layout from "./components/Layout";
@@ -178,6 +179,22 @@ function SignatisWorkspace({
     return report;
   }
 
+  async function sendReport(reportId: string, leadId: string): Promise<void> {
+    if (!data) throw new Error("Signatis is still loading.");
+    if (data.demoMode) {
+      console.log(`[Demo] Sending report ${reportId} to lead ${leadId}`);
+      // Simulate demo mode send
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      setNotice("Report emailed to prospect with tracking pixel.");
+    } else {
+      const result = await sendReportApi(reportId, leadId);
+      if (!result.success) {
+        throw new Error(result.message || "Failed to send report");
+      }
+      setNotice("Report emailed to prospect.");
+    }
+  }
+
   async function saveSettings(input: Omit<Agent, "id" | "workosUserId" | "plan" | "avatarInitials" | "ingestionAddress">): Promise<void> {
     if (!data) return;
     const result = data.demoMode
@@ -328,6 +345,31 @@ function SignatisWorkspace({
     });
   }
 
+  async function sendLeadMessage(leadId: string, text: string): Promise<void> {
+    if (!data) return;
+    if (data.demoMode) {
+      console.log(`[Demo] Simulating WhatsApp message to lead ${leadId}: ${text}`);
+      await new Promise(resolve => setTimeout(resolve, 800));
+      // In demo mode, simulate the stage update that backend does
+      setData({
+        ...data,
+        leads: data.leads.map((lead) => (lead.id === leadId && lead.stage === "new" ? { ...lead, stage: "contacted" } : lead)),
+      });
+      setNotice("WhatsApp message simulated.");
+    } else {
+      const result = await sendLeadMessageApi(leadId, text);
+      if (!result.success) {
+        throw new Error(result.error || "Failed to send message.");
+      }
+      setNotice("WhatsApp message dispatched.");
+      // Backend updates the stage to 'contacted', we need to reflect it locally if it was 'new'
+      setData({
+        ...data,
+        leads: data.leads.map((lead) => (lead.id === leadId && lead.stage === "new" ? { ...lead, stage: "contacted" } : lead)),
+      });
+    }
+  }
+
   async function deleteLead(leadId: string): Promise<void> {
     if (!data) return;
     const lead = data.leads.find((l) => l.id === leadId);
@@ -473,7 +515,7 @@ function SignatisWorkspace({
           <Route path="/dashboard" element={<DashboardPage dashboard={dashboard} />} />
           <Route
             path="/report-generator"
-            element={<ReportGeneratorPage reports={data.reports} onCreateReport={createReport} />}
+            element={<ReportGeneratorPage reports={data.reports} leads={data.leads} onCreateReport={createReport} onSendReport={sendReport} />}
           />
           <Route
             path="/leads"

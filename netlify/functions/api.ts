@@ -283,6 +283,57 @@ export default async (req: Request) => {
       return json({ events }, { headers: responseHeaders });
     }
 
+    const leadMessageMatch = endpoint.match(/^leads\/([^/]+)\/message$/);
+    if (leadMessageMatch && req.method === "POST") {
+      const leadId = leadMessageMatch[1];
+      const body = await readJson<{ text?: string }>(req);
+      if (!body.text?.trim()) {
+        return json({ error: "Message text is required." }, { status: 422, headers: responseHeaders });
+      }
+
+      const leadsList = await getLeads(db, agent.id);
+      const lead = leadsList.find((l) => l.id === leadId);
+      if (!lead) {
+        return json({ error: "Lead not found." }, { status: 404, headers: responseHeaders });
+      }
+
+      const creds = await getCredentials(db, agent.id, "whatsapp");
+      if (creds) {
+        const metadata = creds.metadata as { phoneNumberId?: string };
+        const result = await sendWhatsAppMessage(
+          { phoneNumberId: metadata.phoneNumberId ?? "", accessToken: creds.encryptedValue },
+          lead.phone,
+          body.text
+        );
+        if (!result.success) {
+          return json({ error: result.error ?? "Failed to send WhatsApp message." }, { status: 500, headers: responseHeaders });
+        }
+      } else {
+        // Fallback simulation mode
+        console.log("[Simulated WhatsApp] To:", lead.phone, "Msg:", body.text);
+      }
+
+      // Log event
+      await db.execute({
+        sql: `INSERT INTO lead_events (id, lead_id, agent_id, event_type, event_label, occurred_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        args: [
+          `event_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+          leadId,
+          agent.id,
+          "whatsapp_outreach",
+          "Sent WhatsApp outreach message",
+          new Date().toISOString(),
+        ],
+      });
+
+      // Update stage to contacted if new
+      if (lead.stage === "new") {
+        await updateLeadStage(db, agent.id, leadId, "contacted");
+      }
+
+      return json({ success: true }, { headers: responseHeaders });
+    }
+
     const leadStageMatch = endpoint.match(/^leads\/([^/]+)\/stage$/);
     if (leadStageMatch && req.method === "POST") {
       const body = await readJson<{ stage?: string }>(req);

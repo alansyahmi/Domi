@@ -7,10 +7,14 @@ import type { PropertyReport, PropertyReportInput } from "../types";
 
 export default function ReportGeneratorPage({
   reports,
+  leads,
   onCreateReport,
+  onSendReport,
 }: {
   reports: PropertyReport[];
+  leads: import("../types").Lead[];
   onCreateReport: (input: PropertyReportInput) => Promise<PropertyReport>;
+  onSendReport: (reportId: string, leadId: string) => Promise<void>;
 }) {
   const [latest, setLatest] = useState<PropertyReport | null>(reports[0] ?? null);
   const [generating, setGenerating] = useState(false);
@@ -45,7 +49,7 @@ export default function ReportGeneratorPage({
         />
 
         {latest ? (
-          <ReportResultPanel report={latest} />
+          <ReportResultPanel report={latest} leads={leads} onSendReport={onSendReport} />
         ) : (
           <section className="card report-empty-state p-8">
             <p className="eyebrow">Awaiting report</p>

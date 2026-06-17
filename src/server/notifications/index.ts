@@ -54,6 +54,7 @@ export async function notifyAgentNewLead(
     });
 
     const result = await sendEmail(env.RESEND_API_KEY, {
+      from: env.RESEND_FROM_EMAIL || "Signatis <reports@signatis.app>",
       to: agent.email,
       subject: `🔔 New Lead: ${lead.name} — ${lead.propertyInterest}`,
       html,
