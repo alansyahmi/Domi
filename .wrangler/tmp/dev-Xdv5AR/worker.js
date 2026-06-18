@@ -4432,7 +4432,7 @@ function getTursoConfig(env2) {
   };
 }
 __name(getTursoConfig, "getTursoConfig");
-function createSignatisDb(env2) {
+function createReAIDb(env2) {
   const runtimeEnv = getRuntimeEnv();
   return createClient(
     getTursoConfig({
@@ -4441,7 +4441,7 @@ function createSignatisDb(env2) {
     })
   );
 }
-__name(createSignatisDb, "createSignatisDb");
+__name(createReAIDb, "createReAIDb");
 var schemaStatements = [
   `CREATE TABLE IF NOT EXISTS agents (
     id TEXT PRIMARY KEY,
@@ -6919,7 +6919,7 @@ async function authenticatedContext(req) {
   if (session.setCookie) {
     responseHeaders.append("Set-Cookie", session.setCookie);
   }
-  const db = createSignatisDb(runtimeEnv);
+  const db = createReAIDb(runtimeEnv);
   let sessionUser = session.user;
   if (!sessionUser.email) {
     try {
@@ -6969,7 +6969,7 @@ var api_default = /* @__PURE__ */ __name(async (req) => {
   const shareInquiryMatch = endpoint.match(/^reports\/share\/([^/]+)\/inquiry$/);
   if (shareInquiryMatch && req.method === "POST") {
     const runtimeEnv = getRuntimeEnv();
-    const db2 = createSignatisDb(runtimeEnv);
+    const db2 = createReAIDb(runtimeEnv);
     const report2 = await getReportByShareToken(db2, shareInquiryMatch[1]);
     if (!report2) {
       return json({ error: "Shared report not found." }, { status: 404 });
@@ -7007,7 +7007,7 @@ var api_default = /* @__PURE__ */ __name(async (req) => {
   }
   if (shareMatch && req.method === "GET") {
     const runtimeEnv = getRuntimeEnv();
-    const db2 = createSignatisDb(runtimeEnv);
+    const db2 = createReAIDb(runtimeEnv);
     const report2 = await getReportByShareToken(db2, shareMatch[1]);
     if (!report2) {
       return json({ error: "Shared report not found." }, { status: 404 });
@@ -7326,7 +7326,7 @@ async function handler(request, context2) {
     return new Response(JSON.stringify({ error: "Missing leadId or reportId" }), { status: 400 });
   }
   try {
-    const db = createSignatisDb(env2);
+    const db = createReAIDb(env2);
     const leadResult = await db.execute({
       sql: "SELECT * FROM leads WHERE id = ? LIMIT 1",
       args: [leadId]
@@ -7713,7 +7713,7 @@ var callback_default = /* @__PURE__ */ __name(async (req) => {
       firstName: user.givenName || user.name?.split(" ")[0] || "Signatis",
       lastName: user.familyName || user.name?.split(" ").slice(1).join(" ") || "Agent"
     };
-    const db = createSignatisDb(env2);
+    const db = createReAIDb(env2);
     await ensureAgentWorkspace(db, sessionUser);
     const secret = env2.SESSION_SECRET || env2.WORKOS_COOKIE_PASSWORD || "fallback-secret-for-signing-session-tokens-at-least-32-chars";
     const sealedSession = await sealSession(sessionUser, secret);
@@ -27066,7 +27066,7 @@ var inbound_email_default = /* @__PURE__ */ __name(async (req) => {
   if (!ingestionAddress) {
     return json2({ error: "No recipient address." }, { status: 400 });
   }
-  const db = createSignatisDb(env2);
+  const db = createReAIDb(env2);
   const agent = await getAgentByIngestionAddress(db, ingestionAddress);
   if (!agent) {
     console.warn(`[Inbound] No agent for ingestion address ${ingestionAddress}`);
@@ -27131,7 +27131,7 @@ var track_default = /* @__PURE__ */ __name(async (req) => {
   if (kind === "o") {
     if (leadId) {
       try {
-        const db = createSignatisDb(env2);
+        const db = createReAIDb(env2);
         await recordLeadEngagement(db, leadId, "email_open");
       } catch (err) {
         console.error("[Track] open failed:", err);
@@ -27153,7 +27153,7 @@ var track_default = /* @__PURE__ */ __name(async (req) => {
     }
     if (leadId) {
       try {
-        const db = createSignatisDb(env2);
+        const db = createReAIDb(env2);
         await recordLeadEngagement(db, leadId, "link_click", `Clicked link to ${destination}`);
       } catch (err) {
         console.error("[Track] click failed:", err);

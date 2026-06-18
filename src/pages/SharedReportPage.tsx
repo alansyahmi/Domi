@@ -4,6 +4,8 @@ import SharedReportView from "../components/reports/SharedReportView";
 import { getSharedReportApi } from "../lib/api";
 import type { Agent, PropertyReport } from "../types";
 
+const faviconUrl = new URL("../../favicon.png", import.meta.url).href;
+
 type SharedReportState =
   | { status: "loading" }
   | { status: "error"; message: string }
@@ -39,7 +41,7 @@ export default function SharedReportPage() {
     return (
       <main className="shared-report-page">
         <section className="card shared-report-loading">
-          <div className="brand-mark mx-auto mb-4">S</div>
+          <img src={faviconUrl} alt="" aria-hidden="true" className="brand-mark mx-auto mb-4" />
           <p className="m-0 text-slate-600">Loading shared report...</p>
         </section>
       </main>
@@ -50,11 +52,11 @@ export default function SharedReportPage() {
     return (
       <main className="shared-report-page">
         <section className="card shared-report-loading">
-          <div className="brand-mark mx-auto mb-4">S</div>
+          <img src={faviconUrl} alt="" aria-hidden="true" className="brand-mark mx-auto mb-4" />
           <h1 className="section-title">Report unavailable</h1>
           <p className="mt-4 text-slate-600">{state.message}</p>
           <Link className="secondary-button mt-6" to="/dashboard">
-            Return to Signatis
+            Return to re:AI
           </Link>
         </section>
       </main>

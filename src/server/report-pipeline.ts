@@ -20,7 +20,7 @@ import type {
   ReportIndexLookup,
   Sentiment,
 } from "../types";
-import type { SignatisDbClient } from "./db";
+import type { ReAIDbClient } from "./db";
 import {
   getPropertyIntelligenceCache,
   savePropertyIntelligence,
@@ -337,7 +337,7 @@ function sentimentSummary(sentiment: Sentiment): string {
 }
 
 export async function generatePropertyReport(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agent: Agent,
   input: PropertyReportInput,
   options: GenerateOptions = {},

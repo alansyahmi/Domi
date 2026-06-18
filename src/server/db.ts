@@ -40,7 +40,7 @@ export interface QueryResult<Row = Record<string, unknown>> {
   rows: Row[];
 }
 
-export interface SignatisDbClient {
+export interface ReAIDbClient {
   execute<Row = Record<string, unknown>>(
     statement:
       | string
@@ -78,7 +78,7 @@ export function toSqlArgs(values: Array<SqlPrimitive | undefined>): SqlArgs {
   return values.filter((value): value is SqlPrimitive => value !== undefined);
 }
 
-export function createSignatisDb(env: DbEnv): SignatisDbClient {
+export function createReAIDb(env: DbEnv): ReAIDbClient {
   const runtimeEnv = getRuntimeEnv();
   return createClient(
     getTursoConfig({
@@ -208,7 +208,7 @@ const schemaStatements = [
   )`,
 ];
 
-export async function ensureSchema(db: SignatisDbClient): Promise<void> {
+export async function ensureSchema(db: ReAIDbClient): Promise<void> {
   for (const statement of schemaStatements) {
     await db.execute(statement);
   }
@@ -417,7 +417,7 @@ export function mapLeadEvent(row: Record<string, unknown>): LeadEvent {
 }
 
 export async function ensureAgentWorkspace(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   user: { id: string; email: string; firstName?: string | null; lastName?: string | null },
 ): Promise<Agent> {
   await ensureSchema(db);
@@ -483,7 +483,7 @@ export async function ensureAgentWorkspace(
   return agent;
 }
 
-export async function seedWorkspace(db: SignatisDbClient, agentId: string): Promise<void> {
+export async function seedWorkspace(db: ReAIDbClient, agentId: string): Promise<void> {
   const leads = [
     ["lead_1", "Amanda Lee", "amanda.l@example.com", "+60 12-019 8472", "Direct Inquiry", "Downtown condo", "RM 850k", 8, 4, 2, 0.7, "positive", "2026-06-09T10:30:00.000Z"],
     ["lead_2", "Chen Wei Kiat", "cwk_99@test.com", "+60 17-448 2041", "Facebook", "Subang family home", "RM 1.2M", 2, 0, 0, 0.1, "neutral", "2026-06-08T15:20:00.000Z"],
@@ -619,7 +619,7 @@ export async function seedWorkspace(db: SignatisDbClient, agentId: string): Prom
   }
 }
 
-export async function getDashboardData(db: SignatisDbClient, agent: Agent): Promise<DashboardData> {
+export async function getDashboardData(db: ReAIDbClient, agent: Agent): Promise<DashboardData> {
   const leads = (await getLeads(db, agent.id)).sort((a, b) => b.score - a.score);
   const reports = await getReports(db, agent.id);
   const averageScore = leads.length
@@ -639,7 +639,7 @@ export async function getDashboardData(db: SignatisDbClient, agent: Agent): Prom
   };
 }
 
-export async function getLeads(db: SignatisDbClient, agentId: string): Promise<Lead[]> {
+export async function getLeads(db: ReAIDbClient, agentId: string): Promise<Lead[]> {
   const result = await db.execute<Record<string, unknown>>({
     sql: "SELECT * FROM leads WHERE agent_id = ? ORDER BY created_at DESC",
     args: [agentId],
@@ -647,7 +647,7 @@ export async function getLeads(db: SignatisDbClient, agentId: string): Promise<L
   return result.rows.map(mapLead);
 }
 
-export async function getReports(db: SignatisDbClient, agentId: string): Promise<PropertyReport[]> {
+export async function getReports(db: ReAIDbClient, agentId: string): Promise<PropertyReport[]> {
   const result = await db.execute<Record<string, unknown>>({
     sql: "SELECT * FROM property_reports WHERE agent_id = ? ORDER BY generated_at DESC",
     args: [agentId],
@@ -656,7 +656,7 @@ export async function getReports(db: SignatisDbClient, agentId: string): Promise
 }
 
 export async function getReportById(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agentId: string,
   reportId: string,
 ): Promise<PropertyReport | null> {
@@ -668,7 +668,7 @@ export async function getReportById(
 }
 
 export async function getReportByShareToken(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   shareToken: string,
 ): Promise<PropertyReport | null> {
   const result = await db.execute<Record<string, unknown>>({
@@ -678,7 +678,7 @@ export async function getReportByShareToken(
   return result.rows[0] ? mapReport(result.rows[0]) : null;
 }
 
-export async function getAgentById(db: SignatisDbClient, agentId: string): Promise<Agent | null> {
+export async function getAgentById(db: ReAIDbClient, agentId: string): Promise<Agent | null> {
   const result = await db.execute<Record<string, unknown>>({
     sql: "SELECT * FROM agents WHERE id = ? LIMIT 1",
     args: [agentId],
@@ -687,7 +687,7 @@ export async function getAgentById(db: SignatisDbClient, agentId: string): Promi
 }
 
 export async function getAgentByIngestionAddress(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   address: string,
 ): Promise<Agent | null> {
   const normalized = address.trim().toLowerCase();
@@ -707,7 +707,7 @@ export async function getAgentByIngestionAddress(
  * is the lead id, so the agent is resolved from the lead row.
  */
 export async function recordLeadEngagement(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   leadId: string,
   type: "email_open" | "link_click",
   label?: string,
@@ -757,7 +757,7 @@ export async function recordLeadEngagement(
 }
 
 export async function getPropertyIntelligenceCache(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   propertyKey: string,
 ): Promise<PropertyIntelligenceCache | null> {
   const result = await db.execute<Record<string, unknown>>({
@@ -777,7 +777,7 @@ export async function getPropertyIntelligenceCache(
 }
 
 export async function savePropertyIntelligence(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   cache: PropertyIntelligenceCache,
 ): Promise<void> {
   await db.execute({
@@ -795,7 +795,7 @@ export async function savePropertyIntelligence(
 }
 
 export async function savePropertyReport(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   report: PropertyReport,
 ): Promise<void> {
   await db.execute({
@@ -832,7 +832,7 @@ export async function savePropertyReport(
   });
 }
 
-export async function getIntegrations(db: SignatisDbClient, agentId: string): Promise<Integration[]> {
+export async function getIntegrations(db: ReAIDbClient, agentId: string): Promise<Integration[]> {
   const result = await db.execute<Record<string, unknown>>({
     sql: "SELECT * FROM integrations WHERE agent_id = ? ORDER BY name ASC",
     args: [agentId],
@@ -841,7 +841,7 @@ export async function getIntegrations(db: SignatisDbClient, agentId: string): Pr
 }
 
 export async function connectIntegration(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agentId: string,
   integrationId: string,
   name: string,
@@ -863,7 +863,7 @@ export async function connectIntegration(
 }
 
 export async function disconnectIntegration(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agentId: string,
   integrationId: string,
 ): Promise<void> {
@@ -876,7 +876,7 @@ export async function disconnectIntegration(
 // ── Agent Credentials (WhatsApp, etc.) ──────────────────────────
 
 export async function getCredentials(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agentId: string,
   provider: string,
 ): Promise<{ id: string; encryptedValue: string; metadata: Record<string, unknown> } | null> {
@@ -894,7 +894,7 @@ export async function getCredentials(
 }
 
 export async function saveCredentials(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agentId: string,
   provider: string,
   encryptedValue: string,
@@ -910,7 +910,7 @@ export async function saveCredentials(
 }
 
 export async function deleteCredentials(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agentId: string,
   provider: string,
 ): Promise<void> {
@@ -922,7 +922,7 @@ export async function deleteCredentials(
 
 
 export async function createReport(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agentId: string,
   input: PropertyReportInput,
 ): Promise<PropertyReport> {
@@ -983,7 +983,7 @@ export async function createReport(
 }
 
 export async function updateAgentSettings(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agentId: string,
   values: Omit<Agent, "id" | "workosUserId" | "plan" | "avatarInitials" | "ingestionAddress">,
 ): Promise<Agent> {
@@ -1024,7 +1024,7 @@ export async function updateAgentSettings(
 }
 
 export async function createSupportRequest(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agentId: string,
   input: Omit<SupportRequest, "id" | "agentId" | "createdAt">,
 ): Promise<SupportRequest> {
@@ -1054,7 +1054,7 @@ export async function createSupportRequest(
 }
 
 export async function createLead(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agentId: string,
   input: {
     name: string;
@@ -1156,7 +1156,7 @@ export async function createLead(
 }
 
 export async function deleteLead(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agentId: string,
   leadId: string,
 ): Promise<void> {
@@ -1171,7 +1171,7 @@ export async function deleteLead(
 }
 
 export async function updateLeadStage(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agentId: string,
   leadId: string,
   newStage: LeadStage,
@@ -1195,7 +1195,7 @@ export async function updateLeadStage(
 }
 
 export async function updateLeadLastContacted(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agentId: string,
   leadId: string,
 ): Promise<void> {
@@ -1206,7 +1206,7 @@ export async function updateLeadLastContacted(
 }
 
 export async function getLeadEvents(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   agentId: string,
   leadId: string,
 ): Promise<LeadEvent[]> {
@@ -1233,7 +1233,7 @@ export function generateOtpCode(): string {
  * Store an OTP code in the database with a 5-minute expiry.
  */
 export async function storeOtpCode(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   email: string,
   code: string,
 ): Promise<void> {
@@ -1251,7 +1251,7 @@ export async function storeOtpCode(
  * Marks the code as used on successful verification.
  */
 export async function verifyOtpCode(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   email: string,
   code: string,
 ): Promise<{ id: string; email: string } | null> {
@@ -1279,7 +1279,7 @@ export async function verifyOtpCode(
  * Find an agent by email address.
  */
 export async function findAgentByEmail(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   email: string,
 ): Promise<Agent | null> {
   const result = await db.execute<Record<string, unknown>>({
@@ -1294,7 +1294,7 @@ export async function findAgentByEmail(
  * Generates an internal user ID prefixed with "otp_".
  */
 export async function createOtpAgent(
-  db: SignatisDbClient,
+  db: ReAIDbClient,
   email: string,
   firstName?: string,
 ): Promise<Agent> {

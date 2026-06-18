@@ -13,7 +13,7 @@ const legalDocuments: Array<{ title: string; text: string; icon: LucideIcon }> =
 const faqs = [
   {
     question: "How is the Lead Binary Score calculated?",
-    answer: "Signatis combines email opens, report clicks, report views, and inquiry sentiment into a transparent rule-based score.",
+    answer: "re:AI combines email opens, report clicks, report views, and inquiry sentiment into a transparent rule-based score.",
   },
   {
     question: "Can I export my client data?",
@@ -55,13 +55,13 @@ export default function LegalSupportPage({
 
       <div className="mt-10 grid grid-cols-1 xl:grid-cols-[minmax(0,1.8fr)_minmax(22rem,0.9fr)] gap-8">
         <section className="card p-7">
-          <div className="flex items-center gap-4 border-b border-slate-200 pb-5">
+          <div className="flex items-center gap-4 border-b border-[#2d2d2d] pb-5">
             <FileCheck2 size={34} aria-hidden="true" />
             <h2 className="m-0 text-3xl font-extrabold">Compliance & Legal Documents</h2>
           </div>
           <div className="mt-7 grid grid-cols-1 md:grid-cols-2 gap-5">
             {legalDocuments.map(({ title, text, icon: Icon }) => (
-              <article key={title} className="rounded-md border border-slate-200 bg-slate-50 p-5 flex gap-4">
+              <article key={title} className="rounded-md border border-[#2d2d2d] bg-[#121212] p-5 flex gap-4">
                 <Icon size={24} aria-hidden="true" />
                 <div>
                   <h3 className="m-0 font-extrabold">{title}</h3>
@@ -74,11 +74,11 @@ export default function LegalSupportPage({
 
         <aside className="card p-8 text-white flex flex-col justify-start" style={{ backgroundColor: "var(--navy-soft)", color: "white" }}>
           <div className="flex gap-5 items-center">
-            <Scale size={40} className="text-[#ffd45a]" aria-hidden="true" />
+            <Scale size={40} className="text-white" aria-hidden="true" />
             <h2 className="m-0 text-3xl font-extrabold text-white">Amanah Principles</h2>
           </div>
           <p className="mt-8 text-lg leading-8 text-slate-200">
-            Signatis prioritizes transparent data collection, binary decision clarity, no dark patterns, and user autonomy.
+            re:AI prioritizes transparent data collection, binary decision clarity, no dark patterns, and user autonomy.
           </p>
           <ul className="mt-8 grid gap-5 p-0 list-none font-bold">
             {["Transparent Data Collection", "Binary Decision Clarity", "No Dark Patterns", "User Autonomy First"].map(
@@ -95,13 +95,13 @@ export default function LegalSupportPage({
 
       <div className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-8">
         <section className="card p-7">
-          <div className="flex items-center gap-4 border-b border-slate-200 pb-5">
+          <div className="flex items-center gap-4 border-b border-[#2d2d2d] pb-5">
             <BookOpen size={32} aria-hidden="true" />
             <h2 className="m-0 text-3xl font-extrabold">Frequently Asked Questions</h2>
           </div>
           <div className="mt-7 grid gap-4">
             {faqs.map((faq, index) => (
-              <article key={faq.question} className="rounded-md border border-slate-200 bg-slate-50">
+              <article key={faq.question} className="rounded-md border border-[#2d2d2d] bg-[#121212]">
                 <button
                   className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left font-extrabold"
                   onClick={() => setOpenFaq(openFaq === index ? -1 : index)}
@@ -116,7 +116,7 @@ export default function LegalSupportPage({
         </section>
 
         <form className="card p-7" onSubmit={(event) => void submit(event)}>
-          <div className="flex items-center gap-4 border-b border-slate-200 pb-5">
+          <div className="flex items-center gap-4 border-b border-[#2d2d2d] pb-5">
             <Headphones size={32} aria-hidden="true" />
             <h2 className="m-0 text-3xl font-extrabold">Contact Support</h2>
           </div>

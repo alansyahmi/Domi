@@ -25,7 +25,7 @@ export default function ReportGeneratorPage({
         <div>
           <h1 className="section-title">Generate Property Report</h1>
           <p className="mt-4 max-w-3xl text-xl text-slate-600">
-            Start with a property name. Signatis checks cached intelligence, enriches with research when needed, then packages analytics, citations, PDF, and share link.
+            Start with a property name. re:AI checks cached intelligence, enriches with research when needed, then packages analytics, citations, PDF, and share link.
           </p>
         </div>
         {latest ? (

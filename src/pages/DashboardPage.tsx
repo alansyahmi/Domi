@@ -100,7 +100,7 @@ export default function DashboardPage({
           </div>
           <div className="grid gap-4">
             {dashboard.highIntentLeads.map((lead) => (
-              <article key={lead.id} className="card border-l-4 border-l-[#ffd45a] p-5 flex items-center gap-5">
+              <article key={lead.id} className="card border-l-4 border-l-white p-5 flex items-center gap-5">
                 <div className="avatar">{initials(lead.name)}</div>
                 <div className="min-w-0 flex-1">
                   <h3 className="m-0 text-xl font-extrabold">{lead.name}</h3>
@@ -122,10 +122,10 @@ export default function DashboardPage({
           <h2 className="section-title mb-6">Recent Reports</h2>
           <div className="card overflow-hidden">
             {dashboard.recentReports.map((report) => (
-              <article key={report.id} className="border-b border-slate-200 last:border-b-0 p-5 flex items-start gap-4">
+              <article key={report.id} className="border-b border-[#2d2d2d] last:border-b-0 p-5 flex items-start gap-4">
                 <div className="mt-1">
                   {report.status === "running" ? (
-                    <RefreshCw size={20} className="text-slate-600" aria-hidden="true" />
+                    <RefreshCw size={20} className="text-slate-300" aria-hidden="true" />
                   ) : (
                     <TrendingUp size={20} className="text-emerald-600" aria-hidden="true" />
                   )}

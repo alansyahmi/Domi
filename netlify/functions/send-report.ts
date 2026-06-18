@@ -1,6 +1,6 @@
 import type { Config, Context } from "@netlify/functions";
 import { getRuntimeEnv } from "../../src/server/runtime-env";
-import { createSignatisDb } from "../../src/server/db";
+import { createReAIDb } from "../../src/server/db";
 import { buildReportDeliveryHtml, sendEmail } from "../../src/server/notifications/email";
 
 export default async function handler(request: Request, context: Context) {
@@ -23,7 +23,7 @@ export default async function handler(request: Request, context: Context) {
   }
 
   try {
-    const db = createSignatisDb(env);
+    const db = createReAIDb(env);
 
     // 1. Fetch Lead
     const leadResult = await db.execute({
@@ -63,7 +63,7 @@ export default async function handler(request: Request, context: Context) {
     });
 
     const result = await sendEmail(env.RESEND_API_KEY, {
-      from: env.RESEND_FROM_EMAIL || "Signatis <reports@signatis.app>",
+      from: env.RESEND_FROM_EMAIL || "re:AI <reports@re-ai.app>",
       to: leadRow.email,
       subject: `Your Property Report: ${reportRow.property_name}`,
       html,

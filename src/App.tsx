@@ -85,12 +85,12 @@ function buildLocalReport(input: PropertyReportInput, agentId: string): Property
     },
     citations: [
       {
-        title: "Signatis refreshed market intelligence",
-        url: "https://signatis.app/research/refreshed-market-model",
+        title: "re:AI refreshed market intelligence",
+        url: "https://re-ai.app/research/refreshed-market-model",
       },
       {
         title: `${normalized.propertyName} — refreshed listing signals`,
-        url: `https://signatis.app/research/${propertyKey}`,
+        url: `https://re-ai.app/research/${propertyKey}`,
         sourceType: "comparable_listing",
       },
     ],
@@ -154,7 +154,7 @@ function SignatisWorkspace({
     })
       .then(setData)
       .catch((loadError: unknown) => {
-        setError(loadError instanceof Error ? loadError.message : "Unable to load Signatis.");
+        setError(loadError instanceof Error ? loadError.message : "Unable to load re:AI.");
       });
   }, [authMode, retryCount]);
 
@@ -174,7 +174,7 @@ function SignatisWorkspace({
   }, [data]);
 
   async function createReport(input: PropertyReportInput): Promise<PropertyReport> {
-    if (!data) throw new Error("Signatis is still loading.");
+    if (!data) throw new Error("re:AI is still loading.");
     const report = data.demoMode
       ? buildLocalReport(input, data.settings.agent.id)
       : await createReportApi(input);
@@ -191,7 +191,7 @@ function SignatisWorkspace({
   }
 
   async function sendReport(reportId: string, leadId: string): Promise<void> {
-    if (!data) throw new Error("Signatis is still loading.");
+    if (!data) throw new Error("re:AI is still loading.");
     if (data.demoMode) {
       console.log(`[Demo] Sending report ${reportId} to lead ${leadId}`);
       // Simulate demo mode send
@@ -317,7 +317,7 @@ function SignatisWorkspace({
     message?: string;
     preferredChannel?: string;
   }): Promise<Lead> {
-    if (!data) throw new Error("Signatis is still loading.");
+    if (!data) throw new Error("re:AI is still loading.");
     let lead: Lead;
     if (data.demoMode) {
       const id = `lead_local_${Date.now()}`;
@@ -533,7 +533,7 @@ function SignatisWorkspace({
     return (
       <main className="min-h-screen grid place-items-center p-6">
         <section className="card max-w-xl p-8 text-center">
-          <h1 className="section-title">Signatis could not start</h1>
+          <h1 className="section-title">re:AI could not start</h1>
           <p className="mt-4 text-slate-600">{error}</p>
           <button
             className="primary-button mt-6"
@@ -552,9 +552,9 @@ function SignatisWorkspace({
       <main className="min-h-screen grid place-items-center bg-[#f7f9fb]">
         <div className="card p-10 text-center landing-card-shadow border border-slate-200/80 max-w-sm w-full mx-4 animate-pulse">
           <div className="hci-loader-container">
-            <div className="hci-loader-logo">S</div>
+            <div className="hci-loader-logo">re</div>
             <div>
-              <p className="text-slate-600 font-bold m-0">Loading Signatis workspace...</p>
+              <p className="text-slate-600 font-bold m-0">Loading re:AI workspace...</p>
               <div className="hci-loading-bar" />
             </div>
           </div>

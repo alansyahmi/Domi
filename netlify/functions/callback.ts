@@ -1,7 +1,7 @@
 import type { Config } from "@netlify/functions";
 import { authenticateWithCode, decodeState } from "../../src/server/scalekit";
 import { buildCookie, sealSession, SESSION_COOKIE } from "../../src/server/auth";
-import { createSignatisDb, ensureAgentWorkspace } from "../../src/server/db";
+import { createReAIDb, ensureAgentWorkspace } from "../../src/server/db";
 import { getRuntimeEnv } from "../../src/server/runtime-env";
 
 interface CallbackEnv {
@@ -35,15 +35,15 @@ function errorPage(message: string, detail?: string): Response {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign In Failed — Signatis</title>
+  <title>Sign In Failed — re:AI</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #041627; color: #f8fafc; }
-    .card { background: #07192a; border-radius: 16px; padding: 2.5rem; max-width: 480px; text-align: center; box-shadow: 0 24px 64px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #1e1e1e; color: #f8fafc; }
+    .card { background: #2b2b2b; border-radius: 16px; padding: 2.5rem; max-width: 480px; text-align: center; box-shadow: 0 24px 64px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); }
     .rainbow-strip { height: 4px; border-radius: 16px 16px 0 0; background: linear-gradient(45deg, #ffb3ba, #ffdfba, #ffffba, #baffc9, #bae1ff, #e8d7ff); position: absolute; top: 0; left: 0; right: 0; }
     h1 { font-size: 1.5rem; font-weight: 800; margin: 1.5rem 0 0.75rem; color: #ffffff; }
     p { color: #94a3b8; margin: 0 0 1.5rem; font-size: 0.9375rem; line-height: 1.5; }
     .detail { font-size: 0.8125rem; color: #64748b; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 8px; word-break: break-all; margin-bottom: 1.5rem; text-align: left; }
-    .btn { display: inline-block; background: linear-gradient(45deg, #ffb3ba, #ffdfba, #ffffba, #baffc9, #bae1ff, #e8d7ff); color: #041627; text-decoration: none; padding: 0.75rem 2rem; border-radius: 9999px; font-weight: 700; font-size: 0.875rem; transition: transform 0.2s; }
+    .btn { display: inline-block; background: linear-gradient(45deg, #ffb3ba, #ffdfba, #ffffba, #baffc9, #bae1ff, #e8d7ff); color: #1e1e1e; text-decoration: none; padding: 0.75rem 2rem; border-radius: 9999px; font-weight: 700; font-size: 0.875rem; transition: transform 0.2s; }
     .btn:hover { transform: scale(1.02); }
   </style>
 </head>
@@ -117,11 +117,11 @@ export default async (req: Request) => {
     const sessionUser = {
       id: user.id,
       email: user.email,
-      firstName: user.givenName || user.name?.split(" ")[0] || "Signatis",
+      firstName: user.givenName || user.name?.split(" ")[0] || "re:AI",
       lastName: user.familyName || user.name?.split(" ").slice(1).join(" ") || "Agent",
     };
 
-    const db = createSignatisDb(env);
+    const db = createReAIDb(env);
     await ensureAgentWorkspace(db, sessionUser);
 
     const rawSessionToken = authResp.idToken;

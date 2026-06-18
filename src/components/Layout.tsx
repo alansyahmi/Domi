@@ -10,12 +10,13 @@ import {
   Plus,
   Search,
   Settings,
-  PenLine,
   Users,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import type { Agent } from "../types";
+
+const faviconUrl = new URL("../../favicon.png", import.meta.url).href;
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: Gauge },
@@ -84,12 +85,10 @@ export default function Layout({ agent, children, demoMode, notice, onLogout }: 
         <div className="topbar-container">
           {/* Left: Brand logo & motto */}
           <Link to="/dashboard" className="brand-group">
-            <div className="brand-mark">
-              <PenLine size={24} aria-hidden="true" />
-            </div>
+            <img src={faviconUrl} alt="" aria-hidden="true" className="brand-mark" />
             <div className="brand-info">
-              <span className="brand-name">Signatis</span>
-              <span className="brand-plan">Signatis Tabulis</span>
+              <span className="brand-name">re:AI</span>
+              <span className="brand-plan">Real estate intelligence</span>
             </div>
           </Link>
 

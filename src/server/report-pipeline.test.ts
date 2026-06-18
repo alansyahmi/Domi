@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { generatePropertyReport } from "./report-pipeline";
 import type { Agent, PropertyReportInput } from "../types";
-import type { SignatisDbClient } from "./db";
+import type { ReAIDbClient } from "./db";
 import type { ReportResearchProvider } from "./report-research";
 
 const agent: Agent = {
@@ -25,7 +25,7 @@ function createDbMock(rowsByCall: Array<Record<string, unknown>[]>) {
   const execute = vi.fn().mockImplementation(() => {
     return Promise.resolve({ rows: rowsByCall.shift() ?? [] });
   });
-  return { execute } as unknown as SignatisDbClient & { execute: ReturnType<typeof vi.fn> };
+  return { execute } as unknown as ReAIDbClient & { execute: ReturnType<typeof vi.fn> };
 }
 
 const reportInput: PropertyReportInput = {

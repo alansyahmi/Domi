@@ -4223,7 +4223,7 @@ function getTursoConfig(env22) {
   };
 }
 __name(getTursoConfig, "getTursoConfig");
-function createSignatisDb(env22) {
+function createReAIDb(env22) {
   const runtimeEnv = getRuntimeEnv();
   return createClient(
     getTursoConfig({
@@ -4232,7 +4232,7 @@ function createSignatisDb(env22) {
     })
   );
 }
-__name(createSignatisDb, "createSignatisDb");
+__name(createReAIDb, "createReAIDb");
 async function ensureSchema(db) {
   for (const statement of schemaStatements) {
     await db.execute(statement);
@@ -5041,7 +5041,7 @@ var init_db = __esm({
     init_runtime_env();
     init_leadScoring();
     __name2(getTursoConfig, "getTursoConfig");
-    __name2(createSignatisDb, "createSignatisDb");
+    __name2(createReAIDb, "createReAIDb");
     schemaStatements = [
       `CREATE TABLE IF NOT EXISTS agents (
     id TEXT PRIMARY KEY,
@@ -5323,7 +5323,7 @@ async function handler(request3, context22) {
     return new Response(JSON.stringify({ error: "Missing leadId or reportId" }), { status: 400 });
   }
   try {
-    const db = createSignatisDb(env22);
+    const db = createReAIDb(env22);
     const leadResult = await db.execute({
       sql: "SELECT * FROM leads WHERE id = ? LIMIT 1",
       args: [leadId]
@@ -12291,7 +12291,7 @@ async function authenticatedContext(req) {
   if (session.setCookie) {
     responseHeaders.append("Set-Cookie", session.setCookie);
   }
-  const db = createSignatisDb(runtimeEnv);
+  const db = createReAIDb(runtimeEnv);
   let sessionUser = session.user;
   if (!sessionUser.email) {
     try {
@@ -12362,7 +12362,7 @@ var init_api = __esm({
       const shareInquiryMatch = endpoint.match(/^reports\/share\/([^/]+)\/inquiry$/);
       if (shareInquiryMatch && req.method === "POST") {
         const runtimeEnv = getRuntimeEnv();
-        const db2 = createSignatisDb(runtimeEnv);
+        const db2 = createReAIDb(runtimeEnv);
         const report22 = await getReportByShareToken(db2, shareInquiryMatch[1]);
         if (!report22) {
           return json({ error: "Shared report not found." }, { status: 404 });
@@ -12400,7 +12400,7 @@ var init_api = __esm({
       }
       if (shareMatch && req.method === "GET") {
         const runtimeEnv = getRuntimeEnv();
-        const db2 = createSignatisDb(runtimeEnv);
+        const db2 = createReAIDb(runtimeEnv);
         const report22 = await getReportByShareToken(db2, shareMatch[1]);
         if (!report22) {
           return json({ error: "Shared report not found." }, { status: 404 });
@@ -12749,7 +12749,7 @@ var init_track = __esm({
       if (kind === "o") {
         if (leadId) {
           try {
-            const db = createSignatisDb(env22);
+            const db = createReAIDb(env22);
             await recordLeadEngagement(db, leadId, "email_open");
           } catch (err) {
             console.error("[Track] open failed:", err);
@@ -12771,7 +12771,7 @@ var init_track = __esm({
         }
         if (leadId) {
           try {
-            const db = createSignatisDb(env22);
+            const db = createReAIDb(env22);
             await recordLeadEngagement(db, leadId, "link_click", `Clicked link to ${destination}`);
           } catch (err) {
             console.error("[Track] click failed:", err);
@@ -44171,7 +44171,7 @@ var init_callback = __esm({
           firstName: user.givenName || user.name?.split(" ")[0] || "Signatis",
           lastName: user.familyName || user.name?.split(" ").slice(1).join(" ") || "Agent"
         };
-        const db = createSignatisDb(env22);
+        const db = createReAIDb(env22);
         await ensureAgentWorkspace(db, sessionUser);
         const secret = env22.SESSION_SECRET || env22.WORKOS_COOKIE_PASSWORD || "fallback-secret-for-signing-session-tokens-at-least-32-chars";
         const sealedSession = await sealSession(sessionUser, secret);
@@ -64458,7 +64458,7 @@ var init_inbound_email = __esm({
       if (!ingestionAddress) {
         return json2({ error: "No recipient address." }, { status: 400 });
       }
-      const db = createSignatisDb(env22);
+      const db = createReAIDb(env22);
       const agent = await getAgentByIngestionAddress(db, ingestionAddress);
       if (!agent) {
         console.warn(`[Inbound] No agent for ingestion address ${ingestionAddress}`);

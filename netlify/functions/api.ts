@@ -1,7 +1,7 @@
 import type { Config } from "@netlify/functions";
 import { createCsrfToken, requireSession, type SessionResult } from "../../src/server/auth";
 import {
-  createSignatisDb,
+  createReAIDb,
   createSupportRequest,
   ensureAgentWorkspace,
   getAgentById,
@@ -64,7 +64,7 @@ async function authenticatedContext(req: Request): Promise<
   | {
       ok: true;
       agent: Agent;
-      db: ReturnType<typeof createSignatisDb>;
+      db: ReturnType<typeof createReAIDb>;
       responseHeaders: Headers;
     }
   | { ok: false; response: Response }
@@ -88,7 +88,7 @@ async function authenticatedContext(req: Request): Promise<
     responseHeaders.append("Set-Cookie", session.setCookie);
   }
 
-  const db = createSignatisDb(runtimeEnv);
+  const db = createReAIDb(runtimeEnv);
   let sessionUser = session.user;
 
   if (!sessionUser.email) {
@@ -111,8 +111,8 @@ async function authenticatedContext(req: Request): Promise<
       console.error("Error retrieving user details:", dbError);
       sessionUser = {
         id: sessionUser.id,
-        email: "agent@signatis.app",
-        firstName: "Signatis",
+        email: "agent@re-ai.app",
+        firstName: "re:AI",
         lastName: "Agent",
       };
     }
@@ -143,7 +143,7 @@ export default async (req: Request) => {
   const shareInquiryMatch = endpoint.match(/^reports\/share\/([^/]+)\/inquiry$/);
   if (shareInquiryMatch && req.method === "POST") {
     const runtimeEnv = getRuntimeEnv();
-    const db = createSignatisDb(runtimeEnv);
+    const db = createReAIDb(runtimeEnv);
     const report = await getReportByShareToken(db, shareInquiryMatch[1]);
     if (!report) {
       return json({ error: "Shared report not found." }, { status: 404 });
@@ -181,7 +181,7 @@ export default async (req: Request) => {
         lead,
         {
           eventLabel: "New lead from Report Shared Link",
-          assetUrl: `https://signatis.app/reports/share/${report.shareToken}`,
+          assetUrl: `https://re-ai.app/reports/share/${report.shareToken}`,
           prospectMessage: body.message,
         },
       ).catch((err) => console.error("[Notify] Failed:", err));
@@ -192,7 +192,7 @@ export default async (req: Request) => {
 
   if (shareMatch && req.method === "GET") {
     const runtimeEnv = getRuntimeEnv();
-    const db = createSignatisDb(runtimeEnv);
+    const db = createReAIDb(runtimeEnv);
     const report = await getReportByShareToken(db, shareMatch[1]);
     if (!report) {
       return json({ error: "Shared report not found." }, { status: 404 });
@@ -508,7 +508,7 @@ export default async (req: Request) => {
       const result = await sendWhatsAppMessage(
         { phoneNumberId: metadata.phoneNumberId ?? "", accessToken: creds.encryptedValue },
         agent.whatsappNumber || agent.phone,
-        "✅ Signatis WhatsApp integration is working! You'll receive lead notifications here.",
+        "✅ re:AI WhatsApp integration is working! You'll receive lead notifications here.",
       );
       if (!result.success) {
         return json({ error: result.error ?? "Failed to send test message." }, { status: 500, headers: responseHeaders });

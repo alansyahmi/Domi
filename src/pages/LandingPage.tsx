@@ -1,31 +1,44 @@
 import {
   ArrowRight,
   BarChart3,
-  Check,
-  FileText,
-  Gauge,
+  ChevronRight,
+  Clock3,
   Mail,
-  MessageCircle,
-  PenLine,
-  ShieldCheck,
+  MessageSquareText,
   Sparkles,
-  Star,
-  Users,
+  Target,
+  Workflow,
 } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { SignatisAuthMode } from "../lib/auth-mode";
 
-/* Real-estate photography (Unsplash, verified to load). */
-const IMG = {
-  skyline: "https://images.unsplash.com/photo-1596422846543-75c6fc197f07?w=1280&q=80&auto=format&fit=crop",
-  skylineWide: "https://images.unsplash.com/photo-1596422846543-75c6fc197f07?w=1600&q=70&auto=format&fit=crop",
-  villa: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1000&q=80&auto=format&fit=crop",
-  towers: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=900&q=80&auto=format&fit=crop",
-};
+const logoUrl = new URL("../../logo.png", import.meta.url).href;
 
-/* Reveal-on-scroll wrapper. Uses IntersectionObserver (no scroll listeners)
-   and degrades to instantly-visible under prefers-reduced-motion. */
+const heroStats = [
+  { label: "Leads scored", value: "1,284" },
+  { label: "Qualified intent", value: "62%" },
+  { label: "Reports sent", value: "96" },
+];
+
+const featureCards = [
+  {
+    icon: Target,
+    title: "Lead intelligence",
+    body: "Sort every inquiry by intent so your next call starts with the prospects most likely to move.",
+  },
+  {
+    icon: BarChart3,
+    title: "Client-ready reports",
+    body: "Turn a property name into a clean, cited report with the context clients need to say yes.",
+  },
+  {
+    icon: Workflow,
+    title: "One simple workflow",
+    body: "Capture, qualify, follow up and present, without stitching together a dozen tools.",
+  },
+];
+
 function Reveal({
   children,
   className = "",
@@ -55,7 +68,7 @@ function Reveal({
           }
         }
       },
-      { threshold: 0.15 },
+      { threshold: 0.18 },
     );
 
     observer.observe(el);
@@ -69,9 +82,7 @@ function Reveal({
   );
 }
 
-/* Counts up to a target when scrolled into view; shows the final value
-   immediately under prefers-reduced-motion. */
-function Count({ to, decimals = 0, suffix = "" }: { to: number; decimals?: number; suffix?: string }) {
+function Count({ to, suffix = "" }: { to: number; suffix?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const [value, setValue] = useState(0);
 
@@ -90,16 +101,18 @@ function Count({ to, decimals = 0, suffix = "" }: { to: number; decimals?: numbe
       (entries) => {
         if (!entries[0]?.isIntersecting) return;
         observer.disconnect();
+
         const tick = (now: number) => {
           if (!startTime) startTime = now;
-          const progress = Math.min((now - startTime) / 1100, 1);
+          const progress = Math.min((now - startTime) / 1000, 1);
           const eased = 1 - Math.pow(1 - progress, 4);
           setValue(to * eased);
           if (progress < 1) frame = requestAnimationFrame(tick);
         };
+
         frame = requestAnimationFrame(tick);
       },
-      { threshold: 0.4 },
+      { threshold: 0.3 },
     );
 
     observer.observe(el);
@@ -109,112 +122,48 @@ function Count({ to, decimals = 0, suffix = "" }: { to: number; decimals?: numbe
     };
   }, [to]);
 
-  const display = decimals > 0 ? value.toFixed(decimals) : Math.round(value).toLocaleString();
   return (
     <span ref={ref}>
-      {display}
+      {Math.round(value).toLocaleString()}
       {suffix}
     </span>
   );
 }
 
-const portals = [
-  { name: "PropertyGuru", mark: "P", color: "#e31837" },
-  { name: "iProperty", mark: "i", color: "#002f6c" },
-  { name: "Mudah.my", mark: "M", color: "#f58220" },
-  { name: "EdgeProp", mark: "E", color: "#188a44" },
-];
-
-function PrimaryCta({
+function PrimaryButton({
   to,
   children,
   onClick,
   reloadDocument,
+  accent = false,
 }: {
   to: string;
   children: ReactNode;
   onClick?: (e: React.MouseEvent) => void;
   reloadDocument?: boolean;
+  accent?: boolean;
 }) {
   return (
     <Link
       to={to}
       onClick={onClick}
       reloadDocument={reloadDocument}
-      className="primary-button glow-on-hover rainbow group h-12 px-6 rounded-full"
+      className={`reai-button ${accent ? "reai-button-accent" : "reai-button-ghost"}`}
     >
-      {children}
-      <ArrowRight
-        size={18}
-        aria-hidden="true"
-        className="transition-transform duration-200 group-hover:translate-x-1"
-      />
+      <span>{children}</span>
+      <ArrowRight size={17} aria-hidden="true" />
     </Link>
   );
 }
 
-function PlanCard({
-  name,
-  price,
-  period,
-  blurb,
-  features,
-  featured = false,
-  isAuthenticated,
-  handleCtaClick,
-}: {
-  name: string;
-  price: string;
-  period?: string;
-  blurb: string;
-  features: string[];
-  featured?: boolean;
-  isAuthenticated: boolean | null;
-  handleCtaClick: (e: React.MouseEvent) => void;
-}) {
-  const loginUrl = "/login?prompt=login";
-
+function BrandLockup({ compact = false }: { compact?: boolean }) {
   return (
-    <div
-      className={`landing-lift relative flex h-full flex-col rounded-2xl bg-white p-8 text-left card ${
-        featured ? "landing-card-shadow border-2 border-[#ffb3ba]" : ""
-      }`}
-    >
-      {featured ? (
-        <span className="absolute right-6 top-6 rounded-full bg-[#ffb3ba]/20 px-3 py-1 text-xs font-bold text-red-700 border border-[#ffb3ba]/30">
-          Most popular
-        </span>
-      ) : null}
-      <p className="text-sm font-bold uppercase tracking-wide text-slate-500">{name}</p>
-      <div className="mt-3 flex items-baseline gap-1.5">
-        <span className="text-5xl font-extrabold text-[#041627]">{price}</span>
-        {period ? <span className="text-slate-500">{period}</span> : null}
+    <div className={`reai-brand-lockup ${compact ? "reai-brand-lockup-compact" : ""}`}>
+      <img src={logoUrl} alt="" aria-hidden="true" className="reai-logo-mark" />
+      <div className="reai-brand-copy">
+        <span className="reai-brand-name">re:AI</span>
+        <span className="reai-brand-tag">Real estate intelligence</span>
       </div>
-      <p className="mt-3 text-sm text-slate-600">{blurb}</p>
-      <ul className="mb-8 mt-7 space-y-3">
-        {features.map((item) => (
-          <li key={item} className="flex items-start gap-3 text-slate-700">
-            <Check size={18} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
-            {item}
-          </li>
-        ))}
-      </ul>
-      <Link
-        to={isAuthenticated ? "/dashboard" : loginUrl}
-        onClick={handleCtaClick}
-        className={`group mt-auto flex h-12 w-full items-center justify-center gap-2 rounded-full font-bold transition-colors ${
-          featured
-            ? "primary-button glow-on-hover rainbow text-white"
-            : "secondary-button border border-slate-300 bg-white text-[#041627] hover:border-slate-400"
-        }`}
-      >
-        {isAuthenticated ? "Go to Dashboard" : "Start free"}
-        <ArrowRight
-          size={18}
-          aria-hidden="true"
-          className="transition-transform duration-200 group-hover:translate-x-1"
-        />
-      </Link>
     </div>
   );
 }
@@ -228,29 +177,25 @@ export default function LandingPage({ authMode }: { authMode: SignatisAuthMode }
     if (authMode === "demo") {
       const loggedIn = sessionStorage.getItem("demo_logged_in") !== "false";
       setIsAuthenticated(loggedIn);
-    } else {
-      fetch("/api/me")
-        .then((res) => {
-          if (res.ok) {
-            setIsAuthenticated(true);
-          } else {
-            setIsAuthenticated(false);
-          }
-        })
-        .catch(() => setIsAuthenticated(false));
+      return;
     }
-  }, [authMode]);
 
-  const loginUrl = "/login?prompt=login";
+    fetch("/api/me")
+      .then((res) => setIsAuthenticated(res.ok))
+      .catch(() => setIsAuthenticated(false));
+  }, [authMode]);
 
   useEffect(() => {
     function handleScroll() {
-      setIsScrolled(window.scrollY > 8);
+      setIsScrolled(window.scrollY > 6);
     }
+
     handleScroll();
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const loginUrl = "/login?prompt=login";
 
   const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -266,9 +211,7 @@ export default function LandingPage({ authMode }: { authMode: SignatisAuthMode }
       const { csrfToken } = await csrfResp.json();
       const resp = await fetch("/logout", {
         method: "POST",
-        headers: {
-          "x-csrf-token": csrfToken,
-        },
+        headers: { "x-csrf-token": csrfToken },
         redirect: "manual",
       });
 
@@ -279,6 +222,7 @@ export default function LandingPage({ authMode }: { authMode: SignatisAuthMode }
           return;
         }
       }
+
       window.location.href = "/?logout=true";
     } catch {
       window.location.href = "/?logout=true";
@@ -295,622 +239,227 @@ export default function LandingPage({ authMode }: { authMode: SignatisAuthMode }
   };
 
   return (
-    <div className="landing">
-      {/* NAV */}
-      <header className={`topbar ${isScrolled ? "scrolled" : ""}`}>
-        <div className="topbar-container">
-          <Link to="/" className="brand-group">
-            <div className="brand-mark">
-              <PenLine size={24} aria-hidden="true" />
-            </div>
-            <div className="brand-info">
-              <span className="brand-name">Signatis</span>
-              <span className="brand-plan">Signatis Tabulis</span>
-            </div>
+    <div className="reai-landing">
+      <div className="reai-backdrop" aria-hidden="true" />
+
+      <header className={`reai-topbar ${isScrolled ? "is-scrolled" : ""}`}>
+        <div className="reai-topbar-inner">
+          <Link to="/" className="reai-brand-link" aria-label="re:AI home">
+            <BrandLockup compact />
           </Link>
 
-          <div className="hidden items-center gap-8 md:flex">
-            <a href="#features" className="text-sm font-semibold text-slate-650 transition-colors hover:text-[#041627]">
-              Features
-            </a>
-            <a href="#how" className="text-sm font-semibold text-slate-650 transition-colors hover:text-[#041627]">
-              How it works
-            </a>
-            <a href="#pricing" className="text-sm font-semibold text-slate-650 transition-colors hover:text-[#041627]">
-              Pricing
-            </a>
-          </div>
+          <nav className="reai-topnav" aria-label="Primary">
+            <a href="#why">Why re:AI</a>
+            <a href="#workflow">Workflow</a>
+            <a href="#contact">Contact</a>
+          </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="reai-topbar-actions">
             {isAuthenticated === null ? (
-              <span className="text-xs text-slate-400">Loading...</span>
+              <span className="reai-loading-text">Loading...</span>
             ) : isAuthenticated ? (
               <>
-                <button
-                  onClick={handleLogout}
-                  className="hidden text-sm font-semibold text-red-650 transition-opacity hover:opacity-75 sm:inline"
-                >
+                <button className="reai-toplink" onClick={handleLogout} type="button">
                   Sign out
                 </button>
-                <Link
-                  to="/dashboard"
-                  className="primary-button glow-on-hover rainbow h-10 px-5 text-sm rounded-full"
-                >
-                  Go to Dashboard
-                </Link>
+                <PrimaryButton to="/dashboard" accent>
+                  Dashboard
+                </PrimaryButton>
               </>
             ) : (
               <>
-                <Link
-                  to={loginUrl}
-                  onClick={handleCtaClick}
-                  reloadDocument={authMode !== "demo"}
-                  className="hidden text-sm font-semibold text-[#041627] transition-opacity hover:opacity-70 sm:inline"
-                >
+                <PrimaryButton to={loginUrl} onClick={handleCtaClick}>
                   Sign in
-                </Link>
-                <Link
-                  to={loginUrl}
-                  onClick={handleCtaClick}
-                  reloadDocument={authMode !== "demo"}
-                  className="primary-button glow-on-hover rainbow h-10 px-5 text-sm rounded-full"
-                >
+                </PrimaryButton>
+                <PrimaryButton to={loginUrl} onClick={handleCtaClick} accent reloadDocument={authMode !== "demo"}>
                   Start free
-                </Link>
+                </PrimaryButton>
               </>
             )}
           </div>
         </div>
       </header>
-      <div className="topbar-spacer" aria-hidden="true" />
 
-      {/* HERO */}
-      <section className="relative overflow-hidden !pt-6 !pb-10">
-        <div className="landing-hero-wash" aria-hidden="true" />
-        <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-14 px-6 pt-8 pb-10 lg:grid-cols-[1.05fr_0.95fr] lg:pt-12 lg:pb-14">
-          <div>
-            <span
-              className="hero-rise inline-flex items-center gap-2 rounded-full border border-[#e8d7ff]/35 bg-white px-3.5 py-1.5 text-xs font-semibold text-purple-750"
-              style={{ animationDelay: "40ms" }}
-            >
-              <Sparkles size={14} className="text-purple-500" aria-hidden="true" />
-              Built for Malaysian property agents
-            </span>
-
-            <h1
-              className="hero-rise mt-6 text-4xl font-bold leading-[1.05] text-[#041627] sm:text-5xl lg:text-6xl"
-              style={{ animationDelay: "120ms" }}
-            >
-              Know which leads
-              <br />
-              are ready to buy.
-            </h1>
-
-            <p
-              className="hero-rise mt-6 max-w-xl text-lg leading-relaxed text-slate-600"
-              style={{ animationDelay: "220ms" }}
-            >
-              Signatis scores every portal inquiry and writes the property report that wins the viewing, so you spend
-              your day on the buyers who convert.
-            </p>
-
-            <div
-              className="hero-rise mt-9 flex flex-col gap-3 sm:flex-row sm:items-center"
-              style={{ animationDelay: "320ms" }}
-            >
-              <PrimaryCta
-                to={isAuthenticated ? "/dashboard" : loginUrl}
-                onClick={handleCtaClick}
-                reloadDocument={authMode !== "demo" && !isAuthenticated}
-              >
-                {isAuthenticated ? "Go to Dashboard" : "Start free"}
-              </PrimaryCta>
-              <a
-                href="#how"
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-6 font-semibold text-[#041627] transition-colors hover:border-slate-400"
-              >
-                See how it works
-              </a>
-            </div>
-
-            <p className="hero-rise mt-5 text-sm text-slate-500" style={{ animationDelay: "420ms" }}>
-              No card required. Free while you set up your first pipeline.
-            </p>
-          </div>
-
-          {/* Real product preview floating over a KL property visual */}
-          <Reveal>
-            <div className="relative">
-              <img
-                src={IMG.skyline}
-                alt="Kuala Lumpur skyline at dusk"
-                className="landing-card-shadow h-52 w-full rounded-3xl object-cover object-[50%_28%] sm:h-64"
-              />
-              <div className="landing-card-shadow relative z-10 mx-4 -mt-16 rounded-2xl border border-slate-200 bg-white p-5 sm:mx-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Gauge size={18} className="text-[#041627]" aria-hidden="true" />
-                    <span className="font-bold text-[#041627]">Lead pipeline</span>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    </span>
-                    Live
-                  </span>
-                </div>
-
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                  {[
-                    { label: "Leads scored", to: 1284, decimals: 0 },
-                    { label: "Avg intent", to: 0.62, decimals: 2 },
-                    { label: "Reports", to: 96, decimals: 0 },
-                  ].map((tile) => (
-                    <div key={tile.label} className="rounded-xl bg-slate-50 p-3.5">
-                      <p className="text-2xl font-extrabold text-[#041627]">
-                        <Count to={tile.to} decimals={tile.decimals} />
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-550">{tile.label}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-4 space-y-2.5">
-                  {[
-                    { name: "Aisyah Rahman", area: "Mont Kiara condo", intent: 1, fill: 86 },
-                    { name: "Wei Jian Tan", area: "Bangsar South", intent: 1, fill: 71 },
-                    { name: "Praveen Kumar", area: "Cyberjaya link", intent: 0, fill: 28 },
-                  ].map((lead) => (
-                    <div
-                      key={lead.name}
-                      className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2.5 bg-white"
-                    >
-                      <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-sm font-bold text-slate-800">
-                        {lead.name
-                          .split(" ")
-                          .map((part) => part[0])
-                          .join("")
-                          .slice(0, 2)}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-[#041627]">{lead.name}</p>
-                        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="bar-fill h-full w-full rounded-full bg-[#041627]"
-                            style={{ "--fill": lead.fill / 100 } as CSSProperties}
-                          />
-                        </div>
-                      </div>
-                      <span
-                        className={`grid h-8 w-8 place-items-center rounded-lg text-base font-bold ${
-                          lead.intent === 1 ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-slate-100 text-slate-400"
-                        }`}
-                      >
-                        {lead.intent}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-4 text-center text-xs text-slate-400">Sample workspace</p>
-              </div>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* TRUST STRIP */}
-      <section className="border-y border-slate-200 bg-slate-50/60 !py-6">
-        <div className="mx-auto max-w-7xl px-6 py-6">
-          <p className="text-center text-sm font-medium text-slate-500">Plugs into the portals you already use</p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-5">
-            {portals.map((portal) => (
-              <div key={portal.name} className="flex items-center gap-2.5">
-                <span
-                  className="grid h-9 w-9 place-items-center rounded-lg text-lg font-black text-white"
-                  style={{ backgroundColor: portal.color }}
-                >
-                  {portal.mark}
-                </span>
-                <span className="text-base font-bold text-slate-700">{portal.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* FEATURE 1: scoring */}
-      <section id="features" className="scroll-mt-24">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-10 lg:grid-cols-2 lg:py-14">
-          <Reveal>
-            <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#041627] text-white">
-              <Users size={22} aria-hidden="true" />
-            </div>
-            <h2 className="mt-6 text-3xl font-bold text-[#041627] sm:text-4xl">
-              Score every inquiry the moment it lands.
-            </h2>
-            <p className="mt-5 max-w-lg text-lg leading-relaxed text-slate-600">
-              Opens, clicks, report views and the tone of each message roll into one clear intent score. Hot leads rise
-              to the top automatically, so the next call is never a guess.
-            </p>
-            <ul className="mt-7 space-y-3">
-              {[
-                "A single intent score from real behaviour, not a hunch",
-                "Hot, warm and cold tiers you can filter in one click",
-                "Sentiment read on every inbound message",
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-3 text-slate-700">
-                  <Check size={20} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </Reveal>
-
-          <Reveal delay={80}>
-            <div className="landing-card-shadow rounded-2xl border border-slate-200 bg-white p-6">
-              <div className="space-y-3">
-                {[
-                  { name: "Aisyah Rahman", tier: "Hot", score: 86, tone: "bg-emerald-50 text-emerald-700 border border-emerald-100" },
-                  { name: "Wei Jian Tan", tier: "Hot", score: 71, tone: "bg-emerald-50 text-emerald-700 border border-emerald-100" },
-                  { name: "Nurul Hidayah", tier: "Warm", score: 48, tone: "bg-blue-50 text-blue-700 border border-blue-100" },
-                  { name: "Lim Chee Kong", tier: "Cold", score: 19, tone: "bg-slate-100 text-slate-650 border border-slate-150" },
-                ].map((row) => (
-                  <div key={row.name} className="flex items-center gap-4">
-                    <span className="w-32 shrink-0 truncate text-sm font-semibold text-[#041627]">{row.name}</span>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className="bar-fill h-full w-full rounded-full bg-[#041627]"
-                        style={{ "--fill": row.score / 100 } as CSSProperties}
-                      />
-                    </div>
-                    <span className={`w-14 shrink-0 rounded-full py-0.5 text-center text-xs font-bold border ${row.tone}`}>
-                      {row.tier}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* FEATURE 2: reports */}
-      <section className="bg-slate-50/60">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-10 lg:grid-cols-2 lg:py-14">
-          <Reveal className="order-2 lg:order-1" delay={80}>
-            <div className="landing-card-shadow overflow-hidden rounded-2xl border border-slate-200 bg-white">
-              <img
-                src={IMG.villa}
-                alt="Modern villa exterior with pool"
-                className="h-44 w-full object-cover"
-                loading="lazy"
-              />
-              <div className="p-6">
-                <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                  <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#041627] text-white">
-                    <FileText size={20} aria-hidden="true" />
-                  </span>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Report ready</p>
-                    <p className="font-bold text-[#041627]">Residensi Mont Kiara, KL</p>
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  {[
-                    { label: "Pricing trend", value: "Holding firm" },
-                    { label: "Buyer sentiment", value: "Active" },
-                    { label: "Confidence", value: "88%" },
-                    { label: "Sources", value: "3 cited" },
-                  ].map((stat) => (
-                    <div key={stat.label} className="rounded-xl bg-slate-50 p-3.5">
-                      <p className="text-xs font-semibold text-slate-500">{stat.label}</p>
-                      <p className="mt-1 font-bold text-[#041627]">{stat.value}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </Reveal>
-
-          <Reveal className="order-1 lg:order-2">
-            <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#041627] text-white">
-              <BarChart3 size={22} aria-hidden="true" />
-            </div>
-            <h2 className="mt-6 text-3xl font-bold text-[#041627] sm:text-4xl">
-              Send a property report that wins the viewing.
-            </h2>
-            <p className="mt-5 max-w-lg text-lg leading-relaxed text-slate-600">
-              Type a property name and Signatis pulls comparable listings, pricing signals and neighbourhood data into a
-              clean, cited report. Export a PDF or share a client-ready link in seconds.
-            </p>
-            <ul className="mt-7 space-y-3">
-              {[
-                "Comparable pricing from PropertyGuru and iProperty",
-                "Neighbourhood ratings from Google Places",
-                "Shareable link with read tracking, plus PDF export",
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-3 text-slate-700">
-                  <Check size={20} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* CAPABILITIES BENTO */}
-      <section className="mx-auto max-w-7xl px-6 py-10 lg:py-14">
-        <Reveal>
-          <h2 className="max-w-2xl text-3xl font-bold text-[#041627] sm:text-4xl">
-            Everything between the first inquiry and the signed offer.
-          </h2>
-        </Reveal>
-
-        <div className="mt-12 grid gap-4 md:grid-cols-3">
-          {/* Wide navy feature cell */}
-          <Reveal className="md:col-span-2">
-            <div className="landing-lift relative flex h-full flex-col justify-between overflow-hidden rounded-2xl bg-[#041627] p-7 text-white">
-              <img
-                src={IMG.towers}
-                alt=""
-                aria-hidden="true"
-                className="absolute inset-0 h-full w-full object-cover opacity-25"
-                loading="lazy"
-              />
-              <div
-                className="absolute inset-0 bg-gradient-to-t from-[#041627] via-[#041627]/85 to-[#041627]/55"
-                aria-hidden="true"
-              />
-              <MessageCircle size={26} className="relative z-10 text-blue-200" aria-hidden="true" />
-              <div className="relative z-10 mt-10">
-                <h3 className="text-2xl font-bold text-white">Reach leads on the channel they actually answer.</h3>
-                <p className="mt-3 max-w-md text-slate-300">
-                  WhatsApp, Telegram, Messenger, Instagram, email or a call. One outreach button picks the prospect's
-                  preferred channel for you.
+      <main>
+        <section className="reai-hero-section">
+          <div className="reai-shell reai-hero-grid">
+            <div className="reai-hero-copy">
+              <Reveal>
+                <p className="reai-kicker">Launching soon - for agents</p>
+              </Reveal>
+              <Reveal delay={40}>
+                <h1>Stop chasing leads that go nowhere.</h1>
+              </Reveal>
+              <Reveal delay={90}>
+                <p className="reai-hero-text">
+                  re:AI turns every portal inquiry into a clear signal, a useful follow-up, and a property report that
+                  feels ready for a client meeting from the first glance.
                 </p>
-              </div>
-            </div>
-          </Reveal>
-
-          {/* Blue-tinted cell */}
-          <Reveal delay={60}>
-            <div className="landing-lift flex h-full flex-col justify-between rounded-2xl border border-[#bae1ff]/30 bg-[#bae1ff]/10 p-7">
-              <Mail size={26} className="text-[#075ce5]" aria-hidden="true" />
-              <div className="mt-10">
-                <h3 className="text-xl font-bold text-[#041627]">Inbox to pipeline, automatically.</h3>
-                <p className="mt-3 text-slate-700">
-                  Forward portal emails to your Signatis address and every inquiry becomes a scored lead.
-                </p>
-              </div>
-            </div>
-          </Reveal>
-
-          {/* Lavender-tinted cell */}
-          <Reveal delay={60}>
-            <div className="landing-lift flex h-full flex-col justify-between rounded-2xl border border-[#e8d7ff]/30 bg-[#e8d7ff]/10 p-7">
-              <Sparkles size={26} className="text-[#a29bfe]" aria-hidden="true" />
-              <div className="mt-10">
-                <h3 className="text-xl font-bold text-[#041627]">Sentiment on every message.</h3>
-                <p className="mt-3 text-slate-600">
-                  Know whether a prospect sounds keen or hesitant before you reply.
-                </p>
-              </div>
-            </div>
-          </Reveal>
-
-          {/* Green-tinted cell */}
-          <Reveal className="md:col-span-2" delay={120}>
-            <div className="landing-lift flex h-full items-center justify-between gap-6 rounded-2xl border border-[#baffc9]/30 bg-[#baffc9]/10 p-7">
-              <div>
-                <ShieldCheck size={26} className="text-emerald-600" aria-hidden="true" />
-                <h3 className="mt-5 text-xl font-bold text-[#041627]">Transparent and PDPA-minded by design.</h3>
-                <p className="mt-3 max-w-md text-slate-600">
-                  A clear binary score, no dark patterns, and data scoped to your account. Your clients can trust how
-                  the numbers were reached.
-                </p>
-              </div>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section id="how" className="scroll-mt-24 bg-slate-50/60">
-        <div className="mx-auto max-w-7xl px-6 py-10 lg:py-14">
-          <Reveal>
-            <h2 className="text-center text-3xl font-bold text-[#041627] sm:text-4xl">Up and running in an afternoon</h2>
-          </Reveal>
-          <div className="mt-14 grid gap-8 md:grid-cols-3">
-            {[
-              {
-                step: "01",
-                title: "Connect your portals",
-                body: "Point your PropertyGuru, iProperty, Mudah or EdgeProp lead emails at your Signatis address.",
-                colorClass: "bg-[#bae1ff]/15 text-blue-700 border-[#bae1ff]/30"
-              },
-              {
-                step: "02",
-                title: "Let leads score themselves",
-                body: "Every inquiry is scored and tiered as it arrives. Your pipeline sorts the buyers for you.",
-                colorClass: "bg-[#ffdfba]/15 text-orange-700 border-[#ffdfba]/30"
-              },
-              {
-                step: "03",
-                title: "Report, send, close",
-                body: "Generate a cited property report and send it on the prospect's preferred channel.",
-                colorClass: "bg-[#baffc9]/20 text-emerald-700 border-[#baffc9]/40"
-              },
-            ].map((item, index) => (
-              <Reveal key={item.step} delay={index * 80}>
-                <div className="landing-lift relative h-full rounded-2xl border border-slate-200 bg-white p-7">
-                  <span className={`text-sm font-black px-2.5 py-1 rounded-full border ${item.colorClass}`}>{item.step}</span>
-                  <h3 className="mt-3 text-xl font-bold text-[#041627]">{item.title}</h3>
-                  <p className="mt-3 text-slate-600">{item.body}</p>
+              </Reveal>
+              <Reveal delay={140}>
+                <div className="reai-hero-actions">
+                  <PrimaryButton
+                    to={isAuthenticated ? "/dashboard" : loginUrl}
+                    onClick={handleCtaClick}
+                    accent
+                    reloadDocument={authMode !== "demo" && !isAuthenticated}
+                  >
+                    {isAuthenticated ? "Open dashboard" : "Start free"}
+                  </PrimaryButton>
+                  <a href="#why" className="reai-button reai-button-ghost">
+                    <span>See the flow</span>
+                    <ChevronRight size={17} aria-hidden="true" />
+                  </a>
                 </div>
               </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
+              <Reveal delay={180}>
+                <p className="reai-caption">Built for Malaysian agents who want signal, not noise.</p>
+              </Reveal>
+            </div>
 
-      {/* TESTIMONIALS */}
-      <section className="mx-auto max-w-7xl px-6 py-10 lg:py-14">
-        <div className="grid gap-6 md:grid-cols-2">
-          {[
-            {
-              quote:
-                "I used to chase every lead the same way. Now I see who is actually ready and my viewings convert far more often.",
-              name: "Aisyah Rahman",
-              role: "Agent, Kuala Lumpur",
-              starColor: "text-[#ffb3ba]"
-            },
-            {
-              quote:
-                "The property reports look like something a research desk made. Clients reply faster when I send the share link.",
-              name: "Wei Jian Tan",
-              role: "Negotiator, Petaling Jaya",
-              starColor: "text-[#bae1ff]"
-            },
-          ].map((item) => (
-            <Reveal key={item.name}>
-              <figure className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-8">
-                <div className={`flex gap-1 ${item.starColor}`}>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} size={18} className="fill-current" aria-hidden="true" />
+            <Reveal className="reai-hero-panel-wrap" delay={80}>
+              <section className="reai-hero-panel" aria-label="Brand preview">
+                <div className="reai-hero-panel-top">
+                  <BrandLockup />
+                  <span className="reai-live-pill">
+                    <span className="reai-live-dot" />
+                    Launch mode
+                  </span>
+                </div>
+
+                <div className="reai-bars" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </div>
+
+                <div className="reai-hero-stats">
+                  {heroStats.map((stat) => (
+                    <article key={stat.label} className="reai-stat-card">
+                      <span className="reai-stat-value">{stat.value}</span>
+                      <span className="reai-stat-label">{stat.label}</span>
+                    </article>
                   ))}
                 </div>
-                <blockquote className="mt-5 flex-1 text-lg leading-relaxed text-[#1f2a36]">{item.quote}</blockquote>
-                <figcaption className="mt-6">
-                  <p className="font-bold text-[#041627]">{item.name}</p>
-                  <p className="text-sm text-slate-500">{item.role}</p>
-                </figcaption>
-              </figure>
-            </Reveal>
-          ))}
-        </div>
-      </section>
 
-      {/* PRICING */}
-      <section id="pricing" className="scroll-mt-24 bg-slate-50/60">
-        <div className="mx-auto max-w-2xl px-6 py-10 text-center lg:py-14">
-          <Reveal>
-            <h2 className="text-3xl font-bold text-[#041627] sm:text-4xl">One plan, everything included</h2>
-            <p className="mt-4 text-lg text-slate-600">Start free while you set up. Upgrade when leads start closing.</p>
-          </Reveal>
-
-          <Reveal delay={80}>
-            <div className="landing-card-shadow mx-auto mt-12 max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-left">
-              <p className="text-sm font-bold uppercase tracking-wide text-slate-500">Professional</p>
-              <div className="mt-3 flex items-baseline gap-1.5">
-                <span className="text-5xl font-extrabold text-[#041627]">RM 499</span>
-                <span className="text-slate-500">/ month</span>
+              <div className="reai-hero-metrics">
+                <div>
+                  <span className="reai-metric-label">Best time saved</span>
+                  <span className="reai-metric-value">14m</span>
+                </div>
+                <div>
+                  <span className="reai-metric-label">Lead clarity</span>
+                  <span className="reai-metric-value">86%</span>
+                </div>
               </div>
-              <ul className="mt-7 space-y-3">
-                {[
-                  "Unlimited property reports",
-                  "Real-time lead scoring and tiers",
-                  "Multi-channel outreach",
-                  "Email lead ingestion",
-                  "Priority support",
-                ].map((item) => (
-                  <li key={item} className="flex items-center gap-3 text-slate-700">
-                    <Check size={18} className="shrink-0 text-emerald-600" aria-hidden="true" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                to={isAuthenticated ? "/dashboard" : loginUrl}
-                onClick={handleCtaClick}
-                reloadDocument={authMode !== "demo" && !isAuthenticated}
-                className="primary-button glow-on-hover rainbow mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-full font-bold text-white"
-              >
-                {isAuthenticated ? "Go to Dashboard" : "Start free"}
-                <ArrowRight
-                  size={18}
-                  aria-hidden="true"
-                  className="transition-transform duration-200 group-hover:translate-x-1"
-                />
-              </Link>
-            </div>
-          </Reveal>
-          <p className="mt-6 text-sm text-slate-500">
-            Running a team?{" "}
-            <a href="mailto:hello@signatis.app" className="font-semibold text-[#041627] underline underline-offset-2">
-              Talk to us
-            </a>
-          </p>
-        </div>
-      </section>
-
-      {/* FINAL CTA */}
-      <section className="relative overflow-hidden bg-[#041627] !py-10">
-        <img
-          src={IMG.skylineWide}
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 h-full w-full object-cover opacity-20"
-          loading="lazy"
-        />
-        <div className="absolute inset-0 bg-[#041627]/70" aria-hidden="true" />
-        <div className="relative z-10 mx-auto max-w-7xl px-6 py-10 text-center lg:py-12">
-          <Reveal>
-            <h2 className="mx-auto max-w-2xl text-3xl font-bold text-white sm:text-4xl">
-              Spend your day on the buyers who convert.
-            </h2>
-            <p className="mx-auto mt-4 max-w-xl text-lg text-slate-300">
-              Connect your first portal and watch your pipeline sort itself.
-            </p>
-            <div className="mt-9 flex justify-center">
-              <Link
-                to={isAuthenticated ? "/dashboard" : loginUrl}
-                onClick={handleCtaClick}
-                reloadDocument={authMode !== "demo" && !isAuthenticated}
-                className="primary-button glow-on-hover rainbow inline-flex h-12 items-center gap-2 rounded-full font-bold text-white"
-              >
-                {isAuthenticated ? "Go to Dashboard" : "Start free"}
-                <ArrowRight
-                  size={18}
-                  aria-hidden="true"
-                  className="transition-transform duration-200 group-hover:translate-x-1"
-                />
-              </Link>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* FOOTER */}
-      <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-6 py-12">
-          <div className="flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
-            <Link to="/" className="flex items-center gap-2.5" aria-label="Signatis home">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-[#041627] text-white">
-                <PenLine size={20} aria-hidden="true" />
-              </span>
-              <span className="wordmark text-xl text-[#041627]">Signatis</span>
-            </Link>
-            <nav className="flex flex-wrap gap-x-8 gap-y-3 text-sm font-medium text-slate-600">
-              <a href="#features" className="transition-colors hover:text-[#041627]">
-                Features
-              </a>
-              <a href="#how" className="transition-colors hover:text-[#041627]">
-                How it works
-              </a>
-              <a href="#pricing" className="transition-colors hover:text-[#041627]">
-                Pricing
-              </a>
-              <Link to="/legal-support" className="transition-colors hover:text-[#041627]">
-                Legal and support
-              </Link>
-            </nav>
+              </section>
+            </Reveal>
           </div>
-          <div className="mt-10 flex flex-col gap-2 border-t border-slate-100 pt-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-            <p>© {new Date().getFullYear()} Signatis. Real estate intelligence for Malaysian agents.</p>
-            <p>Made in Malaysia.</p>
+        </section>
+
+        <section id="why" className="reai-section">
+          <div className="reai-shell">
+            <Reveal>
+              <p className="reai-section-kicker">Why re:AI</p>
+            </Reveal>
+            <Reveal delay={30}>
+              <h2>One calm place for the whole lead-to-close loop.</h2>
+            </Reveal>
+            <div className="reai-feature-grid">
+              {featureCards.map((card, index) => (
+                <Reveal key={card.title} delay={index * 70}>
+                  <article className="reai-feature-card">
+                    <card.icon size={22} aria-hidden="true" />
+                    <h3>{card.title}</h3>
+                    <p>{card.body}</p>
+                  </article>
+                </Reveal>
+              ))}
+            </div>
           </div>
+        </section>
+
+        <section id="workflow" className="reai-section reai-section-tight">
+          <div className="reai-shell">
+            <Reveal>
+              <p className="reai-section-kicker">Workflow</p>
+            </Reveal>
+            <Reveal delay={30}>
+              <h2>Three steps. Less friction. Better conversations.</h2>
+            </Reveal>
+            <div className="reai-step-grid">
+              {[
+                {
+                  step: "01",
+                  title: "Inquiries land cleanly",
+                  body: "Forward portal emails into re:AI and every new lead appears with context already attached.",
+                  icon: Mail,
+                },
+                {
+                  step: "02",
+                  title: "Signals turn into intent",
+                  body: "Open behaviour, report views and message tone combine into a lead score you can act on.",
+                  icon: Sparkles,
+                },
+                {
+                  step: "03",
+                  title: "Reports move the deal forward",
+                  body: "Generate a polished property report and send it by the channel your prospect actually uses.",
+                  icon: MessageSquareText,
+                },
+              ].map((item, index) => (
+                <Reveal key={item.step} delay={index * 80}>
+                  <article className="reai-step-card">
+                    <div className="reai-step-head">
+                      <span className="reai-step-index">{item.step}</span>
+                      <item.icon size={18} aria-hidden="true" />
+                    </div>
+                    <h3>{item.title}</h3>
+                    <p>{item.body}</p>
+                  </article>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="contact" className="reai-section reai-cta-section">
+          <div className="reai-shell">
+            <Reveal>
+              <div className="reai-cta-card">
+                <div>
+                  <p className="reai-section-kicker">Ready when you are</p>
+                  <h2>Spend your day with the buyers who are actually ready.</h2>
+                </div>
+                <div className="reai-cta-actions">
+                  <PrimaryButton
+                    to={isAuthenticated ? "/dashboard" : loginUrl}
+                    onClick={handleCtaClick}
+                    accent
+                    reloadDocument={authMode !== "demo" && !isAuthenticated}
+                  >
+                    {isAuthenticated ? "Open dashboard" : "Start free"}
+                  </PrimaryButton>
+                  <a href="mailto:hello@re-ai.app" className="reai-toplink reai-mail-link">
+                    hello@re-ai.app
+                  </a>
+                </div>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      </main>
+
+      <footer className="reai-footer">
+        <div className="reai-shell reai-footer-inner">
+          <BrandLockup />
+          <div className="reai-footer-links">
+            <a href="#why">Why re:AI</a>
+            <a href="#workflow">Workflow</a>
+            <Link to="/legal-support">Legal & support</Link>
+          </div>
+          <p>© {new Date().getFullYear()} re:AI. Real estate intelligence for agents.</p>
         </div>
       </footer>
     </div>

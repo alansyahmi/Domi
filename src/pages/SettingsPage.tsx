@@ -13,7 +13,7 @@ const AVAILABLE_PORTALS = [
       "Log into your PropertyGuru AgentNet account.",
       "Navigate to Settings > Lead Notifications / Routing.",
       "Select 'Add Forwarding Email'.",
-      "Paste your unique Signatis address and save.",
+      "Paste your unique re:AI address and save.",
     ],
   },
   {
@@ -26,7 +26,7 @@ const AVAILABLE_PORTALS = [
       "Log into your iProperty Agent Portal.",
       "Go to Account Profile > Notification Settings.",
       "Locate the Email Forwarding option for listings.",
-      "Add your unique Signatis address and save changes.",
+      "Add your unique re:AI address and save changes.",
     ],
   },
   {
@@ -39,7 +39,7 @@ const AVAILABLE_PORTALS = [
       "Open your Mudah.my Pro Niaga dashboard.",
       "Navigate to Account Settings > Lead Forwarding.",
       "Enable email inquiry forwarding.",
-      "Enter your unique Signatis address and save.",
+      "Enter your unique re:AI address and save.",
     ],
   },
   {
@@ -52,7 +52,7 @@ const AVAILABLE_PORTALS = [
       "Go to the EdgeProp Agent Dashboard.",
       "Navigate to Profile > Lead Settings.",
       "Select the custom parsing/email redirection field.",
-      "Paste your unique Signatis address and click save.",
+      "Paste your unique re:AI address and click save.",
     ],
   },
 ];
@@ -272,7 +272,7 @@ export default function SettingsPage({
         <div className="grid gap-8 content-start">
           <form className="card p-7 relative success-glow-container" onSubmit={(event) => void submit(event)}>
             {showSuccessGlow && <div key={successGlowKey} className={`success-border-glow ease-in-out animate ${glowType === "fail" ? "fail" : ""}`} />}
-            <h2 className="m-0 text-3xl font-extrabold border-b border-slate-200 pb-5">Profile Information</h2>
+            <h2 className="m-0 text-3xl font-extrabold border-b border-[#2d2d2d] pb-5">Profile Information</h2>
             <div className="mt-6 grid gap-5">
               <label className="form-field">
                 <span className="form-label">Full Name</span>
@@ -312,7 +312,7 @@ export default function SettingsPage({
                 <span className="form-label">Agency / Brokerage Name</span>
                 <input
                   className="input"
-                  placeholder="e.g. Signatis Realty"
+                  placeholder="e.g. re:AI Realty"
                   value={form.agencyName}
                   onChange={(event) => setForm({ ...form, agencyName: event.target.value })}
                 />
@@ -376,7 +376,7 @@ export default function SettingsPage({
           </form>
 
           <section className="card p-7">
-            <h2 className="m-0 text-3xl font-extrabold border-b border-slate-200 pb-5">Security & Login</h2>
+            <h2 className="m-0 text-3xl font-extrabold border-b border-[#2d2d2d] pb-5">Security & Login</h2>
             <div className="mt-6 flex flex-col gap-4">
               <label className="flex items-start gap-3.5 cursor-pointer group">
                 <input
@@ -402,11 +402,11 @@ export default function SettingsPage({
           </section>
 
           <section className="card p-7">
-            <h2 className="m-0 text-3xl font-extrabold border-b border-slate-200 pb-5">Subscription Plan</h2>
-            <div className="mt-6 rounded-md border border-slate-300 bg-slate-100 p-5">
+            <h2 className="m-0 text-3xl font-extrabold border-b border-[#2d2d2d] pb-5">Subscription Plan</h2>
+            <div className="mt-6 rounded-md border border-[#2d2d2d] bg-slate-100 p-5">
               <div className="flex items-center justify-between gap-4">
                 <span className="eyebrow">Current Plan</span>
-                <span className="status-chip bg-[#ffd45a] text-[#574500]">Active</span>
+                <span className="status-chip bg-[#1e1e1e] text-[#121212] text-[#121212]">Active</span>
               </div>
               <h3 className="mt-3 text-2xl font-extrabold">{agent.plan}</h3>
               <p className="text-slate-700">RM 499.00 / month</p>
@@ -430,7 +430,7 @@ export default function SettingsPage({
         </div>
 
         <section className="card overflow-hidden">
-          <div className="p-7 border-b border-slate-200 flex items-start justify-between gap-6">
+          <div className="p-7 border-b border-[#2d2d2d] flex items-start justify-between gap-6">
             <div>
               <h2 className="m-0 text-3xl font-extrabold">Lead Ingestion Pipeline</h2>
               <p className="mt-2 text-slate-700">Automate lead capture via secure email forwarding.</p>
@@ -443,7 +443,7 @@ export default function SettingsPage({
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex flex-1 flex-col sm:flex-row relative success-glow-container rounded-md">
                 {showCopyGlow && <div key={copyGlowKey} className={`success-border-glow animate ${copyGlowType === "fail" ? "fail" : ""}`} />}
-                <code className="flex-1 border border-slate-300 bg-slate-100 rounded-t-md sm:rounded-l-md sm:rounded-r-none px-4 py-4 overflow-x-auto">
+                <code className="flex-1 border border-[#2d2d2d] bg-slate-100 rounded-t-md sm:rounded-l-md sm:rounded-r-none px-4 py-4 overflow-x-auto">
                   {agent.ingestionAddress}
                 </code>
                 <button
@@ -466,16 +466,16 @@ export default function SettingsPage({
 
             {/* Dynamic Setup Instructions for connected portals */}
             <div className="mt-8">
-              <h3 className="m-0 text-2xl font-extrabold border-b border-slate-200 pb-4">Setup Instructions</h3>
+              <h3 className="m-0 text-2xl font-extrabold border-b border-[#2d2d2d] pb-4">Setup Instructions</h3>
               {connectedPortals.length === 0 ? (
-                <div className="mt-5 rounded-md border border-dashed border-slate-300 p-8 text-center bg-slate-50">
-                  <p className="m-0 text-slate-600">No lead ingestion portals connected yet.</p>
+                <div className="mt-5 rounded-md border border-dashed border-[#2d2d2d] p-8 text-center bg-[#121212]">
+                  <p className="m-0 text-slate-300">No lead ingestion portals connected yet.</p>
                   <p className="mt-2 text-sm text-slate-500">Connect a portal below to view its forwarding setup instructions.</p>
                 </div>
               ) : (
                 <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {connectedPortals.map((portal) => (
-                    <article key={portal.id} className="rounded-md border border-slate-300 bg-slate-50 p-6">
+                    <article key={portal.id} className="rounded-md border border-[#2d2d2d] bg-[#121212] p-6">
                       <div className="flex items-center gap-4">
                         <div
                           className="brand-mark !w-10 !h-10 !rounded-sm flex items-center justify-center font-black text-white text-xl"
@@ -498,9 +498,9 @@ export default function SettingsPage({
 
             {/* Available Lead Sources to Add */}
             <div className="mt-8">
-              <h3 className="m-0 text-2xl font-extrabold border-b border-slate-200 pb-4">Messaging Integrations</h3>
+              <h3 className="m-0 text-2xl font-extrabold border-b border-[#2d2d2d] pb-4">Messaging Integrations</h3>
               <div className="mt-5">
-                <article className="rounded-md border border-slate-200 bg-white p-6">
+                <article className="rounded-md border border-[#2d2d2d] bg-[#1e1e1e] p-6">
                   <div className="flex items-center gap-4 border-b border-slate-100 pb-4 mb-4">
                     <div className="flex items-center justify-center font-black text-white text-xl rounded-sm w-10 h-10 bg-emerald-500">
                       W
@@ -514,7 +514,7 @@ export default function SettingsPage({
                     <label className="form-field">
                       <span className="form-label text-sm text-slate-700 font-bold">Phone Number ID</span>
                       <input
-                        className="input bg-slate-50 border-slate-200"
+                        className="input bg-[#121212] border-[#2d2d2d]"
                         placeholder="e.g. 102345678901234"
                         value={whatsappForm.phoneNumberId}
                         onChange={(e) => setWhatsappForm({ ...whatsappForm, phoneNumberId: e.target.value })}
@@ -525,7 +525,7 @@ export default function SettingsPage({
                       <span className="form-label text-sm text-slate-700 font-bold">Permanent Access Token</span>
                       <input
                         type="password"
-                        className="input bg-slate-50 border-slate-200"
+                        className="input bg-[#121212] border-[#2d2d2d]"
                         placeholder="EAAB..."
                         value={whatsappForm.accessToken}
                         onChange={(e) => setWhatsappForm({ ...whatsappForm, accessToken: e.target.value })}
@@ -554,13 +554,13 @@ export default function SettingsPage({
                 </article>
               </div>
 
-              <h3 className="m-0 text-2xl font-extrabold border-b border-slate-200 pb-4 mt-10">Available Lead Sources</h3>
+              <h3 className="m-0 text-2xl font-extrabold border-b border-[#2d2d2d] pb-4 mt-10">Available Lead Sources</h3>
               {availablePortalsToConnect.length === 0 ? (
                 <p className="mt-4 text-slate-500 text-sm">All available portals are connected.</p>
               ) : (
                 <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                   {availablePortalsToConnect.map((portal) => (
-                    <article key={portal.id} className="flex items-center gap-4 rounded-md border border-slate-200 p-4 bg-white">
+                    <article key={portal.id} className="flex items-center gap-4 rounded-md border border-[#2d2d2d] p-4 bg-[#1e1e1e]">
                       <div
                         className="avatar small flex items-center justify-center font-black text-white text-lg rounded-sm !w-10 !h-10"
                         style={{ backgroundColor: portal.color }}
@@ -585,7 +585,7 @@ export default function SettingsPage({
 
             {/* Active Integrations list */}
             <div className="mt-8">
-              <h3 className="m-0 text-2xl font-extrabold border-b border-slate-200 pb-4">Active Integrations</h3>
+              <h3 className="m-0 text-2xl font-extrabold border-b border-[#2d2d2d] pb-4">Active Integrations</h3>
               <div className="mt-5 grid gap-4">
                 {integrations.length === 0 ? (
                   <p className="mt-4 text-slate-500 text-sm">No active integrations connected.</p>
@@ -593,7 +593,7 @@ export default function SettingsPage({
                   integrations.map((integration) => {
                     const portal = AVAILABLE_PORTALS.find((p) => p.id === integration.id);
                     return (
-                      <article key={integration.id} className="flex items-center gap-4 rounded-md border border-slate-200 p-4">
+                      <article key={integration.id} className="flex items-center gap-4 rounded-md border border-[#2d2d2d] p-4">
                         {portal ? (
                           <div
                             className="avatar small flex items-center justify-center font-black text-white text-lg rounded-sm !w-10 !h-10"
@@ -608,7 +608,7 @@ export default function SettingsPage({
                         )}
                         <div className="min-w-0 flex-1">
                           <h3 className="m-0 font-extrabold">{integration.name}</h3>
-                          <p className="m-0 text-sm text-slate-600">{integration.description}</p>
+                          <p className="m-0 text-sm text-slate-300">{integration.description}</p>
                         </div>
                         <span className="status-chip status-ready">Connected</span>
                         <button
