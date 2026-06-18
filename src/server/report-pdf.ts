@@ -10,6 +10,7 @@ const CONTENT_X = 66;
 const CONTENT_W = 480;
 const TOP_Y = 684;
 const BOTTOM_Y = 90;
+const PDF_VERSION = "v2";
 
 const COLORS = {
   navy: [0.016, 0.086, 0.153],
@@ -115,6 +116,7 @@ class PdfLayout {
   render(): PdfPage[] {
     this.renderHero();
     this.renderMetricGrid();
+    this.renderComparableListings();
     this.renderSections();
     this.renderCitations();
     this.renderFinalFooters();
@@ -142,7 +144,8 @@ class PdfLayout {
       fillRect(PANEL_X, 710, PANEL_W, 40, COLORS.navy),
       fillRect(66, 721, 18, 18, COLORS.gold),
       textAt(92, 724, 10, "SIGNATIS PROPERTY REPORT", "F2", COLORS.surface),
-      textAt(410, 724, 9, `Page ${pageNumber}`, "F1", COLORS.surface),
+      textAt(390, 724, 8.5, `PDF ${PDF_VERSION}`, "F1", COLORS.gold),
+      textAt(460, 724, 9, `Page ${pageNumber}`, "F1", COLORS.surface),
       fillRect(PANEL_X, 42, PANEL_W, 34, COLORS.navy),
       textAt(66, 55, 8.5, `${this.agent.email}  |  ${this.agent.phone}`, "F1", COLORS.surface),
     );
@@ -207,15 +210,19 @@ class PdfLayout {
   }
 
   private renderMetricGrid(): void {
+    const priceCertLabel = this.report.analytics.priceCertainty >= 0.60
+      ? "High" : this.report.analytics.priceCertainty >= 0.35 ? "Moderate" : "Low";
     const metrics = [
       ["Market signal", this.report.marketSignal],
       ["Buyer sentiment", this.report.analytics.sentiment],
+      ["Data completeness", `${Math.round(this.report.analytics.dataCompleteness * 100)}% (${this.report.citations.length} src)`],
+      ["Price certainty", `${priceCertLabel}${this.report.analytics.priceCertainty < 0.35 ? " (askings only)" : ""}`],
       ["Confidence", `${Math.round(this.report.analytics.confidenceScore * 100)}%`],
       ["Source coverage", `${this.report.citations.length} citations`],
     ];
     const cardW = 232;
     const cardH = 58;
-    this.ensureSpace(136);
+    this.ensureSpace(216);
 
     metrics.forEach(([label, value], index) => {
       const x = CONTENT_X + (index % 2) * (cardW + 16);
@@ -226,7 +233,28 @@ class PdfLayout {
       this.add(textAt(x + 12, y + 17, 11, value, "F2", COLORS.navy));
     });
 
-    this.cursorY -= 142;
+    this.cursorY -= 216;
+  }
+
+  private renderComparableListings(): void {
+    if (this.report.comparableListings.length === 0) return;
+
+    this.ensureSpace(84);
+    this.add(textAt(CONTENT_X, this.cursorY, 15, "Comparable Listings", "F2", COLORS.navy));
+    this.cursorY -= 10;
+    this.add(line(CONTENT_X, this.cursorY, CONTENT_X + CONTENT_W, this.cursorY, COLORS.line));
+    this.cursorY -= 16;
+
+    const items = this.report.comparableListings.slice(0, 3);
+    for (const listing of items) {
+      this.ensureSpace(92);
+      this.add(fillRect(CONTENT_X, this.cursorY - 52, CONTENT_W, 78, COLORS.surfaceSoft));
+      this.add(strokeRect(CONTENT_X, this.cursorY - 52, CONTENT_W, 78, COLORS.line));
+      this.add(textAt(CONTENT_X + 12, this.cursorY - 2, 10, listing.title, "F2", COLORS.navy));
+      this.add(textAt(CONTENT_X + 12, this.cursorY - 18, 8.5, `${formatRm(listing.askingPriceRm ?? 0)}${listing.builtUpSqft ? ` | ${listing.builtUpSqft.toLocaleString("en-MY")} sqft` : ""}${listing.bedrooms || listing.bathrooms ? ` | ${listing.bedrooms ?? "-"}b / ${listing.bathrooms ?? "-"}ba` : ""}`, "F1", COLORS.muted));
+      this.add(textAt(CONTENT_X + 12, this.cursorY - 34, 8, `${listing.sourceName || "portal"}${listing.listingIntent ? ` • ${labelValue(listing.listingIntent)}` : ""}`, "F1", COLORS.navySoft));
+      this.cursorY -= 88;
+    }
   }
 
   private renderSectionTitle(title: string): void {

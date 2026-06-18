@@ -149,6 +149,8 @@ function reportExtras(
       sentiment: "positive",
       pricingTrend: marketSignal,
       confidenceScore: 0.82,
+      dataCompleteness: 0.78,
+      priceCertainty: 0.45,
       freshnessDays: 1,
     },
     citations: [

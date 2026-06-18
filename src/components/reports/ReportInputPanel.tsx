@@ -1,6 +1,7 @@
-import { BadgeDollarSign, ChevronDown, Home, Link, MapPin, NotebookPen, RefreshCw, Ruler, Sparkles } from "lucide-react";
+import { BadgeDollarSign, ChevronDown, Clock, Home, Link, MapPin, NotebookPen, RefreshCw, Ruler, Sparkles } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { validateReportInput } from "../../domain/reports";
+import { matchesPropertyName, validateReportInput } from "../../domain/reports";
+import { formatDateTime } from "../../lib/format";
 import type { PropertyReport, PropertyReportInput } from "../../types";
 
 const initialInput: PropertyReportInput = {
@@ -30,16 +31,29 @@ export default function ReportInputPanel({
   onCreateReport,
   onReportCreated,
   onGeneratingChange,
+  onGenerationStart,
+  cachedReports,
 }: {
   onCreateReport: (input: PropertyReportInput) => Promise<PropertyReport>;
   onReportCreated: (report: PropertyReport) => void;
   onGeneratingChange: (generating: boolean) => void;
+  onGenerationStart?: (startTime: number) => void;
+  cachedReports?: PropertyReport[];
 }) {
   const [input, setInput] = useState<PropertyReportInput>(initialInput);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Filter cached reports matching current property name input
+  const suggestions = (cachedReports ?? [])
+    .filter((report) => {
+      if (!input.propertyName?.trim()) return false;
+      return matchesPropertyName(input.propertyName, report.propertyName) || matchesPropertyName(input.propertyName, report.address);
+    })
+    .slice(0, 5);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -53,6 +67,7 @@ export default function ReportInputPanel({
     setSaving(true);
     setSubmitError(null);
     onGeneratingChange(true);
+    onGenerationStart?.(Date.now());
     try {
       const report = await onCreateReport(input);
       onReportCreated(report);
@@ -76,6 +91,7 @@ export default function ReportInputPanel({
     setSaving(true);
     setSubmitError(null);
     onGeneratingChange(true);
+    onGenerationStart?.(Date.now());
     try {
       const report = await onCreateReport({ ...input, bypassCache: true });
       onReportCreated(report);
@@ -111,9 +127,45 @@ export default function ReportInputPanel({
                 placeholder="The Estate KL"
                 value={input.propertyName ?? ""}
                 onChange={(event) => setInput({ ...input, propertyName: event.target.value })}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               />
             </span>
             {errors.propertyName ? <span className="text-sm text-red-600">{errors.propertyName}</span> : null}
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="suggestions-dropdown" role="listbox" aria-label="Previously analyzed properties">
+                {suggestions.map((report) => (
+                  <button
+                    key={report.id}
+                    className="suggestions-dropdown-item"
+                    role="option"
+                    type="button"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      setInput({
+                        ...input,
+                        propertyName: report.propertyName,
+                        address: report.address || undefined,
+                        propertyType: report.propertyType || undefined,
+                        sqft: report.sqft || undefined,
+                        bedrooms: report.bedrooms || undefined,
+                        bathrooms: report.bathrooms || undefined,
+                        yearBuilt: report.yearBuilt || undefined,
+                      });
+                      setShowSuggestions(false);
+                    }}
+                  >
+                    <span className="suggestions-dropdown-item-name">
+                      <Clock size={14} aria-hidden="true" />
+                      {report.propertyName}
+                    </span>
+                    <span className="suggestions-dropdown-item-meta">
+                      {report.cacheStatus === "hit" ? "Cached" : report.cacheStatus === "refreshed" ? "Refreshed" : "Generated"} — {formatDateTime(report.generatedAt)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </label>
         </div>
 

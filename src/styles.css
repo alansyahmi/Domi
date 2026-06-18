@@ -851,6 +851,7 @@ h3 {
 .form-field {
   display: grid;
   gap: 0.55rem;
+  position: relative;
 }
 
 .form-label {
@@ -991,6 +992,65 @@ h3 {
   50% {
     transform: translateY(-2px);
   }
+}
+
+.report-workflow-stopwatch {
+  font-size: 0.8125rem;
+  color: rgba(247, 247, 244, 0.65);
+  text-align: center;
+  padding-bottom: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.suggestions-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin-top: 0.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  background: #2a2a2a;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.suggestions-dropdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  background: transparent;
+  border: none;
+  color: rgba(247, 247, 244, 0.85);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.suggestions-dropdown-item:hover,
+.suggestions-dropdown-item:focus {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.suggestions-dropdown-item + .suggestions-dropdown-item {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.suggestions-dropdown-item-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 800;
+}
+
+.suggestions-dropdown-item-meta {
+  font-size: 0.75rem;
+  color: rgba(247, 247, 244, 0.45);
+  white-space: nowrap;
+  margin-left: 1rem;
 }
 
 .report-input-panel,

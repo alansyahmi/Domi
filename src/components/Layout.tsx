@@ -8,7 +8,6 @@ import {
   Home,
   LogOut,
   Plus,
-  Search,
   Settings,
   Users,
 } from "lucide-react";
@@ -18,8 +17,8 @@ import type { Agent } from "../types";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: Gauge },
-  { to: "/report-generator", label: "Report Generator", icon: Home },
-  { to: "/leads", label: "Lead Management", icon: Users },
+  { to: "/report-generator", label: "Reporter", icon: Home },
+  { to: "/leads", label: "Omnibox", icon: Users },
   { to: "/settings", label: "Settings", icon: Settings },
   { to: "/legal-support", label: "Legal & Support", icon: Gavel },
 ];
@@ -114,13 +113,8 @@ export default function Layout({ agent, children, demoMode, notice, onLogout }: 
             ))}
           </nav>
 
-          {/* Right: Actions, Search, Avatar */}
+          {/* Right: Actions, Avatar */}
           <div className="topbar-actions">
-            <div className="search-container">
-              <Search size={18} className="search-icon" aria-hidden="true" />
-              <span className="search-placeholder">Search...</span>
-            </div>
-
             <button className="icon-button" aria-label="Notifications">
               <Bell size={20} aria-hidden="true" />
             </button>

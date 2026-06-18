@@ -1,4 +1,4 @@
-import { Download, Filter, Frown, Meh, Search, SlidersHorizontal, Smile, Eye, Trash2, Plus, X, Calendar, Activity, Mail, Phone, DollarSign, MapPin, Sparkles, Send } from "lucide-react";
+import { Download, Filter, Frown, Meh, Search, SlidersHorizontal, Smile, Eye, Trash2, Plus, X, Calendar, Mail, Phone, DollarSign, MapPin, Sparkles, Send } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { initials, sourceTone } from "../lib/format";
 import type { Lead, LeadStage, Sentiment, LeadEvent } from "../types";
@@ -72,6 +72,16 @@ export default function LeadManagementPage({
       setLeadEvents([]);
     }
   }, [selectedLead, onGetLeadEvents]);
+
+  // Close peek card on Escape
+  useEffect(() => {
+    if (!selectedLead) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedLead(null);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [selectedLead]);
 
   const sources = useMemo(() => Array.from(new Set(leads.map((lead) => lead.source))), [leads]);
   
@@ -165,7 +175,7 @@ export default function LeadManagementPage({
     <main className="page relative">
       <div className="flex flex-wrap items-end justify-between gap-5">
         <div>
-          <h1 className="section-title">Lead Pipeline</h1>
+          <h1 className="section-title">Omnibox</h1>
           <p className="mt-4 text-xl text-slate-700">Analyze and prioritize prospects based on behavioral data.</p>
         </div>
         <div className="flex gap-3">
@@ -334,112 +344,283 @@ export default function LeadManagementPage({
         )}
       </section>
 
-      {/* LEAD PROFILE DETAIL DRAWER / SIDE-MODAL */}
+      {/* LEAD PROFILE PEEK CARD */}
       {selectedLead && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-lg h-full bg-[#1e1e1e] shadow-2xl flex flex-col p-6 overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-[#2d2d2d] pb-4 mb-6">
-              <div className="flex items-center gap-4">
-                <div className="avatar bg-[#1e1e1e] text-white">{initials(selectedLead.name)}</div>
-                <div>
-                  <h2 className="text-2xl font-extrabold m-0">{selectedLead.name}</h2>
-                  <span className={`tag mt-1 inline-block ${sourceTone(selectedLead.source)}`}>{selectedLead.source}</span>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="lead-profile-title"
+          onClick={(e) => { if (e.target === e.currentTarget) setSelectedLead(null); }}
+        >
+          <div
+            className="w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-2xl shadow-2xl"
+            style={{
+              background: "linear-gradient(180deg, rgba(42,42,42,0.98), rgba(32,32,32,0.98))",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            {/* ── Header ── */}
+            <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-3">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div
+                  className="avatar"
+                  style={{
+                    width: "3.25rem",
+                    height: "3.25rem",
+                    fontSize: "1.25rem",
+                    background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05))",
+                    flexShrink: 0,
+                  }}
+                >
+                  {initials(selectedLead.name)}
+                </div>
+                <div className="min-w-0">
+                  <h2
+                    id="lead-profile-title"
+                    className="text-xl font-extrabold m-0 truncate"
+                    style={{ color: "rgba(247,247,244,0.97)" }}
+                  >
+                    {selectedLead.name}
+                  </h2>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className={`tag text-xs ${sourceTone(selectedLead.source)}`}>{selectedLead.source}</span>
+                    <ChannelBadge channel={selectedLead.preferredChannel} />
+                  </div>
                 </div>
               </div>
               <button
-                className="icon-button"
+                className="icon-button btn-sm"
                 onClick={() => setSelectedLead(null)}
+                aria-label="Close"
+                style={{ flexShrink: 0 }}
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="flex-1 space-y-6">
-              {/* Scoring Summary */}
-              <div className="bg-[#121212] rounded-xl p-4 border border-[#2d2d2d] flex justify-around text-center">
+            {/* ── Score strip ── */}
+            <div className="flex items-center gap-3 px-6 pb-4 flex-wrap">
+              <span
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-sm font-extrabold"
+                style={{
+                  background: selectedLead.intent === 1 ? "rgba(255,212,90,0.15)" : "rgba(255,255,255,0.05)",
+                  color: selectedLead.intent === 1 ? "#ffd45a" : "rgba(247,247,244,0.5)",
+                }}
+              >
+                Intent {selectedLead.intent}
+              </span>
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold"
+                style={{
+                  background:
+                    selectedLead.tier === "Hot" ? "rgba(251,191,36,0.15)" :
+                    selectedLead.tier === "Warm" ? "rgba(96,165,250,0.15)" :
+                    "rgba(255,255,255,0.04)",
+                  color:
+                    selectedLead.tier === "Hot" ? "#fbbf24" :
+                    selectedLead.tier === "Warm" ? "#93c5fd" :
+                    "rgba(247,247,244,0.5)",
+                  border: "1px solid",
+                  borderColor:
+                    selectedLead.tier === "Hot" ? "rgba(251,191,36,0.25)" :
+                    selectedLead.tier === "Warm" ? "rgba(96,165,250,0.25)" :
+                    "rgba(255,255,255,0.06)",
+                }}
+              >
+                {selectedLead.tier}
+              </span>
+              <span className="text-xs font-bold" style={{ color: "rgba(247,247,244,0.4)" }}>
+                Score {selectedLead.score}
+              </span>
+            </div>
+
+            {/* ── Divider ── */}
+            <div className="mx-6" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+
+            {/* ── Contact row ── */}
+            <div className="px-6 py-4">
+              <div className="flex items-stretch gap-2">
+                <a
+                  href={`mailto:${selectedLead.email}`}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors"
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    color: "rgba(247,247,244,0.85)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    textDecoration: "none",
+                  }}
+                >
+                  <Mail size={16} />
+                  Email
+                </a>
+                <a
+                  href={`tel:${selectedLead.phone}`}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors"
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    color: "rgba(247,247,244,0.85)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    textDecoration: "none",
+                  }}
+                >
+                  <Phone size={16} />
+                  Call
+                </a>
+                <ChannelContactButton lead={selectedLead} size="sm" />
+              </div>
+            </div>
+
+            {/* ── Divider ── */}
+            <div className="mx-6" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+
+            {/* ── Interest + Budget ── */}
+            <div className="px-6 py-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs uppercase text-slate-500 font-semibold mb-1">Qual Score</p>
-                  <strong className="text-2xl text-white">{selectedLead.score}</strong>
+                  <p className="text-xs font-bold uppercase tracking-wider m-0 mb-1" style={{ color: "rgba(247,247,244,0.35)", letterSpacing: "0.08em" }}>
+                    Property
+                  </p>
+                  <p className="text-sm font-bold m-0 flex items-center gap-1.5" style={{ color: "rgba(247,247,244,0.9)" }}>
+                    <MapPin size={14} style={{ color: "rgba(247,247,244,0.35)", flexShrink: 0 }} />
+                    {selectedLead.propertyInterest}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase text-slate-500 font-semibold mb-1">Status Tier</p>
-                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                    selectedLead.tier === "Hot" ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" :
-                    selectedLead.tier === "Warm" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" :
-                    "bg-white/5 text-slate-300 border border-[#2d2d2d]"
-                  }`}>
-                    {selectedLead.tier}
+                  <p className="text-xs font-bold uppercase tracking-wider m-0 mb-1" style={{ color: "rgba(247,247,244,0.35)", letterSpacing: "0.08em" }}>
+                    Budget
+                  </p>
+                  <p className="text-sm font-bold m-0 flex items-center gap-1.5" style={{ color: "rgba(247,247,244,0.9)" }}>
+                    <DollarSign size={14} style={{ color: "rgba(247,247,244,0.35)", flexShrink: 0 }} />
+                    {selectedLead.budget}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Divider ── */}
+            <div className="mx-6" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+
+            {/* ── Pipeline stepper ── */}
+            <div className="px-6 py-4">
+              <p className="text-xs font-bold uppercase tracking-wider m-0 mb-3" style={{ color: "rgba(247,247,244,0.35)", letterSpacing: "0.08em" }}>
+                Pipeline
+              </p>
+              <div className="flex items-center gap-0">
+                {(["new", "contacted", "engaged", "viewing", "negotiating", "closed_won", "closed_lost"] as const).map((stage, i, arr) => {
+                  const isActive = selectedLead.stage === stage;
+                  const isPast = arr.indexOf(selectedLead.stage) >= arr.indexOf(stage) && selectedLead.stage !== "closed_lost";
+                  const isClickable = true;
+                  return (
+                    <div key={stage} className="flex items-center flex-1 min-w-0" style={{ flex: i < arr.length - 1 ? "1 1 0%" : "0 0 auto" }}>
+                      <button
+                        onClick={() => {
+                          onUpdateLeadStage(selectedLead.id, stage);
+                          setSelectedLead({ ...selectedLead, stage, lastContactedAt: new Date().toISOString() });
+                        }}
+                        className="flex flex-col items-center gap-1 group relative"
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: 0, minWidth: 0 }}
+                        title={stage.replace("_", " ")}
+                      >
+                        <span
+                          className="block rounded-full transition-all"
+                          style={{
+                            width: isActive ? "0.85rem" : "0.55rem",
+                            height: isActive ? "0.85rem" : "0.55rem",
+                            background: isActive ? "#ffd45a" : isPast ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.1)",
+                            boxShadow: isActive ? "0 0 10px rgba(255,212,90,0.4)" : "none",
+                          }}
+                        />
+                        <span
+                          className="text-[0.6rem] font-bold uppercase tracking-wider whitespace-nowrap transition-colors"
+                          style={{
+                            color: isActive ? "rgba(247,247,244,0.95)" : "rgba(247,247,244,0.3)",
+                          }}
+                        >
+                          {stage === "closed_won" ? "Won" : stage === "closed_lost" ? "Lost" : stage.replace("_", " ")}
+                        </span>
+                      </button>
+                      {i < arr.length - 1 && (
+                        <div
+                          className="flex-1 mx-0.5"
+                          style={{
+                            height: "1px",
+                            background: isPast ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.05)",
+                            marginBottom: "1rem",
+                          }}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Divider ── */}
+            <div className="mx-6" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+
+            {/* ── Metrics + Sentiment ── */}
+            <div className="px-6 py-4">
+              <div className="grid grid-cols-4 gap-3 text-center">
+                <div>
+                  <span className="text-xl font-extrabold block" style={{ color: "rgba(247,247,244,0.95)" }}>
+                    {selectedLead.emailOpens}
+                  </span>
+                  <span className="text-[0.65rem] font-bold uppercase tracking-wider block mt-0.5" style={{ color: "rgba(247,247,244,0.3)" }}>
+                    Opens
                   </span>
                 </div>
                 <div>
-                  <p className="text-xs uppercase text-slate-500 font-semibold mb-1">Lead Intent</p>
-                  <strong className="text-2xl text-white">{selectedLead.intent}</strong>
+                  <span className="text-xl font-extrabold block" style={{ color: "rgba(247,247,244,0.95)" }}>
+                    {selectedLead.linkClicks}
+                  </span>
+                  <span className="text-[0.65rem] font-bold uppercase tracking-wider block mt-0.5" style={{ color: "rgba(247,247,244,0.3)" }}>
+                    Clicks
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xl font-extrabold block" style={{ color: "rgba(247,247,244,0.95)" }}>
+                    {selectedLead.reportViews}
+                  </span>
+                  <span className="text-[0.65rem] font-bold uppercase tracking-wider block mt-0.5" style={{ color: "rgba(247,247,244,0.3)" }}>
+                    Views
+                  </span>
+                </div>
+                <div>
+                  <div className="flex justify-center">
+                    <SentimentIcon sentiment={selectedLead.sentiment} />
+                  </div>
+                  <span className="text-[0.65rem] font-bold tracking-wider block mt-0.5 capitalize" style={{ color: "rgba(247,247,244,0.3)" }}>
+                    {selectedLead.sentiment}
+                  </span>
                 </div>
               </div>
+            </div>
 
-              {/* Pipeline Stage */}
-              <div>
-                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Pipeline Stage</h3>
-                <div className="flex flex-wrap gap-2">
-                  {(["new", "contacted", "engaged", "viewing", "negotiating", "closed_won", "closed_lost"] as const).map((stage) => (
-                    <button
-                      key={stage}
-                      onClick={() => {
-                        onUpdateLeadStage(selectedLead.id, stage);
-                        setSelectedLead({ ...selectedLead, stage, lastContactedAt: new Date().toISOString() });
-                      }}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                        selectedLead.stage === stage
-                          ? "bg-[#1e1e1e] text-white border-[#041627]"
-                          : "bg-[#1e1e1e] text-slate-300 border-[#2d2d2d] hover:border-white/20"
-                      }`}
-                    >
-                      {stage.replace("_", " ")}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Preferred Channel */}
-              <div>
-                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Preferred Contact</h3>
-                <ChannelBadge channel={selectedLead.preferredChannel} />
-              </div>
-
-              {/* Contact Information */}
-              <div>
-                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Contact Information</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <Mail size={18} className="text-slate-400" />
-                    <a href={`mailto:${selectedLead.email}`} className="hover:underline">{selectedLead.email}</a>
-                  </div>
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <Phone size={18} className="text-slate-400" />
-                    <a href={`tel:${selectedLead.phone}`} className="hover:underline">{selectedLead.phone}</a>
-                  </div>
-                  <div className="pt-2">
-                    <ChannelContactButton lead={selectedLead} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Actionable Insights (Phase 3) */}
-              {(selectedLead.intent === 1 || selectedLead.score > 50 || selectedLead.stage === "new") && (
-                <div className="bg-gradient-to-br from-[#121212] to-[#1e1e1e] rounded-xl p-5 text-white shadow-md relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <Sparkles size={80} />
-                  </div>
-                  <div className="relative z-10">
-                    <h3 className="text-sm font-bold text-sky-300 uppercase tracking-wider mb-2 flex items-center gap-2">
-                      <Sparkles size={16} />
-                      Actionable Insight
-                    </h3>
-                    <p className="text-sm text-slate-200 mb-4 leading-relaxed">
-                      This prospect shows high intent. Based on their recent activity, we recommend sending a personalized WhatsApp outreach.
+            {/* ── Actionable Insight (conditional) ── */}
+            {(selectedLead.intent === 1 || selectedLead.score > 50 || selectedLead.stage === "new") && (
+              <>
+                <div className="mx-6" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+                <div className="px-6 py-4">
+                  <div
+                    className="rounded-xl p-4"
+                    style={{
+                      background: "linear-gradient(135deg, rgba(255,212,90,0.06), rgba(255,255,255,0.02))",
+                      border: "1px solid rgba(255,212,90,0.12)",
+                    }}
+                  >
+                    <p className="text-xs font-bold uppercase tracking-wider m-0 mb-2 flex items-center gap-1.5" style={{ color: "#ffd45a", letterSpacing: "0.08em" }}>
+                      <Sparkles size={12} />
+                      Recommended Action
                     </p>
-                    <div className="bg-[#1e1e1e]/10 rounded-lg p-3 text-sm text-slate-100 italic mb-4 border border-white/20">
-                      "Hi {selectedLead.name.split(" ")[0]}, I saw you were looking at {selectedLead.propertyInterest || "some properties"} recently. Are you still searching? I have some new exclusive insights I can share with you!"
+                    <p className="text-sm m-0 mb-3 leading-relaxed" style={{ color: "rgba(247,247,244,0.7)" }}>
+                      Send a personalized WhatsApp message to re-engage this prospect about {selectedLead.propertyInterest || "their property interest"}.
+                    </p>
+                    <div
+                      className="rounded-lg p-2.5 text-xs italic mb-3"
+                      style={{ background: "rgba(0,0,0,0.25)", color: "rgba(247,247,244,0.55)", border: "1px solid rgba(255,255,255,0.05)" }}
+                    >
+                      Hi {selectedLead.name.split(" ")[0]}, I saw you were looking at {selectedLead.propertyInterest || "some properties"}. Are you still searching? I have some exclusive insights to share!
                     </div>
                     <button
                       className="primary-button btn-success w-full"
@@ -449,102 +630,61 @@ export default function LeadManagementPage({
                       {isSendingMessage ? (
                         "Sending..."
                       ) : selectedLead.stage !== "new" ? (
-                        <><Send size={18} /> Outreach Sent</>
+                        <><Send size={16} /> Already Contacted</>
                       ) : (
-                        <><Send size={18} /> Send WhatsApp Outreach</>
+                        <><Send size={16} /> Send Outreach</>
                       )}
                     </button>
                   </div>
                 </div>
+              </>
+            )}
+
+            {/* ── Divider ── */}
+            <div className="mx-6" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
+
+            {/* ── Activity Timeline ── */}
+            <div className="px-6 py-4">
+              <p className="text-xs font-bold uppercase tracking-wider m-0 mb-3" style={{ color: "rgba(247,247,244,0.35)", letterSpacing: "0.08em" }}>
+                Activity
+              </p>
+              {isLoadingEvents ? (
+                <p className="text-xs m-0" style={{ color: "rgba(247,247,244,0.3)" }}>Loading...</p>
+              ) : leadEvents.length === 0 ? (
+                <p className="text-xs m-0" style={{ color: "rgba(247,247,244,0.3)" }}>No activity recorded yet.</p>
+              ) : (
+                <div className="space-y-2.5 relative pl-4" style={{ borderLeft: "1px solid rgba(255,255,255,0.08)" }}>
+                  {leadEvents.slice(0, 8).map((event) => (
+                    <div key={event.id} className="relative text-xs">
+                      <div
+                        className="absolute rounded-full"
+                        style={{
+                          left: "-1.35rem",
+                          top: "0.25rem",
+                          width: "0.4rem",
+                          height: "0.4rem",
+                          background: "rgba(255,255,255,0.2)",
+                        }}
+                      />
+                      <p className="font-bold m-0" style={{ color: "rgba(247,247,244,0.8)" }}>{event.eventLabel}</p>
+                      <span className="flex items-center gap-1 mt-0.5" style={{ color: "rgba(247,247,244,0.3)" }}>
+                        <Calendar size={10} />
+                        {new Date(event.occurredAt).toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               )}
-
-              {/* Property Interests */}
-              <div>
-                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Interest Profile</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <MapPin size={18} className="text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-400 m-0">Target Property / Area</p>
-                      <p className="font-semibold m-0">{selectedLead.propertyInterest}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <DollarSign size={18} className="text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-400 m-0">Indicated Budget</p>
-                      <p className="font-semibold m-0">{selectedLead.budget}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Engagement Metrics */}
-              <div>
-                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Interaction Metrics</h3>
-                <div className="grid grid-cols-3 gap-4 text-center bg-[#121212] rounded-xl p-3 border border-slate-100">
-                  <div>
-                    <span className="text-2xl font-bold">{selectedLead.emailOpens}</span>
-                    <p className="text-xs text-slate-500 m-0">Email Opens</p>
-                  </div>
-                  <div>
-                    <span className="text-2xl font-bold">{selectedLead.linkClicks}</span>
-                    <p className="text-xs text-slate-500 m-0">Link Clicks</p>
-                  </div>
-                  <div>
-                    <span className="text-2xl font-bold">{selectedLead.reportViews}</span>
-                    <p className="text-xs text-slate-500 m-0">Report Views</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Inquiry Sentiment Analysis */}
-              <div>
-                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Inquiry Sentiment</h3>
-                <div className="flex items-center gap-3 bg-[#121212] rounded-xl p-4 border border-slate-100">
-                  <SentimentIcon sentiment={selectedLead.sentiment} />
-                  <div>
-                    <p className="font-semibold m-0 capitalize">{selectedLead.sentiment} Tone</p>
-                    <p className="text-xs text-slate-500 m-0">Computed sentiment score of {selectedLead.inquirySentiment} based on prospect inquiries.</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Activity Timeline */}
-              <div>
-                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Activity Timeline</h3>
-                <div className="space-y-4 relative pl-4 border-l-2 border-[#2d2d2d]">
-                  {isLoadingEvents ? (
-                    <p className="text-slate-500 text-sm">Loading activity logs...</p>
-                  ) : leadEvents.length === 0 ? (
-                    <p className="text-slate-500 text-sm">No recorded activity history.</p>
-                  ) : (
-                    leadEvents.map((event) => (
-                      <div key={event.id} className="relative">
-                        <div className="absolute -left-[23px] top-1 bg-[#1e1e1e] p-0.5 rounded-full border-2 border-white/20 text-slate-500">
-                          <Activity size={10} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-800 m-0">{event.eventLabel}</p>
-                          <span className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                            <Calendar size={12} />
-                            {new Date(event.occurredAt).toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" })}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
             </div>
 
+            {/* ── Footer ── */}
             <div className="seam-footer-p6">
               <button
                 className="primary-button btn-danger"
                 onClick={() => handleDeleteLead(selectedLead.id)}
               >
-                <Trash2 size={18} />
-                Delete Prospect
+                <Trash2 size={16} />
+                Delete
               </button>
             </div>
           </div>

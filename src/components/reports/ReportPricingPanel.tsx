@@ -91,17 +91,23 @@ export default function ReportPricingPanel({
 }) {
   const { title, cards } = buildPricingCards(report);
   const isAgent = variant === "agent";
+  const sharedDark = variant === "shared";
+  const cardShell = isAgent
+    ? "bg-white/5 p-4 rounded border border-slate-200"
+    : sharedDark
+      ? "bg-[#252525] p-4 rounded-xl border border-white/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+      : "bg-slate-50 p-5 rounded-lg border border-slate-200";
 
   return (
     <section className={isAgent ? "bg-slate-50 p-6 rounded-lg border border-slate-200 mb-8" : "card p-6 md:p-8"}>
-      <h2 className={`m-0 font-extrabold mb-6 ${isAgent ? "text-xl flex items-center gap-2" : "text-2xl"}`}>{title}</h2>
+      <h2 className={`m-0 font-extrabold mb-6 ${isAgent ? "text-xl flex items-center gap-2" : `text-2xl ${sharedDark ? "text-slate-100" : ""}`}`}>{title}</h2>
       <div className={`grid grid-cols-1 ${isAgent ? "sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6" : "md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"}`}>
         {cards.map((card) => (
           <div
             key={card.label}
-            className={isAgent ? "bg-white/5 p-4 rounded border border-slate-200" : "bg-slate-50 p-5 rounded-lg border border-slate-200"}
+            className={cardShell}
           >
-            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-2">{card.label}</span>
+            <span className={`text-xs font-bold uppercase tracking-wider block mb-2 ${sharedDark ? "text-slate-400" : "text-slate-500"}`}>{card.label}</span>
             <strong className={`${card.tone ? `text-xl font-extrabold px-2 py-0.5 rounded ${card.tone}` : "text-2xl text-slate-900 font-extrabold"}`}>
               {card.value}
             </strong>
@@ -111,11 +117,11 @@ export default function ReportPricingPanel({
 
       {report.comparableListings && report.comparableListings.length > 0 ? (
         <div>
-          <h3 className={`font-bold mb-4 ${isAgent ? "text-sm text-slate-700" : "text-lg"}`}>Comparable Properties In Area</h3>
+          <h3 className={`font-bold mb-4 ${isAgent ? "text-sm text-slate-700" : sharedDark ? "text-base text-slate-100" : "text-lg"}`}>Comparable Properties In Area</h3>
           <div className="overflow-x-auto">
             <table className={`w-full text-left border-collapse ${isAgent ? "text-xs" : "text-sm"}`}>
               <thead>
-                <tr className="border-b border-slate-200 text-xs text-slate-500 uppercase font-bold">
+                <tr className={`border-b ${sharedDark ? "border-white/10 text-slate-400" : "border-slate-200 text-slate-500"} text-xs uppercase font-bold`}>
                   <th className={isAgent ? "py-2 px-3" : "py-3 px-4"}>Property / Title</th>
                   <th className={isAgent ? "py-2 px-3" : "py-3 px-4"}>Asking Price</th>
                   <th className={isAgent ? "py-2 px-3" : "py-3 px-4"}>Size (Sqft)</th>
@@ -123,10 +129,10 @@ export default function ReportPricingPanel({
                   <th className={isAgent ? "py-2 px-3" : "py-3 px-4"}>Source</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className={sharedDark ? "divide-y divide-white/8" : "divide-y divide-slate-100"}>
                 {report.comparableListings.map((comp, idx) => (
-                  <tr key={idx} className={isAgent ? "hover:bg-slate-100" : "hover:bg-slate-50"}>
-                    <td className={`${isAgent ? "py-2 px-3 font-bold text-slate-800" : "py-3 px-4 font-bold text-slate-900"}`}>
+                  <tr key={idx} className={isAgent ? "hover:bg-slate-100" : sharedDark ? "hover:bg-white/5" : "hover:bg-slate-50"}>
+                    <td className={`${isAgent ? "py-2 px-3 font-bold text-slate-800" : sharedDark ? "py-3 px-4 font-bold text-slate-100" : "py-3 px-4 font-bold text-slate-900"}`}>
                       {comp.url ? (
                         <a href={comp.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
                           {comp.title}
@@ -135,16 +141,16 @@ export default function ReportPricingPanel({
                         comp.title
                       )}
                     </td>
-                    <td className={`${isAgent ? "py-2 px-3 font-semibold text-slate-700" : "py-3 px-4 font-semibold text-slate-700"}`}>
+                    <td className={`${isAgent ? "py-2 px-3 font-semibold text-slate-700" : sharedDark ? "py-3 px-4 font-semibold text-slate-200" : "py-3 px-4 font-semibold text-slate-700"}`}>
                       {comp.askingPriceRm && comp.askingPriceRm > 0 ? `RM ${comp.askingPriceRm.toLocaleString("en-MY")}` : "TBD"}
                     </td>
-                    <td className={`${isAgent ? "py-2 px-3 text-slate-600" : "py-3 px-4 text-slate-600"}`}>
+                    <td className={`${isAgent ? "py-2 px-3 text-slate-600" : sharedDark ? "py-3 px-4 text-slate-300" : "py-3 px-4 text-slate-600"}`}>
                       {comp.builtUpSqft && comp.builtUpSqft > 0 ? `${comp.builtUpSqft.toLocaleString("en-MY")} sqft` : "TBD"}
                     </td>
-                    <td className={`${isAgent ? "py-2 px-3 text-slate-600" : "py-3 px-4 text-slate-600"}`}>
+                    <td className={`${isAgent ? "py-2 px-3 text-slate-600" : sharedDark ? "py-3 px-4 text-slate-300" : "py-3 px-4 text-slate-600"}`}>
                       {comp.bedrooms || comp.bathrooms ? `${comp.bedrooms ?? "-"}b / ${comp.bathrooms ?? "-"}ba` : "TBD"}
                     </td>
-                    <td className={`${isAgent ? "py-2 px-3 text-slate-500 capitalize" : "py-3 px-4 text-xs text-slate-500 capitalize"}`}>
+                    <td className={`${isAgent ? "py-2 px-3 text-slate-500 capitalize" : sharedDark ? "py-3 px-4 text-xs text-slate-400 capitalize" : "py-3 px-4 text-xs text-slate-500 capitalize"}`}>
                       {comp.sourceName || "portal"}
                     </td>
                   </tr>
@@ -154,9 +160,11 @@ export default function ReportPricingPanel({
           </div>
         </div>
       ) : (
-        <p className={`text-slate-500 italic m-0 ${isAgent ? "text-xs" : ""}`}>
-          No active local comps were mapped for comparative pricing.
-        </p>
+        <div className={sharedDark ? "rounded-xl border border-white/8 bg-white/4 p-4" : ""}>
+          <p className={`m-0 italic ${isAgent ? "text-xs text-slate-500" : sharedDark ? "text-sm text-slate-300" : "text-slate-500"}`}>
+            No active local comps were mapped for comparative pricing.
+          </p>
+        </div>
       )}
     </section>
   );

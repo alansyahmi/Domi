@@ -234,6 +234,8 @@ export interface MarketPricingStats {
   mode: MarketPricingMode;
   averagePrice: number;
   averagePricePerSqft: number;
+  medianPrice: number;
+  medianPricePerSqft: number;
   priceDifferencePct: number;
   ppsDifferencePct: number;
   priceDifferenceRm: number;
@@ -244,11 +246,18 @@ export interface MarketPricingStats {
   validPpsCount: number;
   estimatedGrossYield?: number;
   averageRentalPrice?: number;
+  averageMaintenanceFeePsf?: number;
+}
+
+function calculateMedian(sorted: number[]): number {
+  if (sorted.length === 0) return 0;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
 export function calculateMarketPricingStats(report: {
   inputSnapshot: { askingPriceRm?: number; sqft?: number; listingIntent?: string };
-  comparableListings?: Array<{ askingPriceRm?: number; builtUpSqft?: number; listingIntent?: string }>;
+  comparableListings?: Array<{ askingPriceRm?: number; builtUpSqft?: number; listingIntent?: string; maintenanceFeePsf?: number }>;
 }): MarketPricingStats {
   const targetPrice = report.inputSnapshot.askingPriceRm ?? 0;
   const targetSqft = report.inputSnapshot.sqft ?? 0;
@@ -279,6 +288,13 @@ export function calculateMarketPricingStats(report: {
   );
   const averagePricePerSqft = validPpsComps.length > 0 ? totalPps / validPpsComps.length : 0;
 
+  const medianPrice = calculateMedian(prices);
+  const ppsValues = validPpsComps
+    .map((c) => (c.askingPriceRm ?? 0) / (c.builtUpSqft ?? 1))
+    .filter((v) => Number.isFinite(v) && v > 0)
+    .sort((a, b) => a - b);
+  const medianPricePerSqft = calculateMedian(ppsValues);
+
   const priceDifferenceRm = compareToTarget ? targetPrice - averagePrice : 0;
   const priceDifferencePct =
     compareToTarget && averagePrice > 0 ? ((targetPrice - averagePrice) / averagePrice) * 100 : 0;
@@ -303,10 +319,20 @@ export function calculateMarketPricingStats(report: {
     estimatedGrossYield = Number(((averageRentalPrice * 12 / targetPrice) * 100).toFixed(2));
   }
 
+  // Compute maintenance fee average from comparables that have it
+  const maintenanceFeeComps = comparables.filter(
+    (c) => c.maintenanceFeePsf && c.maintenanceFeePsf > 0
+  );
+  const averageMaintenanceFeePsf = maintenanceFeeComps.length > 0
+    ? Number((maintenanceFeeComps.reduce((sum, c) => sum + (c.maintenanceFeePsf ?? 0), 0) / maintenanceFeeComps.length).toFixed(2))
+    : undefined;
+
   return {
     mode: compareToTarget ? "target_comparison" : "comparable_market",
     averagePrice,
     averagePricePerSqft,
+    medianPrice,
+    medianPricePerSqft,
     priceDifferencePct,
     ppsDifferencePct,
     priceDifferenceRm,
@@ -317,6 +343,7 @@ export function calculateMarketPricingStats(report: {
     validPpsCount: validPpsComps.length,
     estimatedGrossYield,
     averageRentalPrice,
+    averageMaintenanceFeePsf,
   };
 }
 

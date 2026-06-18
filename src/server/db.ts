@@ -59,6 +59,15 @@ export interface PropertyIntelligenceCache {
   refreshedAt: string;
 }
 
+export interface DeveloperIntelligenceCache {
+  developerKey: string;
+  developerName: string;
+  pastProjects: string[];
+  upcomingProjects: string[];
+  sentiment?: string;
+  refreshedAt: string;
+}
+
 export function getTursoConfig(env: DbEnv): TursoConfig {
   if (!env.TURSO_DATABASE_URL) {
     throw new Error("Missing environment variable TURSO_DATABASE_URL");
@@ -168,6 +177,14 @@ const schemaStatements = [
     property_name TEXT NOT NULL,
     payload_json TEXT NOT NULL,
     citations_json TEXT NOT NULL,
+    refreshed_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS developer_intelligence_cache (
+    developer_key TEXT PRIMARY KEY,
+    developer_name TEXT NOT NULL,
+    past_projects_json TEXT NOT NULL DEFAULT '[]',
+    upcoming_projects_json TEXT NOT NULL DEFAULT '[]',
+    sentiment TEXT,
     refreshed_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS integrations (
@@ -343,6 +360,8 @@ export function mapReport(row: Record<string, unknown>): PropertyReport {
     sentiment: "neutral",
     pricingTrend: String(row.market_signal),
     confidenceScore: 0.68,
+    dataCompleteness: 0.30,
+    priceCertainty: 0.20,
     freshnessDays: 0,
   };
   const analyticsPayload = parseJson<Partial<ReportAnalytics> & { indexLookup?: ReportIndexLookup }>(row.analytics_json, fallbackAnalytics);
@@ -350,6 +369,8 @@ export function mapReport(row: Record<string, unknown>): PropertyReport {
     sentiment: parseSentiment(analyticsPayload.sentiment),
     pricingTrend: analyticsPayload.pricingTrend || fallbackAnalytics.pricingTrend,
     confidenceScore: Number.isFinite(analyticsPayload.confidenceScore) ? Number(analyticsPayload.confidenceScore) : fallbackAnalytics.confidenceScore,
+    dataCompleteness: Number.isFinite(analyticsPayload.dataCompleteness) ? Number(analyticsPayload.dataCompleteness) : fallbackAnalytics.dataCompleteness,
+    priceCertainty: Number.isFinite(analyticsPayload.priceCertainty) ? Number(analyticsPayload.priceCertainty) : fallbackAnalytics.priceCertainty,
     freshnessDays: Number.isFinite(analyticsPayload.freshnessDays) ? Number(analyticsPayload.freshnessDays) : fallbackAnalytics.freshnessDays,
   };
   const citations = parseJson<ReportCitation[]>(row.citations_json, []);
@@ -794,6 +815,46 @@ export async function savePropertyIntelligence(
   });
 }
 
+export async function getDeveloperCache(
+  db: ReAIDbClient,
+  developerKey: string,
+): Promise<DeveloperIntelligenceCache | null> {
+  const result = await db.execute<Record<string, unknown>>({
+    sql: "SELECT * FROM developer_intelligence_cache WHERE developer_key = ? LIMIT 1",
+    args: [developerKey],
+  });
+  const row = result.rows[0];
+  if (!row) return null;
+
+  return {
+    developerKey: String(row.developer_key),
+    developerName: String(row.developer_name),
+    pastProjects: parseJson<string[]>(row.past_projects_json, []),
+    upcomingProjects: parseJson<string[]>(row.upcoming_projects_json, []),
+    sentiment: row.sentiment ? String(row.sentiment) : undefined,
+    refreshedAt: String(row.refreshed_at),
+  };
+}
+
+export async function saveDeveloperCache(
+  db: ReAIDbClient,
+  cache: DeveloperIntelligenceCache,
+): Promise<void> {
+  await db.execute({
+    sql: `INSERT OR REPLACE INTO developer_intelligence_cache (
+      developer_key, developer_name, past_projects_json, upcoming_projects_json, sentiment, refreshed_at
+    ) VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [
+      cache.developerKey,
+      cache.developerName,
+      JSON.stringify(cache.pastProjects),
+      JSON.stringify(cache.upcomingProjects),
+      cache.sentiment ?? null,
+      cache.refreshedAt,
+    ],
+  });
+}
+
 export async function savePropertyReport(
   db: ReAIDbClient,
   report: PropertyReport,
@@ -963,6 +1024,8 @@ export async function createReport(
       sentiment: "neutral",
       pricingTrend: draft.marketSignal,
       confidenceScore: 0.68,
+      dataCompleteness: 0.30,
+      priceCertainty: 0.20,
       freshnessDays: 0,
     },
     citations: [

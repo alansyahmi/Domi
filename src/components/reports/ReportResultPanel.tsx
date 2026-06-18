@@ -111,6 +111,16 @@ export default function ReportResultPanel({
           <strong>{Math.round(report.analytics.confidenceScore * 100)}%</strong>
         </article>
         <article>
+          <Database size={20} aria-hidden="true" />
+          <span>Data Completeness</span>
+          <strong>{Math.round(report.analytics.dataCompleteness * 100)}% ({report.citations.length} sources)</strong>
+        </article>
+        <article>
+          <BadgeDollarSign size={20} aria-hidden="true" />
+          <span>Price Certainty</span>
+          <strong>{report.analytics.priceCertainty >= 0.60 ? "High" : report.analytics.priceCertainty >= 0.35 ? "Moderate" : "Low"}{report.analytics.priceCertainty < 0.35 ? " (askings only)" : ""}</strong>
+        </article>
+        <article>
           <ShieldCheck size={20} aria-hidden="true" />
           <span>Freshness</span>
           <strong>{report.analytics.freshnessDays === 0 ? "Today" : `${report.analytics.freshnessDays}d`}</strong>

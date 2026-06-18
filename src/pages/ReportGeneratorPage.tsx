@@ -18,12 +18,13 @@ export default function ReportGeneratorPage({
 }) {
   const [latest, setLatest] = useState<PropertyReport | null>(reports[0] ?? null);
   const [generating, setGenerating] = useState(false);
+  const [startTime, setStartTime] = useState<number | undefined>(undefined);
 
   return (
     <main className="page">
       <div className="report-generator-header">
         <div>
-          <h1 className="section-title">Generate Property Report</h1>
+          <h1 className="section-title">Reporter</h1>
           <p className="mt-4 max-w-3xl text-xl text-slate-600">
             Start with a property name. re:AI checks cached intelligence, enriches with research when needed, then packages analytics, citations, PDF, and share link.
           </p>
@@ -38,7 +39,7 @@ export default function ReportGeneratorPage({
       </div>
 
       <div className="mt-8">
-        <ReportWorkflowStatus active={generating} />
+        <ReportWorkflowStatus active={generating} startTime={startTime} />
       </div>
 
       <div className="mt-8 grid grid-cols-1 xl:grid-cols-[minmax(28rem,0.9fr)_minmax(0,1.2fr)] gap-8">
@@ -46,6 +47,8 @@ export default function ReportGeneratorPage({
           onCreateReport={onCreateReport}
           onGeneratingChange={setGenerating}
           onReportCreated={setLatest}
+          onGenerationStart={setStartTime}
+          cachedReports={reports}
         />
 
         {latest ? (

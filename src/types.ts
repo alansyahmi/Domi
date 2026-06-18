@@ -6,7 +6,7 @@ export type ListingIntent = "sale" | "rent" | "auction" | "valuation";
 export type PropertyTenure = "freehold" | "leasehold" | "unknown";
 export type ReportIndexLookupStatus = "fresh_hit" | "stale_hit" | "miss";
 export type ReportLiveSearchStatus = "not_needed" | "validated" | "limited" | "failed";
-export type ReportCitationSourceType = "official" | "community" | "comparable_listing" | "model" | "other";
+export type ReportCitationSourceType = "official" | "community" | "comparable_listing" | "transaction" | "neighborhood" | "model" | "other";
 
 export type PreferredChannel = "whatsapp" | "telegram" | "messenger" | "instagram" | "email" | "phone";
 
@@ -166,12 +166,54 @@ export interface ReportComparableListing {
   bathrooms?: number;
   listingIntent?: ListingIntent;
   snippet?: string;
+  unitType?: string;
+  maintenanceFeePsf?: number;
+}
+
+export interface ReportTransactedPrice {
+  priceRm: number;
+  transactedDate?: string;
+  unitType?: string;
+  builtUpSqft?: number;
+  sourceName?: string;
+  sourceUrl?: string;
+  isAskingFallback?: boolean;
+}
+
+export interface ReportUnitTypeVariation {
+  name: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  builtUpSqftMin?: number;
+  builtUpSqftMax?: number;
+  askingPriceRmMin?: number;
+  askingPriceRmMax?: number;
+  listingCount?: number;
+}
+
+export interface ReportDeveloperInfo {
+  developerName: string;
+  pastProjects?: string[];
+  upcomingProjects?: string[];
+  trackRecordSentiment?: Sentiment;
+  lastRefreshedAt?: string;
+}
+
+export interface ReportInfrastructureProject {
+  name: string;
+  type: "mrt" | "lrt" | "highway" | "bus_rapid_transit" | "other";
+  distanceKm?: number;
+  completionYear?: number;
+  status?: string;
+  sourceUrl?: string;
 }
 
 export interface ReportAnalytics {
   sentiment: Sentiment;
   pricingTrend: string;
   confidenceScore: number;
+  dataCompleteness: number;
+  priceCertainty: number;
   freshnessDays: number;
   neighborhoodVibe?: {
     score: number;
@@ -183,6 +225,15 @@ export interface ReportAnalytics {
       distance?: string;
     }>;
   };
+  medianPrice?: number;
+  medianPricePerSqft?: number;
+  transactedPrices?: ReportTransactedPrice[];
+  unitTypeVariations?: ReportUnitTypeVariation[];
+  developerTrackRecord?: ReportDeveloperInfo;
+  upcomingInfrastructure?: ReportInfrastructureProject[];
+  averageMaintenanceFeePsf?: number;
+  estimatedGrossYield?: number;
+  averageRentalPrice?: number;
 }
 
 export interface ReportIndexLookup {

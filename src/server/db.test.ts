@@ -110,6 +110,8 @@ describe("database helpers", () => {
           sentiment: "positive",
           pricingTrend: "Stable premium demand",
           confidenceScore: 0.78,
+          dataCompleteness: 0.65,
+          priceCertainty: 0.35,
           freshnessDays: 0,
         },
         citations: [{ title: "Source", url: "https://example.com" }],
@@ -170,6 +172,8 @@ describe("database helpers", () => {
         sentiment: "neutral",
         pricingTrend: "Stable premium demand",
         confidenceScore: 0.68,
+        dataCompleteness: 0.30,
+        priceCertainty: 0.20,
         freshnessDays: 0,
       });
       expect(report?.indexLookup).toMatchObject({

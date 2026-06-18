@@ -57,6 +57,8 @@ describe("report PDF generation", () => {
         sentiment: "positive",
         pricingTrend: "Stable premium demand",
         confidenceScore: 0.84,
+        dataCompleteness: 0.78,
+        priceCertainty: 0.45,
         freshnessDays: 0,
       },
       citations: [{ title: "Source", url: "https://example.com" }],
@@ -74,6 +76,7 @@ describe("report PDF generation", () => {
     const pdf = generateReportPdf(report, agent);
 
     expect(Buffer.from(pdf).subarray(0, 4).toString("utf8")).toBe("%PDF");
+    expect(Buffer.from(pdf).toString("utf8")).toContain("PDF v2");
   });
 
   it("paginates long reports instead of clipping content", () => {
@@ -104,7 +107,7 @@ describe("report PDF generation", () => {
   it("renders client-facing advisory sections without internal workflow wording", () => {
     const { agent, report } = createReport({
       contentSections: [
-        { title: "Executive Read", body: "Balanced market review for client-facing discussion." },
+        { title: "TL;DR for the Agent", body: "Balanced market review for client-facing discussion." },
         { title: "Best-Fit Buyer Profile", body: "Likely suitable for city convenience buyers." },
         { title: "Watchouts and Buyer Questions", body: "Ask about noise, parking, and maintenance expectations." },
         { title: "Recommended Listing Narrative", body: "Use a client-safe narrative around convenience and source-backed caveats." },
@@ -149,6 +152,7 @@ describe("report PDF generation", () => {
     const pdfText = Buffer.from(generateReportPdf(report, agent)).toString("utf8");
 
     expect(pdfText).toContain("Current Listing Context");
+    expect(pdfText).toContain("Comparable Listings");
     expect(pdfText).toContain("CURRENT LISTING");
     expect(pdfText).toContain("directional asking");
     expect(pdfText).toContain("context");

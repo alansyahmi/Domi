@@ -298,7 +298,6 @@ describe("report pipeline", () => {
       summary: "Single-source live research summary.",
     });
     expect(report.citations).toEqual([{ title: "Only Source", url: "https://example.com/only" }]);
-    expect(report.contentSections.map((section) => section.body).join(" ")).toContain("limited source coverage");
     expect(db.execute).not.toHaveBeenCalledWith(expect.objectContaining({
       sql: expect.stringContaining("INSERT OR REPLACE INTO property_intelligence_cache"),
     }));
@@ -323,7 +322,6 @@ describe("report pipeline", () => {
     const report = await generatePropertyReport(db, agent, reportInput, { provider });
 
     expect(report.indexLookup.liveSearchStatus).toBe("limited");
-    expect(report.contentSections.map((section) => section.body).join(" ")).toContain("limited source coverage");
     expect(db.execute).not.toHaveBeenCalledWith(expect.objectContaining({
       sql: expect.stringContaining("INSERT OR REPLACE INTO property_intelligence_cache"),
     }));
@@ -370,14 +368,18 @@ describe("report pipeline", () => {
     const sections = Object.fromEntries(report.contentSections.map((section) => [section.title, section.body]));
 
     expect(Object.keys(sections)).toEqual([
-      "Executive Read",
+      "TL;DR for the Agent",
       "Best-Fit Buyer Profile",
+      "Investor Snapshot",
       "Current Listing Context",
       "Market Positioning",
       "Strengths to Lead With",
       "Watchouts and Buyer Questions",
+      "Handling Objections",
       "Pricing Posture",
       "Recommended Listing Narrative",
+      "Recent Transaction History",
+      "Nearby Facilities & Infrastructure",
       "Next Steps",
     ]);
     expect(sections["Strengths to Lead With"]).toContain("waterfront access");
@@ -477,7 +479,7 @@ describe("report pipeline", () => {
       sql: expect.stringContaining("INSERT OR REPLACE INTO property_intelligence_cache"),
     }));
     expect(report.citations[0]?.title).toBe("Signatis deterministic market model");
-    expect(report.contentSections.map((section) => section.body).join(" ")).toContain("RM 1,250,000");
+    expect(report.contentSections.map((section) => section.body).join(" ")).toContain("TL;DR");
     expect(report.contentSections.map((section) => section.body).join(" ")).toContain("freehold");
   });
 

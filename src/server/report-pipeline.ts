@@ -3,7 +3,6 @@ import {
   buildReportDraft,
   buildReportPropertyKey,
   hasTargetAskingPrice,
-  matchesPropertyName,
   normalizeReportInput,
   validateReportInput,
   calculateMarketPricingStats,
@@ -29,6 +28,7 @@ import {
 import {
   createFallbackResearch,
   createReportResearchProvider,
+  extractUnitTypes,
   type ReportResearchProvider,
   type ReportResearchResult,
 } from "./report-research";
@@ -88,11 +88,9 @@ function sanitizeCitations(citations: ReportCitation[]): ReportCitation[] {
 
 function sanitizeComparableListings(
   listings: ReportComparableListing[] | undefined,
-  propertyName?: string,
 ): ReportComparableListing[] {
   return (listings ?? [])
     .filter((listing) => listing.title?.trim() && listing.url?.trim() && isHttpUrl(listing.url.trim()))
-    .filter((listing) => !propertyName || matchesPropertyName(propertyName, listing.title, true))
     .map((listing) => ({
       title: listing.title.trim(),
       sourceName: listing.sourceName?.trim(),
@@ -118,7 +116,7 @@ function validatedResearch(research: ReportResearchResult): ReportResearchResult
     pricingTrend: research.pricingTrend.trim() || "Balanced pricing discovery",
     sentiment: research.sentiment,
     sources: citations,
-    comparableListings: sanitizeComparableListings(research.comparableListings, research.propertyName),
+    comparableListings: sanitizeComparableListings(research.comparableListings),
   };
 }
 
@@ -142,7 +140,7 @@ function researchFromCache(cache: Awaited<ReturnType<typeof getPropertyIntellige
     pricingTrend: String(cache.payload.pricingTrend ?? "Balanced pricing discovery"),
     sentiment: (cache.payload.sentiment as Sentiment) ?? "neutral",
     sources: cache.citations,
-    comparableListings: sanitizeComparableListings(cache.payload.comparableListings as ReportComparableListing[] | undefined, cache.propertyName),
+    comparableListings: sanitizeComparableListings(cache.payload.comparableListings as ReportComparableListing[] | undefined),
   };
   return validatedResearch(candidate);
 }
@@ -167,17 +165,52 @@ function createIndexLookup(
   };
 }
 
+function countUniqueSourceLanes(sources: ReportCitation[]): number {
+  return new Set(sources.map((s) => s.sourceType).filter(Boolean)).size;
+}
+
 function buildAnalytics(research: ReportResearchResult, cacheStatus: ReportCacheStatus, freshnessDays: number, neighborhoodVibe?: NeighborhoodVibe): ReportAnalytics {
-  const comparableCount = sanitizeComparableListings(research.comparableListings, research.propertyName).length;
+  const comparableCount = sanitizeComparableListings(research.comparableListings).length;
   const sourceWeight = Math.min(0.22, research.sources.length * 0.035);
   const comparableWeight = comparableCount >= 2 ? 0.04 : comparableCount === 1 ? 0.01 : -0.05;
   const cacheWeight = cacheStatus === "fallback" ? -0.24 : cacheStatus === "hit" ? 0.08 : 0;
+  const transactionWeight = (research.transactedPrices?.length ?? 0) >= 2 ? 0.05 : (research.transactedPrices?.length ?? 0) === 1 ? 0.02 : 0;
+  const neighborhoodWeight = neighborhoodVibe ? 0.03 : 0;
+
+  // Data Completeness: how much source-backed info we found
+  const uniqueLanes = countUniqueSourceLanes(research.sources);
+  const dataCompleteness = clampConfidence(
+    0.30
+    + Math.min(0.27, research.sources.length * 0.03)
+    + (uniqueLanes / 5) * 0.18
+    + (comparableCount >= 3 ? 0.10 : comparableCount >= 1 ? 0.05 : 0)
+    - Math.min(0.15, freshnessDays * 0.01),
+  );
+
+  // Price Certainty: how many actual transacted prices we found vs. just asking prices
+  const realTxCount = (research.transactedPrices ?? []).filter((tx) => !tx.isAskingFallback).length;
+  const txBonus = realTxCount >= 3 ? 0.45 : realTxCount >= 2 ? 0.25 : realTxCount >= 1 ? 0.10 : 0;
+  const compBonus = realTxCount > 0 && comparableCount >= 3 ? 0.10 : 0;
+  const cacheBonus = cacheStatus === "hit" ? 0.05 : 0;
+  const priceCertainty = Math.min(0.95, clampConfidence(0.20 + txBonus + compBonus + cacheBonus));
+
   return {
     sentiment: research.sentiment,
     pricingTrend: research.pricingTrend,
-    confidenceScore: clampConfidence(0.68 + sourceWeight + comparableWeight + cacheWeight - Math.min(0.12, freshnessDays * 0.01)),
+    confidenceScore: clampConfidence(0.68 + sourceWeight + comparableWeight + cacheWeight + transactionWeight + neighborhoodWeight - Math.min(0.12, freshnessDays * 0.01)),
+    dataCompleteness,
+    priceCertainty,
     freshnessDays,
     neighborhoodVibe,
+    transactedPrices: research.transactedPrices?.map((tx) => ({
+      priceRm: tx.priceRm,
+      transactedDate: tx.transactedDate,
+      unitType: tx.unitType,
+      builtUpSqft: tx.builtUpSqft,
+      sourceName: tx.sourceName,
+      sourceUrl: tx.sourceUrl,
+      isAskingFallback: tx.isAskingFallback,
+    })),
   };
 }
 
@@ -200,6 +233,8 @@ function watchoutKeywords(text: string): string[] {
     ["parking or congestion", /parking|parkir|traffic|congestion|jam|sesak/i],
     ["safety or access expectations", /safety|security|safe|akses|access/i],
     ["developer track record", /developer track record|track record|pemaju/i],
+    ["upcoming construction nearby", /upcoming\s+(?:construction|development|project|MRT|LRT|highway)/i],
+    ["maintenance fee concerns", /maintenance\s+fee|sinking\s+fund|service\s+charge/i],
   ];
   return checks.filter(([, pattern]) => pattern.test(text)).map(([label]) => label);
 }
@@ -245,7 +280,8 @@ function comparableContextText(input: ReturnType<typeof normalizeReportInput>, l
       : comparablePriceRange(listings);
 
   if (stats.mode === "comparable_market") {
-    return `Active ${input.propertyName} listings show ${rangeStr} across ${stats.validPriceCount} cited listing${stats.validPriceCount === 1 ? "" : "s"}. The average asking price is ${priceAvgStr}${stats.averagePricePerSqft > 0 ? ` with an average of ${ppsAvgStr} where size data is available` : ""}. ${sample}. Treat these as directional market context for similar units at this development, not a valuation of a specific unit.`;
+    const medianStr = stats.medianPrice > 0 ? ` (median ${formatRm(stats.medianPrice)})` : "";
+    return `Active ${input.propertyName} listings show ${rangeStr} across ${stats.validPriceCount} cited listing${stats.validPriceCount === 1 ? "" : "s"}. The average asking price is ${priceAvgStr}${medianStr}${stats.averagePricePerSqft > 0 ? ` with an average of ${ppsAvgStr} where size data is available` : ""}. ${sample}. Treat these as directional market context for similar units at this development, not a valuation of a specific unit.`;
   }
 
   const targetPpsStr = stats.targetPricePerSqft > 0 ? `RM ${stats.targetPricePerSqft.toLocaleString("en-MY", { maximumFractionDigits: 0 })}/sqft` : "TBD";
@@ -262,41 +298,189 @@ function comparableContextText(input: ReturnType<typeof normalizeReportInput>, l
   return `Current listing signals include ${listings.length} cited active listing${listings.length === 1 ? "" : "s"} with ${comparablePriceRange(listings)}.${compStatsText} ${sample}. Treat these as directional asking context, not a valuation.`;
 }
 
+function objectionScripts(watchouts: string[], research: ReportResearchResult, input: ReturnType<typeof normalizeReportInput>): string {
+  const scripts: Record<string, string> = {
+    "noise or late-night disturbance":
+      `"I've reviewed resident feedback online, and noise from short-term rentals has been mentioned by some occupants. If this is a concern, we can prioritize units on higher floors or in quieter blocks, and we can confirm the current short-term rental policy with the management office before you commit."`,
+    "defects or maintenance follow-up":
+      `"Some residents have flagged maintenance follow-up in community forums. Every stratified property has service charge and management dynamics — we can review the latest AGM minutes and JMB financials together so you know exactly what you're buying into."`,
+    "parking or congestion":
+      `"Parking availability has come up in resident discussions. I'd recommend checking the assigned bay count for this specific unit and confirming visitor parking policies with the management office. If the buyer needs an extra bay, some owners do rent out unused spots."`,
+    "safety or access expectations":
+      `"Security and access are always top of mind for buyers. The development has gated access and security features typical for the area. I can arrange a viewing at different times of day so you can experience the access flow and security presence firsthand."`,
+    "developer track record":
+      `"Yes, this developer has a track record worth reviewing. I'd encourage looking at their completed projects to assess delivery quality and timeliness. The current building is standing and the legal framework is in place — what matters now is the management quality going forward."`,
+    "upcoming construction nearby":
+      `"There is upcoming infrastructure nearby which could affect both convenience and noise levels during construction. The long-term upside is better connectivity and potential capital appreciation. I can share the project timeline so you know what to expect and when."`,
+    "maintenance fee concerns":
+      `"Maintenance fees are a valid concern — they affect your holding cost and net yield. I can pull the exact per-square-foot rate and the sinking fund balance for this unit so we can compare it against similar developments in the area. A well-funded sinking fund is actually a positive signal."`,
+  };
+
+  const relevant = watchouts
+    .filter((w) => scripts[w])
+    .map((w) => `🗣️ When the investor asks about ${w}:\n${scripts[w]}`);
+
+  if (relevant.length === 0) {
+    // Generate a generic objection handler based on available data
+    const hasTransactions = (research.transactedPrices ?? []).length > 0;
+    const hasComparables = sanitizeComparableListings(research.comparableListings).length > 0;
+    const genericScripts: string[] = [];
+    if (!hasTransactions) {
+      genericScripts.push(`🗣️ When the investor asks about pricing accuracy:\n"We're working with asking prices from active listings because no recent transacted prices are publicly available for this development. That's actually common for newer projects in Malaysia — the data catches up over time. What I'd suggest is cross-referencing these asking prices with your own recent deal experience in the area to triangulate a fair offer."`);
+    }
+    if (hasComparables) {
+      genericScripts.push(`🗣️ When the investor compares this to another development:\n"The comparable listings in this report give us a directional range. Every unit is different — let me pull the specific floor plan, facing direction, and renovation condition so we can adjust the comparison fairly."`);
+    }
+    genericScripts.push(`🗣️ When the investor wants a guarantee:\n"I can't guarantee future prices, but I can guarantee you'll have the most complete picture available. This report surfaces both the strengths and the watchouts so you're making an informed decision — not a blind one."`);
+    return genericScripts.join("\n\n");
+  }
+
+  return relevant.join("\n\n");
+}
+
 function buildContentSections(
   research: ReportResearchResult,
   analytics: ReportAnalytics,
   input: ReturnType<typeof normalizeReportInput>,
-  limitedSourceCoverage = false,
+  _limitedSourceCoverage = false,
 ): ReportContentSection[] {
-  const intentLabel = input.askingPriceRm <= 0 && input.tenure === "unknown" ? "market review" : input.listingIntent === "sale" ? "sale" : input.listingIntent;
-  const tenureText = input.tenure === "unknown" ? "" : ` with ${input.tenure} tenure`;
-  const priceText = input.askingPriceRm > 0 ? ` and an asking price of ${formatRm(input.askingPriceRm)}` : ", with asking price to be confirmed";
   const officialSignals = sourceSnippets(research.sources, "official");
   const communitySignals = sourceSnippets(research.sources, "community");
   const comparableSignals = sourceSnippets(research.sources, "comparable_listing");
-  const comparableListings = sanitizeComparableListings(research.comparableListings, input.propertyName);
+  const comparableListings = sanitizeComparableListings(research.comparableListings);
   const officialText = joinSignals(officialSignals, "Official/listing source coverage is limited, so factual advantages should be verified before publication.");
   const communityText = joinSignals(communitySignals, "Community/user source coverage is limited, so buyer concerns should be checked during listing preparation.");
   const comparableText = comparableContextText(input, comparableListings);
   const comparableSignalText = joinSignals(comparableSignals, "Current listing source coverage is limited, so price positioning should be checked against active portals.");
   const watchouts = watchoutKeywords(`${research.summary} ${communityText}`);
-  const coverageText = limitedSourceCoverage
-    ? " This report uses limited source coverage in one lane, so conclusions should be treated as directional until more balanced citations are available."
-    : " Source coverage includes both official/listing and community/user signals.";
-  const sourceNote = input.sourceNotes ? ` Agent notes: ${input.sourceNotes}` : "";
   const watchoutDetails = watchouts.length
     ? `Buyer questions to prepare for: ${watchouts.join(", ")}.`
     : "Buyer questions to prepare for: maintenance expectations, access, surrounding activity, and how the property compares with nearby alternatives.";
 
-  return [
+  // Data-driven buyer profile
+  const buyerProfileParts: string[] = [];
+  const avgSqftValues = comparableListings
+    .map((c) => c.builtUpSqft)
+    .filter((s): s is number => typeof s === "number" && s > 0);
+  if (avgSqftValues.length >= 2) {
+    const meanSqft = avgSqftValues.reduce((a, b) => a + b, 0) / avgSqftValues.length;
+    buyerProfileParts.push(
+      meanSqft >= 1500
+        ? "Family-upsizers seeking spacious layouts"
+        : meanSqft >= 800
+          ? "Young professionals and small families"
+          : "Singles, couples, or investors targeting compact units",
+    );
+  }
+  if (analytics.neighborhoodVibe?.amenities?.length) {
+    const amenityTypes = analytics.neighborhoodVibe.amenities.map((a) => a.type);
+    if (amenityTypes.includes("transit")) buyerProfileParts.push("commuters relying on public transit");
+    if (amenityTypes.includes("school")) buyerProfileParts.push("families with school-age children");
+    if (amenityTypes.includes("mall") || amenityTypes.includes("grocery")) buyerProfileParts.push("buyers who value walkable retail access");
+  }
+  const pricesForProfile = comparableListings.map((c) => c.askingPriceRm).filter((p): p is number => typeof p === "number" && p > 0).sort((a, b) => a - b);
+  if (pricesForProfile.length >= 2) {
+    const medianProfile = pricesForProfile[Math.floor(pricesForProfile.length / 2)];
+    buyerProfileParts.push(
+      medianProfile >= 1_000_000
+        ? "affluent buyers comfortable above the RM 1M bracket"
+        : "value-conscious buyers in the mid-market segment",
+    );
+  }
+  const buyerProfileText = buyerProfileParts.length
+    ? `Likely best suited to ${buyerProfileParts.join("; ")}. For client conversations, frame the target buyer around these concrete use-case signals rather than generic lifestyle claims.`
+    : `Likely best suited to buyers who value the property type, location convenience, and lifestyle fit more than a purely lowest-price comparison. For client conversations, frame the target buyer around use-case fit, daily convenience, and tolerance for the watchouts noted below.`;
+
+  // Developer context for Strengths section
+  const developerContext = analytics.developerTrackRecord?.developerName
+    ? ` Developer context: ${analytics.developerTrackRecord.developerName} is the developer behind this project. Verify their track record for past delivery quality and buyer satisfaction before presenting to clients.`
+    : "";
+
+  // Community quote for Watchouts
+  const communitySnippets = sourceSnippets(research.sources, "community");
+  const communityQuote = communitySnippets.length > 0
+    ? ` Specific resident feedback includes: "${communitySnippets[0].slice(0, 120)}".`
+    : "";
+
+  // Pricing posture enrichment with actual numbers
+  let pricingPostureExtra = "";
+  if (analytics.medianPrice && analytics.medianPrice > 0 && input.askingPriceRm > 0) {
+    const diffPct = ((input.askingPriceRm - analytics.medianPrice) / analytics.medianPrice * 100);
+    const direction = diffPct > 0 ? "above" : "below";
+    pricingPostureExtra = ` The asking price sits ~${Math.abs(Number(diffPct.toFixed(1)))}% ${direction} the comparable median of ${formatRm(analytics.medianPrice)}.`;
+  }
+  const realTxCount = (analytics.transactedPrices ?? []).filter((tx) => !tx.isAskingFallback).length;
+  if (realTxCount > 0) {
+    pricingPostureExtra += " Recent transacted prices support the directional pricing narrative above.";
+  }
+
+  // Rental yield enrichment
+  let rentalYieldSection: ReportContentSection | null = null;
+  if (analytics.estimatedGrossYield !== undefined && analytics.averageRentalPrice !== undefined) {
+    const rentalCompCount = comparableListings.filter((c) => c.listingIntent === "rent").length;
+    const yieldPct = analytics.estimatedGrossYield.toFixed(1);
+    rentalYieldSection = {
+      title: "Rental Yield Context",
+      body: `Based on ${rentalCompCount} cited rental listing${rentalCompCount === 1 ? "" : "s"} averaging RM ${analytics.averageRentalPrice.toLocaleString("en-MY", { maximumFractionDigits: 0 })}/month, the estimated gross rental yield at the asking price is approximately ${yieldPct}%. This is ${analytics.estimatedGrossYield >= 5 ? "competitive" : analytics.estimatedGrossYield >= 3 ? "moderate" : "below typical investor thresholds"} for the Malaysian residential market. Always verify against actual tenanted units and factor in maintenance fees, vacancy, and management costs.`,
+    };
+  }
+
+  // Build TL;DR bullet box
+  const tldrPropertyLine = `${input.propertyType}, ${input.bedrooms || "?"}+${input.bathrooms || "?"}, ${input.sqft > 0 ? `${input.sqft.toLocaleString("en-MY")} sqft` : "size TBC"}, ${input.tenure !== "unknown" ? input.tenure : "tenure TBC"}.`;
+  const tldrPriceLine = comparableListings.length > 0
+    ? `Active listings in the area range ${comparablePriceRange(comparableListings)}.${realTxCount === 0 ? " However, zero recent transactions means this is based on asking prices only — treat as directional." : realTxCount === 1 ? " One recent transaction provides some price anchoring." : ` ${realTxCount} recent transactions provide pricing support.`}`
+    : "No comparable active listings were found. Verify pricing against your own recent deal experience.";
+  const tldrPerk = analytics.neighborhoodVibe?.amenities?.length
+    ? `Nearby ${analytics.neighborhoodVibe.amenities.slice(0, 3).map((a) => a.name).join(", ")}${analytics.neighborhoodVibe.amenities.length > 3 ? ", and more" : ""} — ${analytics.neighborhoodVibe.label.toLowerCase()}.`
+    : officialSignals.length > 0
+      ? `Source-backed positives include: ${officialSignals.slice(0, 2).join("; ")}.`
+      : "Verify key selling points before presenting to clients.";
+  const tldrRisk = watchouts.length > 0
+    ? `${input.propertyName} has watchouts around ${watchouts.slice(0, 3).join(", ")}. ${communityQuote}`
+    : "No specific red flags surfaced in community sources, but always verify maintenance, access, and noise during a physical viewing.";
+  const tldrEdge = watchouts.length > 0
+    ? `Lead with the location and lifestyle perks, but preempt the ${watchouts[0]} concern with the objection script provided in the Handling Objections section below.`
+    : "Lead with verified location and lifestyle advantages. Use the Best-Fit Buyer Profile to target the right prospect segment.";
+
+  const tldrBody = `📌 TL;DR for the Agent\n\nProperty: ${tldrPropertyLine}\n\nMarket Price: ${tldrPriceLine}\n\nBiggest Perk: ${tldrPerk}\n\nBiggest Risk: ${tldrRisk}\n\nAgent's Edge: ${tldrEdge}`;
+
+  // Build Investor Snapshot (sale intent only)
+  let investorSnapshot: ReportContentSection | null = null;
+  if (input.listingIntent === "sale" || (input.listingIntent as string) === "sale") {
+    const yieldLine = analytics.estimatedGrossYield !== undefined
+      ? `Estimated Rental Yield: Based on asking price of ${formatRm(input.askingPriceRm > 0 ? input.askingPriceRm : (analytics.medianPrice ?? 0))}, estimated rental of RM ${(analytics.averageRentalPrice ?? 0).toLocaleString("en-MY", { maximumFractionDigits: 0 })}/month = ${analytics.estimatedGrossYield.toFixed(1)}% gross yield.`
+      : "Estimated Rental Yield: Insufficient rental comparable data to estimate yield. Verify against area rental listings before presenting.";
+    const feeLine = analytics.averageMaintenanceFeePsf !== undefined
+      ? `Maintenance Fee: ~RM ${analytics.averageMaintenanceFeePsf.toFixed(2)}/sqft based on cited comparables. Verify exact rate with management office.`
+      : "Maintenance Fee: Not cited in available sources — verify before presenting.";
+    const riskLine = watchouts.length > 0
+      ? `Capital Appreciation Risk: The flagged watchouts (${watchouts.slice(0, 2).join(", ")}) may suppress price growth compared to neighboring developments. Investor strategy: Buy for yield (rental income), not for flipping.`
+      : "Capital Appreciation Risk: No major red flags surfaced. Standard market risk applies — verify developer track record and area supply pipeline.";
+
+    investorSnapshot = {
+      title: "Investor Snapshot",
+      body: `💰 Investor Snapshot\n\n${yieldLine}\n\n${feeLine}\n\n${riskLine}`,
+    };
+  }
+
+  // Build Handling Objections
+  const objectionBody = objectionScripts(watchouts, research, input);
+
+  // Price certainty label for pricing posture
+  const dataCompPct = Math.round(analytics.dataCompleteness * 100);
+  const priceCertLabel = analytics.priceCertainty >= 0.60 ? "High" : analytics.priceCertainty >= 0.35 ? "Moderate" : "Low";
+  const priceCertNote = realTxCount === 0 ? " (No recent transactions found — pricing based on asking prices only)" : "";
+
+  const sections: ReportContentSection[] = [
     {
-      title: "Executive Read",
-      body: `${research.summary} This is a client-facing analyst view for ${input.propertyName}, positioned for ${intentLabel}${tenureText}${priceText}.${coverageText} ${sourceNote}`.trim(),
+      title: "TL;DR for the Agent",
+      body: tldrBody,
     },
     {
       title: "Best-Fit Buyer Profile",
-      body: `Likely best suited to buyers who value the property type, location convenience, and lifestyle fit more than a purely lowest-price comparison. For client conversations, frame the target buyer around use-case fit, daily convenience, and tolerance for the watchouts noted below.`,
+      body: buyerProfileText,
     },
+    ...(investorSnapshot ? [investorSnapshot] : []),
     {
       title: "Current Listing Context",
       body: comparableText,
@@ -307,27 +491,70 @@ function buildContentSections(
     },
     {
       title: "Strengths to Lead With",
-      body: `Lead with source-backed advantages, not exaggerated claims. Official/listing signals indicate: ${officialText}`,
+      body: `Lead with source-backed advantages, not exaggerated claims. Official/listing signals indicate: ${officialText}${developerContext}`,
     },
     {
       title: "Watchouts and Buyer Questions",
-      body: `${communityText} ${watchoutDetails} Keep phrasing neutral: present these as points to clarify rather than defects unless verified directly.`,
+      body: `${communityText}${communityQuote} ${watchoutDetails} Keep phrasing neutral: present these as points to clarify rather than defects unless verified directly.`,
+    },
+    {
+      title: "Handling Objections",
+      body: objectionBody,
     },
     {
       title: "Pricing Posture",
       body: hasTargetAskingPrice(input)
-        ? `${analytics.pricingTrend}. With ${Math.round(analytics.confidenceScore * 100)}% confidence and ${research.sources.length} cited sources, use a measured pricing posture: explain the asking position with current listing signals, avoid overclaiming scarcity or exact valuation, and leave room to respond if buyer feedback clusters around the watchouts.`
-        : `${analytics.pricingTrend}. With ${Math.round(analytics.confidenceScore * 100)}% confidence and ${research.sources.length} cited sources, frame pricing around active ${input.propertyName} listings and similar units in the area rather than a specific unit ask. Use the cited listing range as directional market context, avoid overclaiming exact valuation, and leave room to respond if buyer feedback clusters around the watchouts.`,
+        ? `${analytics.pricingTrend}. Data Completeness: ${dataCompPct}% (${research.sources.length} sources). Price Certainty: ${priceCertLabel}${priceCertNote}. Use a measured pricing posture: explain the asking position with current listing signals, avoid overclaiming scarcity or exact valuation, and leave room to respond if buyer feedback clusters around the watchouts.${pricingPostureExtra}`
+        : `${analytics.pricingTrend}. Data Completeness: ${dataCompPct}% (${research.sources.length} sources). Price Certainty: ${priceCertLabel}${priceCertNote}. Frame pricing around active ${input.propertyName} listings and similar units in the area rather than a specific unit ask. Use the cited listing range as directional market context, avoid overclaiming exact valuation, and leave room to respond if buyer feedback clusters around the watchouts.${pricingPostureExtra}`,
     },
     {
       title: "Recommended Listing Narrative",
       body: `Use a client-safe narrative: highlight the verified lifestyle and location strengths first, then acknowledge practical buyer questions transparently. The tone should be balanced, evidence-led, and reassuring rather than hard-sell or defensive.`,
     },
     {
+      title: "Recent Transaction History",
+      body: research.transactedPrices && research.transactedPrices.length > 0
+        ? `Found ${research.transactedPrices.length} recent price record${research.transactedPrices.length === 1 ? "" : "s"}: ${research.transactedPrices.map((tx) => {
+            const source = tx.sourceName ? ` via ${tx.sourceName}` : "";
+            const date = tx.transactedDate ? ` (${tx.transactedDate})` : "";
+            const fallback = tx.isAskingFallback ? " [asking price]" : "";
+            return `RM ${tx.priceRm.toLocaleString("en-MY", { maximumFractionDigits: 0 })}${date}${fallback}${source}`;
+          }).join("; ")}. These provide directional context for pricing discussions.`
+        : "No recent transaction data was available for this development. The pricing analysis relies on current asking prices from active listings. Treat these as directional market context, not a valuation of a specific unit.",
+    },
+    {
+      title: "Nearby Facilities & Infrastructure",
+      body: analytics.neighborhoodVibe?.amenities?.length
+        ? (() => {
+            const facilityLines = analytics.neighborhoodVibe.amenities.map((a) => {
+              const rating = a.rating ? ` (${a.rating.toFixed(1)}★)` : "";
+              const distance = a.distance ? ` — ${a.distance}` : "";
+              return `${a.name}${rating}${distance}`;
+            }).join(", ");
+            const infraLines = analytics.upcomingInfrastructure && analytics.upcomingInfrastructure.length > 0
+              ? ` Upcoming infrastructure: ${analytics.upcomingInfrastructure.map((i) => {
+                  const year = i.completionYear ? ` (by ${i.completionYear})` : "";
+                  const dist = i.distanceKm ? ` ~${i.distanceKm}km` : "";
+                  return `${i.name}${dist}${year}`;
+                }).join(", ")}.`
+              : "";
+            return `Nearby facilities include: ${facilityLines}.${infraLines} This neighborhood context helps buyers gauge daily convenience and future accessibility.`;
+          })()
+        : "Neighborhood facility and infrastructure data is currently limited. Verify nearby essentials (schools, hospitals, transit) before presenting to clients.",
+    },
+    {
       title: "Next Steps",
       body: `Before publishing, verify current asking price, tenure, unit facts, photos, facilities, maintenance details, active competing listings, and any recurring community concerns. Prepare answers for the watchouts, update listing copy with only source-backed claims, and refresh the report when new official, community, or listing evidence appears.`,
     },
   ];
+
+  if (rentalYieldSection) {
+    // Insert rental yield after Market Positioning
+    const marketPosIndex = sections.findIndex((s) => s.title === "Market Positioning");
+    sections.splice(marketPosIndex + 1, 0, rentalYieldSection);
+  }
+
+  return sections;
 }
 
 function sentimentSummary(sentiment: Sentiment): string {
@@ -403,7 +630,7 @@ export async function generatePropertyReport(
             summary: research.summary,
             pricingTrend: research.pricingTrend,
             sentiment: research.sentiment,
-            comparableListings: sanitizeComparableListings(research.comparableListings, research.propertyName),
+            comparableListings: sanitizeComparableListings(research.comparableListings),
           },
           citations: research.sources,
           refreshedAt: now.toISOString(),
@@ -427,14 +654,54 @@ export async function generatePropertyReport(
   // Fetch neighborhood vibe async
   let vibe: NeighborhoodVibe | undefined;
   try {
-    vibe = await fetchNeighborhoodVibe(normalized.address);
+    vibe = await fetchNeighborhoodVibe(normalized.address, undefined, research.neighborhoodContext);
   } catch (err) {
     console.error("Failed to fetch neighborhood vibe:", err);
   }
 
   const citations = sanitizeCitations(research.sources);
-  const comparableListings = sanitizeComparableListings(research.comparableListings, normalized.propertyName);
+  const comparableListings = sanitizeComparableListings(research.comparableListings);
   const analytics = buildAnalytics(research, cacheStatus, cacheStatus === "hit" ? cachedFreshnessDays : 0, vibe);
+
+  // Enrich analytics with additional computed data
+  const pricingStats = calculateMarketPricingStats({
+    inputSnapshot: normalized,
+    comparableListings,
+  });
+  analytics.medianPrice = pricingStats.medianPrice;
+  analytics.medianPricePerSqft = pricingStats.medianPricePerSqft;
+  analytics.averageMaintenanceFeePsf = pricingStats.averageMaintenanceFeePsf;
+
+  // Populate upcoming infrastructure from research neighborhood context
+  if (research.neighborhoodContext?.infrastructure?.length) {
+    analytics.upcomingInfrastructure = research.neighborhoodContext.infrastructure.map((i) => ({
+      name: i.name,
+      type: i.type as "mrt" | "lrt" | "highway" | "bus_rapid_transit" | "other",
+      distanceKm: i.distanceKm,
+      completionYear: i.completionYear,
+      status: i.status,
+      sourceUrl: i.sourceUrl,
+    }));
+  }
+
+  // Extract unit type variations from comparable listings
+  if (comparableListings.length > 0) {
+    analytics.unitTypeVariations = extractUnitTypes(comparableListings);
+  }
+
+  // Populate developer track record if research identified a developer
+  if (research.developerName) {
+    analytics.developerTrackRecord = {
+      developerName: research.developerName,
+    };
+  }
+
+  // Populate rental yield from pricing stats
+  if (pricingStats.estimatedGrossYield !== undefined) {
+    analytics.estimatedGrossYield = pricingStats.estimatedGrossYield;
+    analytics.averageRentalPrice = pricingStats.averageRentalPrice;
+  }
+
   const contentSections = buildContentSections(research, analytics, normalized, limitedSourceCoverage);
   const draft = buildReportDraft(normalized);
   const report: PropertyReport = {

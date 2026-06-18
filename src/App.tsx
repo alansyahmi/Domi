@@ -81,6 +81,8 @@ function buildLocalReport(input: PropertyReportInput, agentId: string): Property
       sentiment: randomSentiment,
       pricingTrend: draft.marketSignal,
       confidenceScore: Math.min(clampConfidence(confidenceVariation), 0.92),
+      dataCompleteness: 0.72,
+      priceCertainty: 0.30,
       freshnessDays: 0,
     },
     citations: [
