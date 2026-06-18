@@ -22,9 +22,14 @@ function Root() {
   if (authMode === null) {
     return (
       <main className="min-h-screen grid place-items-center bg-[#f7f9fb]">
-        <div className="card p-8 text-center">
-          <div className="brand-mark mx-auto mb-4">S</div>
-          <p className="text-slate-600">Loading Signatis workspace...</p>
+        <div className="card p-10 text-center landing-card-shadow border border-slate-200/80 max-w-sm w-full mx-4 animate-pulse">
+          <div className="hci-loader-container">
+            <div className="hci-loader-logo">S</div>
+            <div>
+              <p className="text-slate-600 font-bold m-0">Loading Signatis workspace...</p>
+              <div className="hci-loading-bar" />
+            </div>
+          </div>
         </div>
       </main>
     );

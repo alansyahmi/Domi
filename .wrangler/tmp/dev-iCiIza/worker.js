@@ -33,14 +33,14 @@ var __publicField = (obj, key, value) => {
   return value;
 };
 
-// .wrangler/tmp/bundle-ojOm0Q/strip-cf-connecting-ip-header.js
+// .wrangler/tmp/bundle-BQuykD/strip-cf-connecting-ip-header.js
 function stripCfConnectingIPHeader(input, init) {
   const request = new Request(input, init);
   request.headers.delete("CF-Connecting-IP");
   return request;
 }
 var init_strip_cf_connecting_ip_header = __esm({
-  ".wrangler/tmp/bundle-ojOm0Q/strip-cf-connecting-ip-header.js"() {
+  ".wrangler/tmp/bundle-BQuykD/strip-cf-connecting-ip-header.js"() {
     __name(stripCfConnectingIPHeader, "stripCfConnectingIPHeader");
     globalThis.fetch = new Proxy(globalThis.fetch, {
       apply(target, thisArg, argArray) {
@@ -1416,14 +1416,14 @@ var require_p_retry = __commonJS({
   }
 });
 
-// .wrangler/tmp/bundle-ojOm0Q/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-BQuykD/middleware-loader.entry.ts
 init_strip_cf_connecting_ip_header();
 init_modules_watch_stub();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
 init_performance2();
 
-// .wrangler/tmp/bundle-ojOm0Q/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-BQuykD/middleware-insertion-facade.js
 init_strip_cf_connecting_ip_header();
 init_modules_watch_stub();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
@@ -1498,21 +1498,6 @@ function concat(...buffers) {
 __name(concat, "concat");
 
 // node_modules/jose/dist/browser/runtime/base64url.js
-var encodeBase64 = /* @__PURE__ */ __name((input) => {
-  let unencoded = input;
-  if (typeof unencoded === "string") {
-    unencoded = encoder.encode(unencoded);
-  }
-  const CHUNK_SIZE = 32768;
-  const arr = [];
-  for (let i = 0; i < unencoded.length; i += CHUNK_SIZE) {
-    arr.push(String.fromCharCode.apply(null, unencoded.subarray(i, i + CHUNK_SIZE)));
-  }
-  return btoa(arr.join(""));
-}, "encodeBase64");
-var encode = /* @__PURE__ */ __name((input) => {
-  return encodeBase64(input).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-}, "encode");
 var decodeBase64 = /* @__PURE__ */ __name((encoded) => {
   const binary = atob(encoded);
   const bytes = new Uint8Array(binary.length);
@@ -2686,226 +2671,309 @@ async function jwtVerify(jwt, key, options) {
 }
 __name(jwtVerify, "jwtVerify");
 
-// node_modules/jose/dist/browser/jws/compact/sign.js
+// node_modules/jose/dist/browser/jwks/local.js
+init_strip_cf_connecting_ip_header();
+init_modules_watch_stub();
+init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
+init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
+init_performance2();
+function getKtyFromAlg(alg) {
+  switch (typeof alg === "string" && alg.slice(0, 2)) {
+    case "RS":
+    case "PS":
+      return "RSA";
+    case "ES":
+      return "EC";
+    case "Ed":
+      return "OKP";
+    default:
+      throw new JOSENotSupported('Unsupported "alg" value for a JSON Web Key Set');
+  }
+}
+__name(getKtyFromAlg, "getKtyFromAlg");
+function isJWKSLike(jwks) {
+  return jwks && typeof jwks === "object" && Array.isArray(jwks.keys) && jwks.keys.every(isJWKLike);
+}
+__name(isJWKSLike, "isJWKSLike");
+function isJWKLike(key) {
+  return isObject(key);
+}
+__name(isJWKLike, "isJWKLike");
+function clone(obj) {
+  if (typeof structuredClone === "function") {
+    return structuredClone(obj);
+  }
+  return JSON.parse(JSON.stringify(obj));
+}
+__name(clone, "clone");
+var LocalJWKSet = class {
+  constructor(jwks) {
+    this._cached = /* @__PURE__ */ new WeakMap();
+    if (!isJWKSLike(jwks)) {
+      throw new JWKSInvalid("JSON Web Key Set malformed");
+    }
+    this._jwks = clone(jwks);
+  }
+  async getKey(protectedHeader, token) {
+    const { alg, kid } = { ...protectedHeader, ...token?.header };
+    const kty = getKtyFromAlg(alg);
+    const candidates = this._jwks.keys.filter((jwk2) => {
+      let candidate = kty === jwk2.kty;
+      if (candidate && typeof kid === "string") {
+        candidate = kid === jwk2.kid;
+      }
+      if (candidate && typeof jwk2.alg === "string") {
+        candidate = alg === jwk2.alg;
+      }
+      if (candidate && typeof jwk2.use === "string") {
+        candidate = jwk2.use === "sig";
+      }
+      if (candidate && Array.isArray(jwk2.key_ops)) {
+        candidate = jwk2.key_ops.includes("verify");
+      }
+      if (candidate) {
+        switch (alg) {
+          case "ES256":
+            candidate = jwk2.crv === "P-256";
+            break;
+          case "ES256K":
+            candidate = jwk2.crv === "secp256k1";
+            break;
+          case "ES384":
+            candidate = jwk2.crv === "P-384";
+            break;
+          case "ES512":
+            candidate = jwk2.crv === "P-521";
+            break;
+          case "Ed25519":
+            candidate = jwk2.crv === "Ed25519";
+            break;
+          case "EdDSA":
+            candidate = jwk2.crv === "Ed25519" || jwk2.crv === "Ed448";
+            break;
+        }
+      }
+      return candidate;
+    });
+    const { 0: jwk, length } = candidates;
+    if (length === 0) {
+      throw new JWKSNoMatchingKey();
+    }
+    if (length !== 1) {
+      const error3 = new JWKSMultipleMatchingKeys();
+      const { _cached } = this;
+      error3[Symbol.asyncIterator] = async function* () {
+        for (const jwk2 of candidates) {
+          try {
+            yield await importWithAlgCache(_cached, jwk2, alg);
+          } catch {
+          }
+        }
+      };
+      throw error3;
+    }
+    return importWithAlgCache(this._cached, jwk, alg);
+  }
+};
+__name(LocalJWKSet, "LocalJWKSet");
+async function importWithAlgCache(cache, jwk, alg) {
+  const cached = cache.get(jwk) || cache.set(jwk, {}).get(jwk);
+  if (cached[alg] === void 0) {
+    const key = await importJWK({ ...jwk, ext: true }, alg);
+    if (key instanceof Uint8Array || key.type !== "public") {
+      throw new JWKSInvalid("JSON Web Key Set members must be public keys");
+    }
+    cached[alg] = key;
+  }
+  return cached[alg];
+}
+__name(importWithAlgCache, "importWithAlgCache");
+function createLocalJWKSet(jwks) {
+  const set = new LocalJWKSet(jwks);
+  const localJWKSet = /* @__PURE__ */ __name(async (protectedHeader, token) => set.getKey(protectedHeader, token), "localJWKSet");
+  Object.defineProperties(localJWKSet, {
+    jwks: {
+      value: () => clone(set._jwks),
+      enumerable: true,
+      configurable: false,
+      writable: false
+    }
+  });
+  return localJWKSet;
+}
+__name(createLocalJWKSet, "createLocalJWKSet");
+
+// node_modules/jose/dist/browser/jwks/remote.js
 init_strip_cf_connecting_ip_header();
 init_modules_watch_stub();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
 init_performance2();
 
-// node_modules/jose/dist/browser/jws/flattened/sign.js
+// node_modules/jose/dist/browser/runtime/fetch_jwks.js
 init_strip_cf_connecting_ip_header();
 init_modules_watch_stub();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
 init_performance2();
+var fetchJwks = /* @__PURE__ */ __name(async (url, timeout, options) => {
+  let controller;
+  let id;
+  let timedOut = false;
+  if (typeof AbortController === "function") {
+    controller = new AbortController();
+    id = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeout);
+  }
+  const response = await fetch(url.href, {
+    signal: controller ? controller.signal : void 0,
+    redirect: "manual",
+    headers: options.headers
+  }).catch((err) => {
+    if (timedOut)
+      throw new JWKSTimeout();
+    throw err;
+  });
+  if (id !== void 0)
+    clearTimeout(id);
+  if (response.status !== 200) {
+    throw new JOSEError("Expected 200 OK from the JSON Web Key Set HTTP response");
+  }
+  try {
+    return await response.json();
+  } catch {
+    throw new JOSEError("Failed to parse the JSON Web Key Set HTTP response as JSON");
+  }
+}, "fetchJwks");
+var fetch_jwks_default = fetchJwks;
 
-// node_modules/jose/dist/browser/runtime/sign.js
-init_strip_cf_connecting_ip_header();
-init_modules_watch_stub();
-init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
-init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
-init_performance2();
-var sign = /* @__PURE__ */ __name(async (alg, key, data) => {
-  const cryptoKey = await getCryptoKey(alg, key, "sign");
-  check_key_length_default(alg, cryptoKey);
-  const signature = await webcrypto_default.subtle.sign(subtleDsa(alg, cryptoKey.algorithm), cryptoKey, data);
-  return new Uint8Array(signature);
-}, "sign");
-var sign_default = sign;
-
-// node_modules/jose/dist/browser/jws/flattened/sign.js
-var FlattenedSign = class {
-  constructor(payload) {
-    if (!(payload instanceof Uint8Array)) {
-      throw new TypeError("payload must be an instance of Uint8Array");
-    }
-    this._payload = payload;
+// node_modules/jose/dist/browser/jwks/remote.js
+function isCloudflareWorkers() {
+  return typeof WebSocketPair !== "undefined" || typeof navigator !== "undefined" && true || typeof EdgeRuntime !== "undefined" && EdgeRuntime === "vercel";
+}
+__name(isCloudflareWorkers, "isCloudflareWorkers");
+var USER_AGENT;
+if (typeof navigator === "undefined" || !"Cloudflare-Workers"?.startsWith?.("Mozilla/5.0 ")) {
+  const NAME = "jose";
+  const VERSION2 = "v5.10.0";
+  USER_AGENT = `${NAME}/${VERSION2}`;
+}
+var jwksCache = Symbol();
+function isFreshJwksCache(input, cacheMaxAge) {
+  if (typeof input !== "object" || input === null) {
+    return false;
   }
-  setProtectedHeader(protectedHeader) {
-    if (this._protectedHeader) {
-      throw new TypeError("setProtectedHeader can only be called once");
-    }
-    this._protectedHeader = protectedHeader;
-    return this;
+  if (!("uat" in input) || typeof input.uat !== "number" || Date.now() - input.uat >= cacheMaxAge) {
+    return false;
   }
-  setUnprotectedHeader(unprotectedHeader) {
-    if (this._unprotectedHeader) {
-      throw new TypeError("setUnprotectedHeader can only be called once");
-    }
-    this._unprotectedHeader = unprotectedHeader;
-    return this;
+  if (!("jwks" in input) || !isObject(input.jwks) || !Array.isArray(input.jwks.keys) || !Array.prototype.every.call(input.jwks.keys, isObject)) {
+    return false;
   }
-  async sign(key, options) {
-    if (!this._protectedHeader && !this._unprotectedHeader) {
-      throw new JWSInvalid("either setProtectedHeader or setUnprotectedHeader must be called before #sign()");
+  return true;
+}
+__name(isFreshJwksCache, "isFreshJwksCache");
+var RemoteJWKSet = class {
+  constructor(url, options) {
+    if (!(url instanceof URL)) {
+      throw new TypeError("url must be an instance of URL");
     }
-    if (!is_disjoint_default(this._protectedHeader, this._unprotectedHeader)) {
-      throw new JWSInvalid("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
-    }
-    const joseHeader = {
-      ...this._protectedHeader,
-      ...this._unprotectedHeader
-    };
-    const extensions = validate_crit_default(JWSInvalid, /* @__PURE__ */ new Map([["b64", true]]), options?.crit, this._protectedHeader, joseHeader);
-    let b64 = true;
-    if (extensions.has("b64")) {
-      b64 = this._protectedHeader.b64;
-      if (typeof b64 !== "boolean") {
-        throw new JWSInvalid('The "b64" (base64url-encode payload) Header Parameter must be a boolean');
+    this._url = new URL(url.href);
+    this._options = { agent: options?.agent, headers: options?.headers };
+    this._timeoutDuration = typeof options?.timeoutDuration === "number" ? options?.timeoutDuration : 5e3;
+    this._cooldownDuration = typeof options?.cooldownDuration === "number" ? options?.cooldownDuration : 3e4;
+    this._cacheMaxAge = typeof options?.cacheMaxAge === "number" ? options?.cacheMaxAge : 6e5;
+    if (options?.[jwksCache] !== void 0) {
+      this._cache = options?.[jwksCache];
+      if (isFreshJwksCache(options?.[jwksCache], this._cacheMaxAge)) {
+        this._jwksTimestamp = this._cache.uat;
+        this._local = createLocalJWKSet(this._cache.jwks);
       }
     }
-    const { alg } = joseHeader;
-    if (typeof alg !== "string" || !alg) {
-      throw new JWSInvalid('JWS "alg" (Algorithm) Header Parameter missing or invalid');
+  }
+  coolingDown() {
+    return typeof this._jwksTimestamp === "number" ? Date.now() < this._jwksTimestamp + this._cooldownDuration : false;
+  }
+  fresh() {
+    return typeof this._jwksTimestamp === "number" ? Date.now() < this._jwksTimestamp + this._cacheMaxAge : false;
+  }
+  async getKey(protectedHeader, token) {
+    if (!this._local || !this.fresh()) {
+      await this.reload();
     }
-    checkKeyTypeWithJwk(alg, key, "sign");
-    let payload = this._payload;
-    if (b64) {
-      payload = encoder.encode(encode(payload));
+    try {
+      return await this._local(protectedHeader, token);
+    } catch (err) {
+      if (err instanceof JWKSNoMatchingKey) {
+        if (this.coolingDown() === false) {
+          await this.reload();
+          return this._local(protectedHeader, token);
+        }
+      }
+      throw err;
     }
-    let protectedHeader;
-    if (this._protectedHeader) {
-      protectedHeader = encoder.encode(encode(JSON.stringify(this._protectedHeader)));
-    } else {
-      protectedHeader = encoder.encode("");
+  }
+  async reload() {
+    if (this._pendingFetch && isCloudflareWorkers()) {
+      this._pendingFetch = void 0;
     }
-    const data = concat(protectedHeader, encoder.encode("."), payload);
-    const signature = await sign_default(alg, key, data);
-    const jws = {
-      signature: encode(signature),
-      payload: ""
-    };
-    if (b64) {
-      jws.payload = decoder.decode(payload);
+    const headers = new Headers(this._options.headers);
+    if (USER_AGENT && !headers.has("User-Agent")) {
+      headers.set("User-Agent", USER_AGENT);
+      this._options.headers = Object.fromEntries(headers.entries());
     }
-    if (this._unprotectedHeader) {
-      jws.header = this._unprotectedHeader;
-    }
-    if (this._protectedHeader) {
-      jws.protected = decoder.decode(protectedHeader);
-    }
-    return jws;
+    this._pendingFetch || (this._pendingFetch = fetch_jwks_default(this._url, this._timeoutDuration, this._options).then((json3) => {
+      this._local = createLocalJWKSet(json3);
+      if (this._cache) {
+        this._cache.uat = Date.now();
+        this._cache.jwks = json3;
+      }
+      this._jwksTimestamp = Date.now();
+      this._pendingFetch = void 0;
+    }).catch((err) => {
+      this._pendingFetch = void 0;
+      throw err;
+    }));
+    await this._pendingFetch;
   }
 };
-__name(FlattenedSign, "FlattenedSign");
-
-// node_modules/jose/dist/browser/jws/compact/sign.js
-var CompactSign = class {
-  constructor(payload) {
-    this._flattened = new FlattenedSign(payload);
-  }
-  setProtectedHeader(protectedHeader) {
-    this._flattened.setProtectedHeader(protectedHeader);
-    return this;
-  }
-  async sign(key, options) {
-    const jws = await this._flattened.sign(key, options);
-    if (jws.payload === void 0) {
-      throw new TypeError("use the flattened module for creating JWS with b64: false");
+__name(RemoteJWKSet, "RemoteJWKSet");
+function createRemoteJWKSet(url, options) {
+  const set = new RemoteJWKSet(url, options);
+  const remoteJWKSet = /* @__PURE__ */ __name(async (protectedHeader, token) => set.getKey(protectedHeader, token), "remoteJWKSet");
+  Object.defineProperties(remoteJWKSet, {
+    coolingDown: {
+      get: () => set.coolingDown(),
+      enumerable: true,
+      configurable: false
+    },
+    fresh: {
+      get: () => set.fresh(),
+      enumerable: true,
+      configurable: false
+    },
+    reload: {
+      value: () => set.reload(),
+      enumerable: true,
+      configurable: false,
+      writable: false
+    },
+    reloading: {
+      get: () => !!set._pendingFetch,
+      enumerable: true,
+      configurable: false
+    },
+    jwks: {
+      value: () => set._local?.jwks(),
+      enumerable: true,
+      configurable: false,
+      writable: false
     }
-    return `${jws.protected}.${jws.payload}.${jws.signature}`;
-  }
-};
-__name(CompactSign, "CompactSign");
-
-// node_modules/jose/dist/browser/jwt/sign.js
-init_strip_cf_connecting_ip_header();
-init_modules_watch_stub();
-init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
-init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
-init_performance2();
-
-// node_modules/jose/dist/browser/jwt/produce.js
-init_strip_cf_connecting_ip_header();
-init_modules_watch_stub();
-init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
-init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
-init_performance2();
-function validateInput(label, input) {
-  if (!Number.isFinite(input)) {
-    throw new TypeError(`Invalid ${label} input`);
-  }
-  return input;
+  });
+  return remoteJWKSet;
 }
-__name(validateInput, "validateInput");
-var ProduceJWT = class {
-  constructor(payload = {}) {
-    if (!isObject(payload)) {
-      throw new TypeError("JWT Claims Set MUST be an object");
-    }
-    this._payload = payload;
-  }
-  setIssuer(issuer) {
-    this._payload = { ...this._payload, iss: issuer };
-    return this;
-  }
-  setSubject(subject) {
-    this._payload = { ...this._payload, sub: subject };
-    return this;
-  }
-  setAudience(audience) {
-    this._payload = { ...this._payload, aud: audience };
-    return this;
-  }
-  setJti(jwtId) {
-    this._payload = { ...this._payload, jti: jwtId };
-    return this;
-  }
-  setNotBefore(input) {
-    if (typeof input === "number") {
-      this._payload = { ...this._payload, nbf: validateInput("setNotBefore", input) };
-    } else if (input instanceof Date) {
-      this._payload = { ...this._payload, nbf: validateInput("setNotBefore", epoch_default(input)) };
-    } else {
-      this._payload = { ...this._payload, nbf: epoch_default(/* @__PURE__ */ new Date()) + secs_default(input) };
-    }
-    return this;
-  }
-  setExpirationTime(input) {
-    if (typeof input === "number") {
-      this._payload = { ...this._payload, exp: validateInput("setExpirationTime", input) };
-    } else if (input instanceof Date) {
-      this._payload = { ...this._payload, exp: validateInput("setExpirationTime", epoch_default(input)) };
-    } else {
-      this._payload = { ...this._payload, exp: epoch_default(/* @__PURE__ */ new Date()) + secs_default(input) };
-    }
-    return this;
-  }
-  setIssuedAt(input) {
-    if (typeof input === "undefined") {
-      this._payload = { ...this._payload, iat: epoch_default(/* @__PURE__ */ new Date()) };
-    } else if (input instanceof Date) {
-      this._payload = { ...this._payload, iat: validateInput("setIssuedAt", epoch_default(input)) };
-    } else if (typeof input === "string") {
-      this._payload = {
-        ...this._payload,
-        iat: validateInput("setIssuedAt", epoch_default(/* @__PURE__ */ new Date()) + secs_default(input))
-      };
-    } else {
-      this._payload = { ...this._payload, iat: validateInput("setIssuedAt", input) };
-    }
-    return this;
-  }
-};
-__name(ProduceJWT, "ProduceJWT");
-
-// node_modules/jose/dist/browser/jwt/sign.js
-var SignJWT = class extends ProduceJWT {
-  setProtectedHeader(protectedHeader) {
-    this._protectedHeader = protectedHeader;
-    return this;
-  }
-  async sign(key, options) {
-    const sig = new CompactSign(encoder.encode(JSON.stringify(this._payload)));
-    sig.setProtectedHeader(this._protectedHeader);
-    if (Array.isArray(this._protectedHeader?.crit) && this._protectedHeader.crit.includes("b64") && this._protectedHeader.b64 === false) {
-      throw new JWTInvalid("JWTs MUST NOT use unencoded payload");
-    }
-    return sig.sign(key, options);
-  }
-};
-__name(SignJWT, "SignJWT");
+__name(createRemoteJWKSet, "createRemoteJWKSet");
 
 // node_modules/jose/dist/browser/util/base64url.js
 init_strip_cf_connecting_ip_header();
@@ -3008,6 +3076,29 @@ __name(timingSafeEqual, "timingSafeEqual");
 
 // src/server/auth.ts
 var SESSION_COOKIE = "wos-session";
+var jwkSet = null;
+async function verifyScalekitToken(token, envUrl, clientId) {
+  try {
+    if (!jwkSet) {
+      const jwksUri = `${envUrl.replace(/\/+$/, "")}/keys`;
+      jwkSet = createRemoteJWKSet(new URL(jwksUri));
+    }
+    const { payload } = await jwtVerify(token, jwkSet, {
+      audience: clientId,
+      issuer: envUrl.replace(/\/+$/, "")
+    });
+    return {
+      id: String(payload.sub),
+      email: String(payload.email),
+      firstName: payload.given_name ? String(payload.given_name) : payload.name ? String(payload.name).split(" ")[0] : null,
+      lastName: payload.family_name ? String(payload.family_name) : payload.name ? String(payload.name).split(" ").slice(1).join(" ") : null
+    };
+  } catch (err) {
+    console.error("Scalekit JWKS verification failed:", err);
+    return null;
+  }
+}
+__name(verifyScalekitToken, "verifyScalekitToken");
 function parseCookies(cookieHeader = "") {
   return cookieHeader.split(";").map((part) => part.trim()).filter(Boolean).reduce((cookies, part) => {
     const index = part.indexOf("=");
@@ -3036,16 +3127,6 @@ function clearCookie(name) {
   return `${name}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
 }
 __name(clearCookie, "clearCookie");
-async function sealSession(user, secret) {
-  const secretKey = new TextEncoder().encode(secret);
-  return await new SignJWT({
-    id: user.id,
-    email: user.email,
-    firstName: user.firstName,
-    lastName: user.lastName
-  }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("14d").sign(secretKey);
-}
-__name(sealSession, "sealSession");
 async function unsealSession(token, secret) {
   try {
     const secretKey = new TextEncoder().encode(secret);
@@ -3065,7 +3146,6 @@ async function requireSession({
   cookieHeader,
   env: env2
 }) {
-  const secret = env2.SESSION_SECRET || env2.WORKOS_COOKIE_PASSWORD || "fallback-secret-for-signing-session-tokens-at-least-32-chars";
   const sessionData = parseCookies(cookieHeader ?? "")[SESSION_COOKIE];
   if (!sessionData) {
     return {
@@ -3074,6 +3154,16 @@ async function requireSession({
       reason: "No authenticated session."
     };
   }
+  if (env2.SCALEKIT_ENV_URL && env2.SCALEKIT_CLIENT_ID) {
+    const user2 = await verifyScalekitToken(sessionData, env2.SCALEKIT_ENV_URL, env2.SCALEKIT_CLIENT_ID);
+    if (user2) {
+      return {
+        authenticated: true,
+        user: user2
+      };
+    }
+  }
+  const secret = env2.SESSION_SECRET || env2.WORKOS_COOKIE_PASSWORD || "fallback-secret-for-signing-session-tokens-at-least-32-chars";
   const user = await unsealSession(sessionData, secret);
   if (user) {
     return {
@@ -4551,6 +4641,14 @@ var schemaStatements = [
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY(agent_id) REFERENCES agents(id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS otp_codes (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    code TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`
 ];
 async function ensureSchema(db) {
@@ -7557,19 +7655,22 @@ function errorPage(message2, detail) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign In \u2014 Signatis</title>
   <style>
-    body { font-family: system-ui, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #f7f9fb; color: #1e293b; }
-    .card { background: white; border-radius: 12px; padding: 2.5rem; max-width: 480px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
-    h1 { font-size: 1.25rem; margin: 0 0 0.75rem; }
-    p { color: #64748b; margin: 0 0 1.5rem; font-size: 0.9375rem; }
-    .detail { font-size: 0.8125rem; color: #94a3b8; word-break: break-all; margin-bottom: 1.5rem; }
-    a { display: inline-block; background: #0f172a; color: white; text-decoration: none; padding: 0.625rem 1.5rem; border-radius: 8px; font-weight: 500; font-size: 0.875rem; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #041627; color: #f8fafc; }
+    .card { background: #07192a; border-radius: 16px; padding: 2.5rem; max-width: 480px; text-align: center; box-shadow: 0 24px 64px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); }
+    .rainbow-strip { height: 4px; border-radius: 16px 16px 0 0; background: linear-gradient(45deg, #ffb3ba, #ffdfba, #ffffba, #baffc9, #bae1ff, #e8d7ff); position: absolute; top: 0; left: 0; right: 0; }
+    h1 { font-size: 1.5rem; font-weight: 800; margin: 1.5rem 0 0.75rem; color: #ffffff; }
+    p { color: #94a3b8; margin: 0 0 1.5rem; font-size: 0.9375rem; line-height: 1.5; }
+    .detail { font-size: 0.8125rem; color: #64748b; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 8px; word-break: break-all; margin-bottom: 1.5rem; text-align: left; }
+    .btn { display: inline-block; background: linear-gradient(45deg, #ffb3ba, #ffdfba, #ffffba, #baffc9, #bae1ff, #e8d7ff); color: #041627; text-decoration: none; padding: 0.75rem 2rem; border-radius: 9999px; font-weight: 700; font-size: 0.875rem; transition: transform 0.2s; }
+    .btn:hover { transform: scale(1.02); }
   </style>
 </head>
 <body>
-  <div class="card">
+  <div class="card" style="position: relative; overflow: hidden;">
+    <div class="rainbow-strip"></div>
     <h1>${message2}</h1>
-    ${detail ? `<p>${detail}</p>` : ""}
-    <a href="/login">Try Again</a>
+    ${detail ? `<div class="detail">${detail}</div>` : ""}
+    <a href="/login" class="btn">Try Again</a>
   </div>
 </body>
 </html>`;
@@ -7584,6 +7685,8 @@ var login_default = /* @__PURE__ */ __name(async (req) => {
   const url = new URL(req.url);
   const returnTo = url.searchParams.get("returnTo") || "/dashboard";
   const error3 = url.searchParams.get("error");
+  const promptParam = url.searchParams.get("prompt");
+  const prompt = promptParam === null ? "select_account" : promptParam || void 0;
   if (error3) {
     const detail = url.searchParams.get("detail") ?? "";
     const messages = {
@@ -7614,9 +7717,9 @@ var login_default = /* @__PURE__ */ __name(async (req) => {
     {
       state: encodeState(returnTo, codeVerifier),
       scopes: ["openid", "profile", "email"],
-      provider: "google",
       codeChallenge,
-      codeChallengeMethod: "S256"
+      codeChallengeMethod: "S256",
+      prompt
     }
   );
   return Response.redirect(authorizationUrl, 302);
@@ -7650,20 +7753,23 @@ function errorPage2(message2, detail) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign In Failed \u2014 Signatis</title>
   <style>
-    body { font-family: system-ui, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #f7f9fb; color: #1e293b; }
-    .card { background: white; border-radius: 12px; padding: 2.5rem; max-width: 480px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
-    h1 { font-size: 1.25rem; margin: 0 0 0.75rem; }
-    p { color: #64748b; margin: 0 0 1.5rem; font-size: 0.9375rem; }
-    .detail { font-size: 0.8125rem; color: #94a3b8; word-break: break-all; margin-bottom: 1.5rem; }
-    a { display: inline-block; background: #0f172a; color: white; text-decoration: none; padding: 0.625rem 1.5rem; border-radius: 8px; font-weight: 500; font-size: 0.875rem; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #041627; color: #f8fafc; }
+    .card { background: #07192a; border-radius: 16px; padding: 2.5rem; max-width: 480px; text-align: center; box-shadow: 0 24px 64px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); }
+    .rainbow-strip { height: 4px; border-radius: 16px 16px 0 0; background: linear-gradient(45deg, #ffb3ba, #ffdfba, #ffffba, #baffc9, #bae1ff, #e8d7ff); position: absolute; top: 0; left: 0; right: 0; }
+    h1 { font-size: 1.5rem; font-weight: 800; margin: 1.5rem 0 0.75rem; color: #ffffff; }
+    p { color: #94a3b8; margin: 0 0 1.5rem; font-size: 0.9375rem; line-height: 1.5; }
+    .detail { font-size: 0.8125rem; color: #64748b; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 8px; word-break: break-all; margin-bottom: 1.5rem; text-align: left; }
+    .btn { display: inline-block; background: linear-gradient(45deg, #ffb3ba, #ffdfba, #ffffba, #baffc9, #bae1ff, #e8d7ff); color: #041627; text-decoration: none; padding: 0.75rem 2rem; border-radius: 9999px; font-weight: 700; font-size: 0.875rem; transition: transform 0.2s; }
+    .btn:hover { transform: scale(1.02); }
   </style>
 </head>
 <body>
-  <div class="card">
+  <div class="card" style="position: relative; overflow: hidden;">
+    <div class="rainbow-strip"></div>
     <h1>Sign In Failed</h1>
     <p>${message2}</p>
     ${detail ? `<div class="detail">${detail}</div>` : ""}
-    <a href="/login">Try Again</a>
+    <a href="/login" class="btn">Try Again</a>
   </div>
 </body>
 </html>`;
@@ -7722,11 +7828,10 @@ var callback_default = /* @__PURE__ */ __name(async (req) => {
     };
     const db = createSignatisDb(env2);
     await ensureAgentWorkspace(db, sessionUser);
-    const secret = env2.SESSION_SECRET || env2.WORKOS_COOKIE_PASSWORD || "fallback-secret-for-signing-session-tokens-at-least-32-chars";
-    const sealedSession = await sealSession(sessionUser, secret);
+    const rawSessionToken = authResp.idToken;
     const headers = new Headers();
     const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
-    headers.append("Set-Cookie", buildCookie(SESSION_COOKIE, sealedSession, { secure: !isLocal }));
+    headers.append("Set-Cookie", buildCookie(SESSION_COOKIE, rawSessionToken, { secure: !isLocal }));
     headers.append("Location", statePayload.returnTo || "/dashboard");
     return new Response(null, {
       status: 302,
@@ -27285,7 +27390,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env2, _ctx, middlewareCtx
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-ojOm0Q/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-BQuykD/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -27322,7 +27427,7 @@ function __facade_invoke__(request, env2, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-ojOm0Q/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-BQuykD/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

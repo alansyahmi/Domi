@@ -37,20 +37,23 @@ function errorPage(message: string, detail?: string): Response {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign In Failed — Signatis</title>
   <style>
-    body { font-family: system-ui, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #f7f9fb; color: #1e293b; }
-    .card { background: white; border-radius: 12px; padding: 2.5rem; max-width: 480px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
-    h1 { font-size: 1.25rem; margin: 0 0 0.75rem; }
-    p { color: #64748b; margin: 0 0 1.5rem; font-size: 0.9375rem; }
-    .detail { font-size: 0.8125rem; color: #94a3b8; word-break: break-all; margin-bottom: 1.5rem; }
-    a { display: inline-block; background: #0f172a; color: white; text-decoration: none; padding: 0.625rem 1.5rem; border-radius: 8px; font-weight: 500; font-size: 0.875rem; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #041627; color: #f8fafc; }
+    .card { background: #07192a; border-radius: 16px; padding: 2.5rem; max-width: 480px; text-align: center; box-shadow: 0 24px 64px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); }
+    .rainbow-strip { height: 4px; border-radius: 16px 16px 0 0; background: linear-gradient(45deg, #ffb3ba, #ffdfba, #ffffba, #baffc9, #bae1ff, #e8d7ff); position: absolute; top: 0; left: 0; right: 0; }
+    h1 { font-size: 1.5rem; font-weight: 800; margin: 1.5rem 0 0.75rem; color: #ffffff; }
+    p { color: #94a3b8; margin: 0 0 1.5rem; font-size: 0.9375rem; line-height: 1.5; }
+    .detail { font-size: 0.8125rem; color: #64748b; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 8px; word-break: break-all; margin-bottom: 1.5rem; text-align: left; }
+    .btn { display: inline-block; background: linear-gradient(45deg, #ffb3ba, #ffdfba, #ffffba, #baffc9, #bae1ff, #e8d7ff); color: #041627; text-decoration: none; padding: 0.75rem 2rem; border-radius: 9999px; font-weight: 700; font-size: 0.875rem; transition: transform 0.2s; }
+    .btn:hover { transform: scale(1.02); }
   </style>
 </head>
 <body>
-  <div class="card">
+  <div class="card" style="position: relative; overflow: hidden;">
+    <div class="rainbow-strip"></div>
     <h1>Sign In Failed</h1>
     <p>${message}</p>
     ${detail ? `<div class="detail">${detail}</div>` : ""}
-    <a href="/login">Try Again</a>
+    <a href="/login" class="btn">Try Again</a>
   </div>
 </body>
 </html>`;
@@ -121,12 +124,11 @@ export default async (req: Request) => {
     const db = createSignatisDb(env);
     await ensureAgentWorkspace(db, sessionUser);
 
-    const secret = env.SESSION_SECRET || env.WORKOS_COOKIE_PASSWORD || "fallback-secret-for-signing-session-tokens-at-least-32-chars";
-    const sealedSession = await sealSession(sessionUser, secret);
+    const rawSessionToken = authResp.idToken;
 
     const headers = new Headers();
     const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
-    headers.append("Set-Cookie", buildCookie(SESSION_COOKIE, sealedSession, { secure: !isLocal }));
+    headers.append("Set-Cookie", buildCookie(SESSION_COOKIE, rawSessionToken, { secure: !isLocal }));
     headers.append("Location", statePayload.returnTo || "/dashboard");
 
     return new Response(null, {

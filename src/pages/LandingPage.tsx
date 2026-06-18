@@ -7,14 +7,14 @@ import {
   Mail,
   MessageCircle,
   PenLine,
-  Send,
   ShieldCheck,
   Sparkles,
   Star,
   Users,
 } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import type { SignatisAuthMode } from "../lib/auth-mode";
 
 /* Real-estate photography (Unsplash, verified to load). */
 const IMG = {
@@ -125,11 +125,23 @@ const portals = [
   { name: "EdgeProp", mark: "E", color: "#188a44" },
 ];
 
-function PrimaryCta({ to, children }: { to: string; children: ReactNode }) {
+function PrimaryCta({
+  to,
+  children,
+  onClick,
+  reloadDocument,
+}: {
+  to: string;
+  children: ReactNode;
+  onClick?: (e: React.MouseEvent) => void;
+  reloadDocument?: boolean;
+}) {
   return (
     <Link
       to={to}
-      className="landing-lift group inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#041627] px-6 font-bold text-white"
+      onClick={onClick}
+      reloadDocument={reloadDocument}
+      className="primary-button glow-on-hover rainbow group h-12 px-6 rounded-full"
     >
       {children}
       <ArrowRight
@@ -148,6 +160,8 @@ function PlanCard({
   blurb,
   features,
   featured = false,
+  isAuthenticated,
+  handleCtaClick,
 }: {
   name: string;
   price: string;
@@ -155,15 +169,19 @@ function PlanCard({
   blurb: string;
   features: string[];
   featured?: boolean;
+  isAuthenticated: boolean | null;
+  handleCtaClick: (e: React.MouseEvent) => void;
 }) {
+  const loginUrl = "/login?prompt=login";
+
   return (
     <div
-      className={`landing-lift relative flex h-full flex-col rounded-2xl bg-white p-8 text-left ${
-        featured ? "landing-card-shadow border-2 border-[#041627]" : "border border-slate-200"
+      className={`landing-lift relative flex h-full flex-col rounded-2xl bg-white p-8 text-left card ${
+        featured ? "landing-card-shadow border-2 border-[#ffb3ba]" : ""
       }`}
     >
       {featured ? (
-        <span className="absolute right-6 top-6 rounded-full bg-[#ffd45a] px-3 py-1 text-xs font-bold text-[#574500]">
+        <span className="absolute right-6 top-6 rounded-full bg-[#ffb3ba]/20 px-3 py-1 text-xs font-bold text-red-700 border border-[#ffb3ba]/30">
           Most popular
         </span>
       ) : null}
@@ -182,12 +200,15 @@ function PlanCard({
         ))}
       </ul>
       <Link
-        to="/dashboard"
+        to={isAuthenticated ? "/dashboard" : loginUrl}
+        onClick={handleCtaClick}
         className={`group mt-auto flex h-12 w-full items-center justify-center gap-2 rounded-full font-bold transition-colors ${
-          featured ? "bg-[#041627] text-white" : "border border-slate-300 bg-white text-[#041627] hover:border-slate-400"
+          featured
+            ? "primary-button glow-on-hover rainbow text-white"
+            : "secondary-button border border-slate-300 bg-white text-[#041627] hover:border-slate-400"
         }`}
       >
-        Start free
+        {isAuthenticated ? "Go to Dashboard" : "Start free"}
         <ArrowRight
           size={18}
           aria-hidden="true"
@@ -198,58 +219,161 @@ function PlanCard({
   );
 }
 
-export default function LandingPage() {
+export default function LandingPage({ authMode }: { authMode: SignatisAuthMode }) {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (authMode === "demo") {
+      const loggedIn = sessionStorage.getItem("demo_logged_in") !== "false";
+      setIsAuthenticated(loggedIn);
+    } else {
+      fetch("/api/me")
+        .then((res) => {
+          if (res.ok) {
+            setIsAuthenticated(true);
+          } else {
+            setIsAuthenticated(false);
+          }
+        })
+        .catch(() => setIsAuthenticated(false));
+    }
+  }, [authMode]);
+
+  const loginUrl = "/login?prompt=login";
+
+  useEffect(() => {
+    function handleScroll() {
+      setIsScrolled(window.scrollY > 8);
+    }
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const handleLogout = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (authMode === "demo") {
+      sessionStorage.setItem("demo_logged_in", "false");
+      setIsAuthenticated(false);
+      navigate("/");
+      return;
+    }
+
+    try {
+      const csrfResp = await fetch("/api/csrf-token");
+      const { csrfToken } = await csrfResp.json();
+      const resp = await fetch("/logout", {
+        method: "POST",
+        headers: {
+          "x-csrf-token": csrfToken,
+        },
+        redirect: "manual",
+      });
+
+      if (resp.type === "opaqueredirect" || resp.status === 302) {
+        const location = resp.headers.get("Location");
+        if (location) {
+          window.location.href = location;
+          return;
+        }
+      }
+      window.location.href = "/?logout=true";
+    } catch {
+      window.location.href = "/?logout=true";
+    }
+  };
+
+  const handleCtaClick = (e: React.MouseEvent) => {
+    if (authMode === "demo" && !isAuthenticated) {
+      e.preventDefault();
+      sessionStorage.setItem("demo_logged_in", "true");
+      setIsAuthenticated(true);
+      navigate("/dashboard");
+    }
+  };
+
   return (
     <div className="landing">
       {/* NAV */}
-      <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/85 backdrop-blur-md">
-        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-          <Link to="/" className="flex items-center gap-2.5" aria-label="Signatis home">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-[#041627] text-white">
-              <PenLine size={20} aria-hidden="true" />
-            </span>
-            <span className="wordmark text-xl text-[#041627]">Signatis</span>
+      <header className={`topbar ${isScrolled ? "scrolled" : ""}`}>
+        <div className="topbar-container">
+          <Link to="/" className="brand-group">
+            <div className="brand-mark">
+              <PenLine size={24} aria-hidden="true" />
+            </div>
+            <div className="brand-info">
+              <span className="brand-name">Signatis</span>
+              <span className="brand-plan">Signatis Tabulis</span>
+            </div>
           </Link>
 
           <div className="hidden items-center gap-8 md:flex">
-            <a href="#features" className="text-sm font-medium text-slate-600 transition-colors hover:text-[#041627]">
+            <a href="#features" className="text-sm font-semibold text-slate-650 transition-colors hover:text-[#041627]">
               Features
             </a>
-            <a href="#how" className="text-sm font-medium text-slate-600 transition-colors hover:text-[#041627]">
+            <a href="#how" className="text-sm font-semibold text-slate-650 transition-colors hover:text-[#041627]">
               How it works
             </a>
-            <a href="#pricing" className="text-sm font-medium text-slate-600 transition-colors hover:text-[#041627]">
+            <a href="#pricing" className="text-sm font-semibold text-slate-650 transition-colors hover:text-[#041627]">
               Pricing
             </a>
           </div>
 
           <div className="flex items-center gap-3">
-            <a
-              href="/login"
-              className="hidden text-sm font-semibold text-[#041627] transition-opacity hover:opacity-70 sm:inline"
-            >
-              Sign in
-            </a>
-            <a
-              href="/login"
-              className="landing-lift inline-flex h-10 items-center gap-1.5 rounded-full bg-[#041627] px-5 text-sm font-bold text-white"
-            >
-              Start free
-            </a>
+            {isAuthenticated === null ? (
+              <span className="text-xs text-slate-400">Loading...</span>
+            ) : isAuthenticated ? (
+              <>
+                <button
+                  onClick={handleLogout}
+                  className="hidden text-sm font-semibold text-red-650 transition-opacity hover:opacity-75 sm:inline"
+                >
+                  Sign out
+                </button>
+                <Link
+                  to="/dashboard"
+                  className="primary-button glow-on-hover rainbow h-10 px-5 text-sm rounded-full"
+                >
+                  Go to Dashboard
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  to={loginUrl}
+                  onClick={handleCtaClick}
+                  reloadDocument={authMode !== "demo"}
+                  className="hidden text-sm font-semibold text-[#041627] transition-opacity hover:opacity-70 sm:inline"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  to={loginUrl}
+                  onClick={handleCtaClick}
+                  reloadDocument={authMode !== "demo"}
+                  className="primary-button glow-on-hover rainbow h-10 px-5 text-sm rounded-full"
+                >
+                  Start free
+                </Link>
+              </>
+            )}
           </div>
-        </nav>
+        </div>
       </header>
+      <div className="topbar-spacer" aria-hidden="true" />
 
       {/* HERO */}
-      <section className="relative overflow-hidden">
+      <section className="relative overflow-hidden !pt-6 !pb-10">
         <div className="landing-hero-wash" aria-hidden="true" />
-        <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-14 px-6 pt-16 pb-20 lg:grid-cols-[1.05fr_0.95fr] lg:pt-24 lg:pb-28">
+        <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-14 px-6 pt-8 pb-10 lg:grid-cols-[1.05fr_0.95fr] lg:pt-12 lg:pb-14">
           <div>
             <span
-              className="hero-rise inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-600"
+              className="hero-rise inline-flex items-center gap-2 rounded-full border border-[#e8d7ff]/35 bg-white px-3.5 py-1.5 text-xs font-semibold text-purple-750"
               style={{ animationDelay: "40ms" }}
             >
-              <Sparkles size={14} className="text-[#b8860b]" aria-hidden="true" />
+              <Sparkles size={14} className="text-purple-500" aria-hidden="true" />
               Built for Malaysian property agents
             </span>
 
@@ -274,7 +398,13 @@ export default function LandingPage() {
               className="hero-rise mt-9 flex flex-col gap-3 sm:flex-row sm:items-center"
               style={{ animationDelay: "320ms" }}
             >
-              <PrimaryCta to="/dashboard">Start free</PrimaryCta>
+              <PrimaryCta
+                to={isAuthenticated ? "/dashboard" : loginUrl}
+                onClick={handleCtaClick}
+                reloadDocument={authMode !== "demo" && !isAuthenticated}
+              >
+                {isAuthenticated ? "Go to Dashboard" : "Start free"}
+              </PrimaryCta>
               <a
                 href="#how"
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-6 font-semibold text-[#041627] transition-colors hover:border-slate-400"
@@ -298,71 +428,71 @@ export default function LandingPage() {
               />
               <div className="landing-card-shadow relative z-10 mx-4 -mt-16 rounded-2xl border border-slate-200 bg-white p-5 sm:mx-6">
                 <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Gauge size={18} className="text-[#041627]" aria-hidden="true" />
-                  <span className="font-bold text-[#041627]">Lead pipeline</span>
-                </div>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  <div className="flex items-center gap-2">
+                    <Gauge size={18} className="text-[#041627]" aria-hidden="true" />
+                    <span className="font-bold text-[#041627]">Lead pipeline</span>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    </span>
+                    Live
                   </span>
-                  Live
-                </span>
-              </div>
+                </div>
 
-              <div className="mt-4 grid grid-cols-3 gap-3">
-                {[
-                  { label: "Leads scored", to: 1284, decimals: 0 },
-                  { label: "Avg intent", to: 0.62, decimals: 2 },
-                  { label: "Reports", to: 96, decimals: 0 },
-                ].map((tile) => (
-                  <div key={tile.label} className="rounded-xl bg-slate-50 p-3.5">
-                    <p className="text-2xl font-extrabold text-[#041627]">
-                      <Count to={tile.to} decimals={tile.decimals} />
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">{tile.label}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-4 space-y-2.5">
-                {[
-                  { name: "Aisyah Rahman", area: "Mont Kiara condo", intent: 1, fill: 86 },
-                  { name: "Wei Jian Tan", area: "Bangsar South", intent: 1, fill: 71 },
-                  { name: "Praveen Kumar", area: "Cyberjaya link", intent: 0, fill: 28 },
-                ].map((lead) => (
-                  <div
-                    key={lead.name}
-                    className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2.5"
-                  >
-                    <span className="grid h-9 w-9 place-items-center rounded-full bg-[#ffd45a] text-sm font-bold text-[#574500]">
-                      {lead.name
-                        .split(" ")
-                        .map((part) => part[0])
-                        .join("")
-                        .slice(0, 2)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-[#041627]">{lead.name}</p>
-                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="bar-fill h-full w-full rounded-full bg-[#041627]"
-                          style={{ "--fill": lead.fill / 100 } as CSSProperties}
-                        />
-                      </div>
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  {[
+                    { label: "Leads scored", to: 1284, decimals: 0 },
+                    { label: "Avg intent", to: 0.62, decimals: 2 },
+                    { label: "Reports", to: 96, decimals: 0 },
+                  ].map((tile) => (
+                    <div key={tile.label} className="rounded-xl bg-slate-50 p-3.5">
+                      <p className="text-2xl font-extrabold text-[#041627]">
+                        <Count to={tile.to} decimals={tile.decimals} />
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-550">{tile.label}</p>
                     </div>
-                    <span
-                      className={`grid h-8 w-8 place-items-center rounded-lg text-base font-bold ${
-                        lead.intent === 1 ? "bg-[#fff7df] text-[#574500]" : "bg-slate-100 text-slate-400"
-                      }`}
+                  ))}
+                </div>
+
+                <div className="mt-4 space-y-2.5">
+                  {[
+                    { name: "Aisyah Rahman", area: "Mont Kiara condo", intent: 1, fill: 86 },
+                    { name: "Wei Jian Tan", area: "Bangsar South", intent: 1, fill: 71 },
+                    { name: "Praveen Kumar", area: "Cyberjaya link", intent: 0, fill: 28 },
+                  ].map((lead) => (
+                    <div
+                      key={lead.name}
+                      className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2.5 bg-white"
                     >
-                      {lead.intent}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-4 text-center text-xs text-slate-400">Sample workspace</p>
+                      <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-sm font-bold text-slate-800">
+                        {lead.name
+                          .split(" ")
+                          .map((part) => part[0])
+                          .join("")
+                          .slice(0, 2)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-[#041627]">{lead.name}</p>
+                        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className="bar-fill h-full w-full rounded-full bg-[#041627]"
+                            style={{ "--fill": lead.fill / 100 } as CSSProperties}
+                          />
+                        </div>
+                      </div>
+                      <span
+                        className={`grid h-8 w-8 place-items-center rounded-lg text-base font-bold ${
+                          lead.intent === 1 ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-slate-100 text-slate-400"
+                        }`}
+                      >
+                        {lead.intent}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-4 text-center text-xs text-slate-400">Sample workspace</p>
               </div>
             </div>
           </Reveal>
@@ -370,8 +500,8 @@ export default function LandingPage() {
       </section>
 
       {/* TRUST STRIP */}
-      <section className="border-y border-slate-200 bg-slate-50/60">
-        <div className="mx-auto max-w-7xl px-6 py-10">
+      <section className="border-y border-slate-200 bg-slate-50/60 !py-6">
+        <div className="mx-auto max-w-7xl px-6 py-6">
           <p className="text-center text-sm font-medium text-slate-500">Plugs into the portals you already use</p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-5">
             {portals.map((portal) => (
@@ -389,9 +519,9 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* FEATURE 1: scoring (text left / visual right) */}
+      {/* FEATURE 1: scoring */}
       <section id="features" className="scroll-mt-24">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-20 lg:grid-cols-2 lg:py-28">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-10 lg:grid-cols-2 lg:py-14">
           <Reveal>
             <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#041627] text-white">
               <Users size={22} aria-hidden="true" />
@@ -421,10 +551,10 @@ export default function LandingPage() {
             <div className="landing-card-shadow rounded-2xl border border-slate-200 bg-white p-6">
               <div className="space-y-3">
                 {[
-                  { name: "Aisyah Rahman", tier: "Hot", score: 86, tone: "bg-amber-100 text-amber-800" },
-                  { name: "Wei Jian Tan", tier: "Hot", score: 71, tone: "bg-amber-100 text-amber-800" },
-                  { name: "Nurul Hidayah", tier: "Warm", score: 48, tone: "bg-blue-100 text-blue-800" },
-                  { name: "Lim Chee Kong", tier: "Cold", score: 19, tone: "bg-slate-100 text-slate-600" },
+                  { name: "Aisyah Rahman", tier: "Hot", score: 86, tone: "bg-emerald-50 text-emerald-700 border border-emerald-100" },
+                  { name: "Wei Jian Tan", tier: "Hot", score: 71, tone: "bg-emerald-50 text-emerald-700 border border-emerald-100" },
+                  { name: "Nurul Hidayah", tier: "Warm", score: 48, tone: "bg-blue-50 text-blue-700 border border-blue-100" },
+                  { name: "Lim Chee Kong", tier: "Cold", score: 19, tone: "bg-slate-100 text-slate-650 border border-slate-150" },
                 ].map((row) => (
                   <div key={row.name} className="flex items-center gap-4">
                     <span className="w-32 shrink-0 truncate text-sm font-semibold text-[#041627]">{row.name}</span>
@@ -434,7 +564,7 @@ export default function LandingPage() {
                         style={{ "--fill": row.score / 100 } as CSSProperties}
                       />
                     </div>
-                    <span className={`w-14 shrink-0 rounded-full py-0.5 text-center text-xs font-bold ${row.tone}`}>
+                    <span className={`w-14 shrink-0 rounded-full py-0.5 text-center text-xs font-bold border ${row.tone}`}>
                       {row.tier}
                     </span>
                   </div>
@@ -445,9 +575,9 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* FEATURE 2: reports (visual left / text right) */}
+      {/* FEATURE 2: reports */}
       <section className="bg-slate-50/60">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-20 lg:grid-cols-2 lg:py-28">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-10 lg:grid-cols-2 lg:py-14">
           <Reveal className="order-2 lg:order-1" delay={80}>
             <div className="landing-card-shadow overflow-hidden rounded-2xl border border-slate-200 bg-white">
               <img
@@ -510,8 +640,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* CAPABILITIES BENTO (breaks the zigzag pattern) */}
-      <section className="mx-auto max-w-7xl px-6 py-20 lg:py-28">
+      {/* CAPABILITIES BENTO */}
+      <section className="mx-auto max-w-7xl px-6 py-10 lg:py-14">
         <Reveal>
           <h2 className="max-w-2xl text-3xl font-bold text-[#041627] sm:text-4xl">
             Everything between the first inquiry and the signed offer.
@@ -533,7 +663,7 @@ export default function LandingPage() {
                 className="absolute inset-0 bg-gradient-to-t from-[#041627] via-[#041627]/85 to-[#041627]/55"
                 aria-hidden="true"
               />
-              <MessageCircle size={26} className="relative z-10 text-[#ffd45a]" aria-hidden="true" />
+              <MessageCircle size={26} className="relative z-10 text-blue-200" aria-hidden="true" />
               <div className="relative z-10 mt-10">
                 <h3 className="text-2xl font-bold text-white">Reach leads on the channel they actually answer.</h3>
                 <p className="mt-3 max-w-md text-slate-300">
@@ -544,10 +674,10 @@ export default function LandingPage() {
             </div>
           </Reveal>
 
-          {/* Gold-tinted cell */}
+          {/* Blue-tinted cell */}
           <Reveal delay={60}>
-            <div className="landing-lift flex h-full flex-col justify-between rounded-2xl border border-amber-200 bg-[#fff8e5] p-7">
-              <Mail size={26} className="text-[#b8860b]" aria-hidden="true" />
+            <div className="landing-lift flex h-full flex-col justify-between rounded-2xl border border-[#bae1ff]/30 bg-[#bae1ff]/10 p-7">
+              <Mail size={26} className="text-[#075ce5]" aria-hidden="true" />
               <div className="mt-10">
                 <h3 className="text-xl font-bold text-[#041627]">Inbox to pipeline, automatically.</h3>
                 <p className="mt-3 text-slate-700">
@@ -557,9 +687,10 @@ export default function LandingPage() {
             </div>
           </Reveal>
 
+          {/* Lavender-tinted cell */}
           <Reveal delay={60}>
-            <div className="landing-lift flex h-full flex-col justify-between rounded-2xl border border-slate-200 bg-white p-7">
-              <Sparkles size={26} className="text-[#041627]" aria-hidden="true" />
+            <div className="landing-lift flex h-full flex-col justify-between rounded-2xl border border-[#e8d7ff]/30 bg-[#e8d7ff]/10 p-7">
+              <Sparkles size={26} className="text-[#a29bfe]" aria-hidden="true" />
               <div className="mt-10">
                 <h3 className="text-xl font-bold text-[#041627]">Sentiment on every message.</h3>
                 <p className="mt-3 text-slate-600">
@@ -569,8 +700,9 @@ export default function LandingPage() {
             </div>
           </Reveal>
 
+          {/* Green-tinted cell */}
           <Reveal className="md:col-span-2" delay={120}>
-            <div className="landing-lift flex h-full items-center justify-between gap-6 rounded-2xl border border-slate-200 bg-white p-7">
+            <div className="landing-lift flex h-full items-center justify-between gap-6 rounded-2xl border border-[#baffc9]/30 bg-[#baffc9]/10 p-7">
               <div>
                 <ShieldCheck size={26} className="text-emerald-600" aria-hidden="true" />
                 <h3 className="mt-5 text-xl font-bold text-[#041627]">Transparent and PDPA-minded by design.</h3>
@@ -584,9 +716,9 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* HOW IT WORKS (real 3-step sequence) */}
+      {/* HOW IT WORKS */}
       <section id="how" className="scroll-mt-24 bg-slate-50/60">
-        <div className="mx-auto max-w-7xl px-6 py-20 lg:py-28">
+        <div className="mx-auto max-w-7xl px-6 py-10 lg:py-14">
           <Reveal>
             <h2 className="text-center text-3xl font-bold text-[#041627] sm:text-4xl">Up and running in an afternoon</h2>
           </Reveal>
@@ -596,21 +728,24 @@ export default function LandingPage() {
                 step: "01",
                 title: "Connect your portals",
                 body: "Point your PropertyGuru, iProperty, Mudah or EdgeProp lead emails at your Signatis address.",
+                colorClass: "bg-[#bae1ff]/15 text-blue-700 border-[#bae1ff]/30"
               },
               {
                 step: "02",
                 title: "Let leads score themselves",
                 body: "Every inquiry is scored and tiered as it arrives. Your pipeline sorts the buyers for you.",
+                colorClass: "bg-[#ffdfba]/15 text-orange-700 border-[#ffdfba]/30"
               },
               {
                 step: "03",
                 title: "Report, send, close",
                 body: "Generate a cited property report and send it on the prospect's preferred channel.",
+                colorClass: "bg-[#baffc9]/20 text-emerald-700 border-[#baffc9]/40"
               },
             ].map((item, index) => (
               <Reveal key={item.step} delay={index * 80}>
                 <div className="landing-lift relative h-full rounded-2xl border border-slate-200 bg-white p-7">
-                  <span className="text-sm font-black text-[#ffd45a]">{item.step}</span>
+                  <span className={`text-sm font-black px-2.5 py-1 rounded-full border ${item.colorClass}`}>{item.step}</span>
                   <h3 className="mt-3 text-xl font-bold text-[#041627]">{item.title}</h3>
                   <p className="mt-3 text-slate-600">{item.body}</p>
                 </div>
@@ -621,7 +756,7 @@ export default function LandingPage() {
       </section>
 
       {/* TESTIMONIALS */}
-      <section className="mx-auto max-w-7xl px-6 py-20 lg:py-28">
+      <section className="mx-auto max-w-7xl px-6 py-10 lg:py-14">
         <div className="grid gap-6 md:grid-cols-2">
           {[
             {
@@ -629,17 +764,19 @@ export default function LandingPage() {
                 "I used to chase every lead the same way. Now I see who is actually ready and my viewings convert far more often.",
               name: "Aisyah Rahman",
               role: "Agent, Kuala Lumpur",
+              starColor: "text-[#ffb3ba]"
             },
             {
               quote:
                 "The property reports look like something a research desk made. Clients reply faster when I send the share link.",
               name: "Wei Jian Tan",
               role: "Negotiator, Petaling Jaya",
+              starColor: "text-[#bae1ff]"
             },
           ].map((item) => (
             <Reveal key={item.name}>
               <figure className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-8">
-                <div className="flex gap-1 text-[#ffd45a]">
+                <div className={`flex gap-1 ${item.starColor}`}>
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Star key={i} size={18} className="fill-current" aria-hidden="true" />
                   ))}
@@ -657,7 +794,7 @@ export default function LandingPage() {
 
       {/* PRICING */}
       <section id="pricing" className="scroll-mt-24 bg-slate-50/60">
-        <div className="mx-auto max-w-2xl px-6 py-20 text-center lg:py-28">
+        <div className="mx-auto max-w-2xl px-6 py-10 text-center lg:py-14">
           <Reveal>
             <h2 className="text-3xl font-bold text-[#041627] sm:text-4xl">One plan, everything included</h2>
             <p className="mt-4 text-lg text-slate-600">Start free while you set up. Upgrade when leads start closing.</p>
@@ -685,10 +822,12 @@ export default function LandingPage() {
                 ))}
               </ul>
               <Link
-                to="/dashboard"
-                className="landing-lift group mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#041627] font-bold text-white"
+                to={isAuthenticated ? "/dashboard" : loginUrl}
+                onClick={handleCtaClick}
+                reloadDocument={authMode !== "demo" && !isAuthenticated}
+                className="primary-button glow-on-hover rainbow mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-full font-bold text-white"
               >
-                Start free
+                {isAuthenticated ? "Go to Dashboard" : "Start free"}
                 <ArrowRight
                   size={18}
                   aria-hidden="true"
@@ -706,8 +845,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* FINAL CTA (deliberate dark color block) */}
-      <section className="relative overflow-hidden bg-[#041627]">
+      {/* FINAL CTA */}
+      <section className="relative overflow-hidden bg-[#041627] !py-10">
         <img
           src={IMG.skylineWide}
           alt=""
@@ -716,7 +855,7 @@ export default function LandingPage() {
           loading="lazy"
         />
         <div className="absolute inset-0 bg-[#041627]/70" aria-hidden="true" />
-        <div className="relative z-10 mx-auto max-w-7xl px-6 py-20 text-center lg:py-24">
+        <div className="relative z-10 mx-auto max-w-7xl px-6 py-10 text-center lg:py-12">
           <Reveal>
             <h2 className="mx-auto max-w-2xl text-3xl font-bold text-white sm:text-4xl">
               Spend your day on the buyers who convert.
@@ -726,10 +865,12 @@ export default function LandingPage() {
             </p>
             <div className="mt-9 flex justify-center">
               <Link
-                to="/dashboard"
-                className="landing-lift group inline-flex h-12 items-center gap-2 rounded-full bg-[#ffd45a] px-7 font-bold text-[#574500]"
+                to={isAuthenticated ? "/dashboard" : loginUrl}
+                onClick={handleCtaClick}
+                reloadDocument={authMode !== "demo" && !isAuthenticated}
+                className="primary-button glow-on-hover rainbow inline-flex h-12 items-center gap-2 rounded-full font-bold text-white"
               >
-                Start free
+                {isAuthenticated ? "Go to Dashboard" : "Start free"}
                 <ArrowRight
                   size={18}
                   aria-hidden="true"

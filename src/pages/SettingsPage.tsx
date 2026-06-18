@@ -91,6 +91,11 @@ export default function SettingsPage({
     accessToken: "",
   });
   const [isSavingWhatsApp, setIsSavingWhatsApp] = useState(false);
+  const [promptSelectAccount, setPromptSelectAccount] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const stored = localStorage.getItem("prompt_select_account");
+    return stored === null ? true : stored === "true";
+  });
 
   const [copied, setCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -369,6 +374,32 @@ export default function SettingsPage({
               </div>
             </div>
           </form>
+
+          <section className="card p-7">
+            <h2 className="m-0 text-3xl font-extrabold border-b border-slate-200 pb-5">Security & Login</h2>
+            <div className="mt-6 flex flex-col gap-4">
+              <label className="flex items-start gap-3.5 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  className="w-5 h-5 rounded border-slate-350 text-indigo-650 focus:ring-indigo-500 cursor-pointer mt-1"
+                  checked={promptSelectAccount}
+                  onChange={(e) => {
+                    const newValue = e.target.checked;
+                    setPromptSelectAccount(newValue);
+                    localStorage.setItem("prompt_select_account", String(newValue));
+                  }}
+                />
+                <div className="flex flex-col">
+                  <span className="font-bold text-slate-800 group-hover:text-indigo-950 transition-colors">
+                    OAuth Account Chooser
+                  </span>
+                  <span className="text-sm text-slate-500 mt-1 leading-relaxed">
+                    Always prompt for account selection upon signing in. When disabled, your browser will attempt a silent automatic login with your active credentials provider session.
+                  </span>
+                </div>
+              </label>
+            </div>
+          </section>
 
           <section className="card p-7">
             <h2 className="m-0 text-3xl font-extrabold border-b border-slate-200 pb-5">Subscription Plan</h2>

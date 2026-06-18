@@ -1,4 +1,4 @@
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT, jwtVerify, createRemoteJWKSet } from "jose";
 import { randomBytesBase64url, hmacSha256Base64url, timingSafeEqual } from "./crypto";
 
 export const SESSION_COOKIE = "wos-session";
@@ -30,6 +30,32 @@ export interface AuthEnv {
   SESSION_SECRET?: string;
   WORKOS_COOKIE_PASSWORD?: string; // fallback
   CSRF_SECRET?: string;
+  SCALEKIT_ENV_URL?: string;
+  SCALEKIT_CLIENT_ID?: string;
+}
+
+let jwkSet: ReturnType<typeof createRemoteJWKSet> | null = null;
+
+export async function verifyScalekitToken(token: string, envUrl: string, clientId: string): Promise<SessionUser | null> {
+  try {
+    if (!jwkSet) {
+      const jwksUri = `${envUrl.replace(/\/+$/, "")}/keys`;
+      jwkSet = createRemoteJWKSet(new URL(jwksUri));
+    }
+    const { payload } = await jwtVerify(token, jwkSet, {
+      audience: clientId,
+      issuer: envUrl.replace(/\/+$/, ""),
+    });
+    return {
+      id: String(payload.sub),
+      email: String(payload.email),
+      firstName: payload.given_name ? String(payload.given_name) : (payload.name ? String(payload.name).split(" ")[0] : null),
+      lastName: payload.family_name ? String(payload.family_name) : (payload.name ? String(payload.name).split(" ").slice(1).join(" ") : null),
+    };
+  } catch (err) {
+    console.error("Scalekit JWKS verification failed:", err);
+    return null;
+  }
 }
 
 export function parseCookies(cookieHeader = ""): Record<string, string> {
@@ -106,7 +132,6 @@ export async function requireSession({
   workos?: any; // kept for signature compatibility
   env: AuthEnv;
 }): Promise<SessionResult> {
-  const secret = env.SESSION_SECRET || env.WORKOS_COOKIE_PASSWORD || "fallback-secret-for-signing-session-tokens-at-least-32-chars";
   const sessionData = parseCookies(cookieHeader ?? "")[SESSION_COOKIE];
 
   if (!sessionData) {
@@ -117,6 +142,20 @@ export async function requireSession({
     };
   }
 
+  if (env.SCALEKIT_ENV_URL && env.SCALEKIT_CLIENT_ID) {
+    const user = await verifyScalekitToken(sessionData, env.SCALEKIT_ENV_URL, env.SCALEKIT_CLIENT_ID);
+    if (user) {
+      return {
+        authenticated: true,
+        user,
+      };
+    }
+    // Scalekit check failed — fall through to local JWT verification
+    // so OTP-authenticated users (locally-sealed sessions) also work.
+  }
+
+  // Local JWT verification (OTP auth or Scalekit-less fallback)
+  const secret = env.SESSION_SECRET || env.WORKOS_COOKIE_PASSWORD || "fallback-secret-for-signing-session-tokens-at-least-32-chars";
   const user = await unsealSession(sessionData, secret);
   if (user) {
     return {

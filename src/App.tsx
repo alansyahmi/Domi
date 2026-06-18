@@ -120,8 +120,10 @@ export default function App({ authMode }: { authMode: SignatisAuthMode }) {
   const location = useLocation();
 
   if (location.pathname === "/") {
-    return <LandingPage />;
+    return <LandingPage authMode={authMode} />;
   }
+
+
 
   if (location.pathname.startsWith("/reports/share/")) {
     return <SharedReportPage />;
@@ -501,24 +503,10 @@ function SignatisWorkspace({
   const isUnauthorized = error?.includes("401") || error?.includes("Unauthorized");
 
   if (isUnauthorized) {
-    return (
-      <main className="min-h-screen grid place-items-center p-6">
-        <section className="card max-w-xl p-8 text-center">
-          <div className="brand-mark mx-auto mb-4">S</div>
-          <h1 className="section-title">Welcome to Signatis</h1>
-          <p className="mt-4 text-slate-600">Sign in to access your real estate workspace</p>
-          <button
-            className="primary-button mt-6"
-            onClick={() => {
-              window.location.href = `/login?returnTo=${encodeURIComponent(location.pathname)}`;
-            }}
-            type="button"
-          >
-            Sign in with Scalekit
-          </button>
-        </section>
-      </main>
-    );
+    const selectAccount = typeof window !== "undefined" ? localStorage.getItem("prompt_select_account") !== "false" : true;
+    const promptParam = selectAccount ? "&prompt=select_account" : "&prompt=";
+    window.location.href = `/login?returnTo=${encodeURIComponent(location.pathname)}${promptParam}`;
+    return null;
   }
 
   async function handleInjectDemoLead() {
@@ -562,9 +550,14 @@ function SignatisWorkspace({
   if (!data || !dashboard) {
     return (
       <main className="min-h-screen grid place-items-center bg-[#f7f9fb]">
-        <div className="card p-8 text-center">
-          <div className="brand-mark mx-auto mb-4">S</div>
-          <p className="text-slate-600">Loading Signatis workspace...</p>
+        <div className="card p-10 text-center landing-card-shadow border border-slate-200/80 max-w-sm w-full mx-4 animate-pulse">
+          <div className="hci-loader-container">
+            <div className="hci-loader-logo">S</div>
+            <div>
+              <p className="text-slate-600 font-bold m-0">Loading Signatis workspace...</p>
+              <div className="hci-loading-bar" />
+            </div>
+          </div>
         </div>
       </main>
     );
