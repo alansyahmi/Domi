@@ -1,5 +1,5 @@
-import { randomBytes, createHash } from "node:crypto";
 import { decodeJwt } from "jose";
+import { randomBytesBase64url, sha256Base64url } from "./crypto";
 
 // ---------------------------------------------------------------------------
 // Types — mirrors the subset of @scalekit-sdk/node types that we actually use
@@ -121,12 +121,12 @@ export function base64ToBase64url(base64: string): string {
 
 /** Generate a cryptographically random PKCE code verifier (base64url, 64 bytes → ~86 chars). */
 export function generateCodeVerifier(): string {
-  return base64ToBase64url(randomBytes(64).toString("base64"));
+  return randomBytesBase64url(64);
 }
 
 /** Compute the S256 PKCE code challenge from a verifier. */
-export function computeCodeChallenge(verifier: string): string {
-  return base64ToBase64url(createHash("sha256").update(verifier).digest("base64"));
+export async function computeCodeChallenge(verifier: string): Promise<string> {
+  return sha256Base64url(verifier);
 }
 
 // ---------------------------------------------------------------------------

@@ -87,7 +87,7 @@ export default async (req: Request) => {
 
   // PKCE flow: generate verifier + challenge, store verifier in state for the callback.
   const codeVerifier = generateCodeVerifier();
-  const codeChallenge = computeCodeChallenge(codeVerifier);
+  const codeChallenge = await computeCodeChallenge(codeVerifier);
 
   const authorizationUrl = getAuthorizationUrl(
     env.SCALEKIT_ENV_URL,

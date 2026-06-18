@@ -16,7 +16,7 @@ export default async (req: Request) => {
   }
 
   const csrf = req.headers.get("x-csrf-token");
-  if (!verifyCsrfToken(csrf, runtimeEnv.CSRF_SECRET)) {
+  if (!(await verifyCsrfToken(csrf, runtimeEnv.CSRF_SECRET))) {
     return Response.json({ error: "Invalid CSRF token." }, { status: 403 });
   }
 

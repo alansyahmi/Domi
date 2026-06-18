@@ -9,9 +9,26 @@ import { handleAuthConfig } from "./server/auth-config";
 import { envStorage } from "./server/runtime-env";
 
 interface Env {
+  // Assets binding (Cloudflare Workers with Assets)
   ASSETS?: {
     fetch: (request: Request) => Promise<Response>;
   };
+
+  // Scalekit OAuth
+  SCALEKIT_CLIENT_ID?: string;
+  SCALEKIT_CLIENT_SECRET?: string;
+  SCALEKIT_ENV_URL?: string;
+  SCALEKIT_REDIRECT_URI?: string;
+  SCALEKIT_SIGN_OUT_REDIRECT_URI?: string;
+
+  // Session / CSRF
+  SESSION_SECRET?: string;
+  WORKOS_COOKIE_PASSWORD?: string; // legacy fallback for SESSION_SECRET
+  CSRF_SECRET?: string;
+
+  // Database (Turso)
+  TURSO_DATABASE_URL?: string;
+  TURSO_AUTH_TOKEN?: string;
 }
 
 export default {

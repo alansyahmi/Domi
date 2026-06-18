@@ -137,7 +137,7 @@ export default async (req: Request) => {
     if (!runtimeEnv.CSRF_SECRET) {
       return json({ error: "CSRF_SECRET is not configured." }, { status: 500 });
     }
-    return json({ csrfToken: createCsrfToken(runtimeEnv.CSRF_SECRET) });
+    return json({ csrfToken: await createCsrfToken(runtimeEnv.CSRF_SECRET) });
   }
 
   const shareInquiryMatch = endpoint.match(/^reports\/share\/([^/]+)\/inquiry$/);
