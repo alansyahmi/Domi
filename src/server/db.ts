@@ -198,6 +198,14 @@ const schemaStatements = [
     updated_at TEXT NOT NULL,
     FOREIGN KEY(agent_id) REFERENCES agents(id)
   )`,
+  `CREATE TABLE IF NOT EXISTS otp_codes (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    code TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
 ];
 
 export async function ensureSchema(db: SignatisDbClient): Promise<void> {
@@ -1207,6 +1215,142 @@ export async function getLeadEvents(
     args: [leadId, agentId],
   });
   return result.rows.map(mapLeadEvent);
+}
+
+// ── OTP (Email + OTP Authentication) ──────────────────────────────
+
+/**
+ * Generate a cryptographically random 6-digit OTP code.
+ */
+export function generateOtpCode(): string {
+  const buf = new Uint8Array(4);
+  crypto.getRandomValues(buf);
+  const num = new DataView(buf.buffer).getUint32(0);
+  return String(num % 1_000_000).padStart(6, "0");
+}
+
+/**
+ * Store an OTP code in the database with a 5-minute expiry.
+ */
+export async function storeOtpCode(
+  db: SignatisDbClient,
+  email: string,
+  code: string,
+): Promise<void> {
+  const id = `otp_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  await db.execute({
+    sql: `INSERT INTO otp_codes (id, email, code, expires_at, used) VALUES (?, ?, ?, ?, 0)`,
+    args: [id, email.toLowerCase().trim(), code, expiresAt],
+  });
+}
+
+/**
+ * Verify an OTP code for a given email.
+ * Returns the OTP row if valid, or null if invalid/expired/already used.
+ * Marks the code as used on successful verification.
+ */
+export async function verifyOtpCode(
+  db: SignatisDbClient,
+  email: string,
+  code: string,
+): Promise<{ id: string; email: string } | null> {
+  const normalizedEmail = email.toLowerCase().trim();
+  const result = await db.execute<Record<string, unknown>>({
+    sql: `SELECT id, email FROM otp_codes
+          WHERE email = ? AND code = ? AND used = 0 AND expires_at > ?
+          ORDER BY created_at DESC LIMIT 1`,
+    args: [normalizedEmail, code, new Date().toISOString()],
+  });
+
+  const row = result.rows[0];
+  if (!row) return null;
+
+  // Mark as used (single-use code)
+  await db.execute({
+    sql: "UPDATE otp_codes SET used = 1 WHERE id = ?",
+    args: [String(row.id)],
+  });
+
+  return { id: String(row.id), email: String(row.email) };
+}
+
+/**
+ * Find an agent by email address.
+ */
+export async function findAgentByEmail(
+  db: SignatisDbClient,
+  email: string,
+): Promise<Agent | null> {
+  const result = await db.execute<Record<string, unknown>>({
+    sql: "SELECT * FROM agents WHERE LOWER(email) = ? LIMIT 1",
+    args: [email.toLowerCase().trim()],
+  });
+  return result.rows[0] ? mapAgent(result.rows[0]) : null;
+}
+
+/**
+ * Create an OTP-authenticated agent (no Scalekit ID).
+ * Generates an internal user ID prefixed with "otp_".
+ */
+export async function createOtpAgent(
+  db: SignatisDbClient,
+  email: string,
+  firstName?: string,
+): Promise<Agent> {
+  await ensureSchema(db);
+  const otpUserId = `otp_${crypto.randomUUID()}`;
+  const agentId = `agent_${otpUserId.replace(/[^a-zA-Z0-9]/g, "").slice(-12)}`;
+  const fullName = firstName || "Signatis Agent";
+  const initials = fullName
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const agent: Agent = {
+    id: agentId,
+    workosUserId: otpUserId,
+    fullName,
+    email: email.toLowerCase().trim(),
+    phone: "+60 12-555 8472",
+    plan: "Premium Agent",
+    avatarInitials: initials || "DA",
+    ingestionAddress: `inbound+${agentId.slice(-6).toLowerCase()}@leads.signatis.app`,
+    renNumber: "",
+    agencyName: "",
+    whatsappNumber: "",
+    avatarUrl: "",
+    companyLogoUrl: "",
+    bio: "",
+  };
+
+  await db.execute({
+    sql: `INSERT INTO agents (
+      id, workos_user_id, full_name, email, phone, plan, avatar_initials, ingestion_address,
+      ren_number, agency_name, whatsapp_number, avatar_url, company_logo_url, bio
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      agent.id,
+      agent.workosUserId,
+      agent.fullName,
+      agent.email,
+      agent.phone,
+      agent.plan,
+      agent.avatarInitials,
+      agent.ingestionAddress,
+      agent.renNumber ?? "",
+      agent.agencyName ?? "",
+      agent.whatsappNumber ?? "",
+      agent.avatarUrl ?? "",
+      agent.companyLogoUrl ?? "",
+      agent.bio ?? "",
+    ],
+  });
+
+  await seedWorkspace(db, agent.id);
+  return agent;
 }
 
 

@@ -5,6 +5,7 @@ import {
   SESSION_COOKIE,
   verifyCsrfToken,
 } from "../../src/server/auth";
+import { getLogoutUrl } from "../../src/server/scalekit";
 
 export default async (req: Request) => {
   const runtimeEnv = getRuntimeEnv();
@@ -16,16 +17,25 @@ export default async (req: Request) => {
   }
 
   const csrf = req.headers.get("x-csrf-token");
-  if (!verifyCsrfToken(csrf, runtimeEnv.CSRF_SECRET)) {
+  if (!(await verifyCsrfToken(csrf, runtimeEnv.CSRF_SECRET))) {
     return Response.json({ error: "Invalid CSRF token." }, { status: 403 });
   }
 
   const headers = new Headers();
+  // Clear our local session cookie
   headers.append("Set-Cookie", clearCookie(SESSION_COOKIE));
-  
-  // Since we are clearing our local cookie session, we can redirect directly to /login
-  const returnTo = runtimeEnv.SCALEKIT_SIGN_OUT_REDIRECT_URI || "/login";
-  headers.append("Location", returnTo);
+
+  // Redirect browser to Scalekit's sign-out so their session is also cleared.
+  // Scalekit will redirect the browser back to our app afterward.
+  const postLogoutRedirectUri =
+    runtimeEnv.SCALEKIT_SIGN_OUT_REDIRECT_URI ||
+    `${new URL(req.url).origin}/?logout=true`;
+
+  const scalekitLogoutUrl = runtimeEnv.SCALEKIT_ENV_URL
+    ? getLogoutUrl(runtimeEnv.SCALEKIT_ENV_URL, postLogoutRedirectUri)
+    : postLogoutRedirectUri;
+
+  headers.append("Location", scalekitLogoutUrl);
 
   return new Response(null, { status: 302, headers });
 };

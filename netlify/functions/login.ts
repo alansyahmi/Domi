@@ -1,6 +1,10 @@
-import { randomBytes, createHash } from "node:crypto";
+import {
+  getAuthorizationUrl,
+  generateCodeVerifier,
+  computeCodeChallenge,
+  encodeState,
+} from "../../src/server/scalekit";
 import type { Config } from "@netlify/functions";
-import { ScalekitClient } from "@scalekit-sdk/node";
 import { getRuntimeEnv } from "../../src/server/runtime-env";
 
 interface LoginEnv {
@@ -20,20 +24,6 @@ function getEnv(): LoginEnv {
   };
 }
 
-/** Generate a cryptographically random PKCE code verifier (base64url, 64 bytes → ~86 chars). */
-function generateCodeVerifier(): string {
-  return randomBytes(64).toString("base64url");
-}
-
-/** Compute the S256 PKCE code challenge from a verifier. */
-function computeCodeChallenge(verifier: string): string {
-  return createHash("sha256").update(verifier).digest("base64url");
-}
-
-function encodeState(returnTo: string, codeVerifier: string): string {
-  return Buffer.from(JSON.stringify({ returnTo, codeVerifier }), "utf8").toString("base64url");
-}
-
 function errorPage(message: string, detail?: string): Response {
   const body = `<!DOCTYPE html>
 <html lang="en">
@@ -42,19 +32,22 @@ function errorPage(message: string, detail?: string): Response {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign In — Signatis</title>
   <style>
-    body { font-family: system-ui, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #f7f9fb; color: #1e293b; }
-    .card { background: white; border-radius: 12px; padding: 2.5rem; max-width: 480px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
-    h1 { font-size: 1.25rem; margin: 0 0 0.75rem; }
-    p { color: #64748b; margin: 0 0 1.5rem; font-size: 0.9375rem; }
-    .detail { font-size: 0.8125rem; color: #94a3b8; word-break: break-all; margin-bottom: 1.5rem; }
-    a { display: inline-block; background: #0f172a; color: white; text-decoration: none; padding: 0.625rem 1.5rem; border-radius: 8px; font-weight: 500; font-size: 0.875rem; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #041627; color: #f8fafc; }
+    .card { background: #07192a; border-radius: 16px; padding: 2.5rem; max-width: 480px; text-align: center; box-shadow: 0 24px 64px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); }
+    .rainbow-strip { height: 4px; border-radius: 16px 16px 0 0; background: linear-gradient(45deg, #ffb3ba, #ffdfba, #ffffba, #baffc9, #bae1ff, #e8d7ff); position: absolute; top: 0; left: 0; right: 0; }
+    h1 { font-size: 1.5rem; font-weight: 800; margin: 1.5rem 0 0.75rem; color: #ffffff; }
+    p { color: #94a3b8; margin: 0 0 1.5rem; font-size: 0.9375rem; line-height: 1.5; }
+    .detail { font-size: 0.8125rem; color: #64748b; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 8px; word-break: break-all; margin-bottom: 1.5rem; text-align: left; }
+    .btn { display: inline-block; background: linear-gradient(45deg, #ffb3ba, #ffdfba, #ffffba, #baffc9, #bae1ff, #e8d7ff); color: #041627; text-decoration: none; padding: 0.75rem 2rem; border-radius: 9999px; font-weight: 700; font-size: 0.875rem; transition: transform 0.2s; }
+    .btn:hover { transform: scale(1.02); }
   </style>
 </head>
 <body>
-  <div class="card">
+  <div class="card" style="position: relative; overflow: hidden;">
+    <div class="rainbow-strip"></div>
     <h1>${message}</h1>
-    ${detail ? `<p>${detail}</p>` : ""}
-    <a href="/login">Try Again</a>
+    ${detail ? `<div class="detail">${detail}</div>` : ""}
+    <a href="/login" class="btn">Try Again</a>
   </div>
 </body>
 </html>`;
@@ -69,6 +62,8 @@ export default async (req: Request) => {
   const url = new URL(req.url);
   const returnTo = url.searchParams.get("returnTo") || "/dashboard";
   const error = url.searchParams.get("error");
+  const promptParam = url.searchParams.get("prompt");
+  const prompt = promptParam === null ? "select_account" : (promptParam || undefined);
 
   // Circuit breaker: if we arrive here with an error param, the callback already failed.
   // Show an error page instead of redirecting to Scalekit again (which would loop).
@@ -95,23 +90,22 @@ export default async (req: Request) => {
     );
   }
 
-  const scalekit = new ScalekitClient(
-    env.SCALEKIT_ENV_URL,
-    env.SCALEKIT_CLIENT_ID,
-    env.SCALEKIT_CLIENT_SECRET
-  );
-
   // PKCE flow: generate verifier + challenge, store verifier in state for the callback.
   const codeVerifier = generateCodeVerifier();
-  const codeChallenge = computeCodeChallenge(codeVerifier);
+  const codeChallenge = await computeCodeChallenge(codeVerifier);
 
-  const authorizationUrl = scalekit.getAuthorizationUrl(env.SCALEKIT_REDIRECT_URI, {
-    state: encodeState(returnTo, codeVerifier),
-    scopes: ["openid", "profile", "email"],
-    provider: "google",
-    codeChallenge,
-    codeChallengeMethod: "S256",
-  });
+  const authorizationUrl = getAuthorizationUrl(
+    env.SCALEKIT_ENV_URL,
+    env.SCALEKIT_CLIENT_ID,
+    env.SCALEKIT_REDIRECT_URI,
+    {
+      state: encodeState(returnTo, codeVerifier),
+      scopes: ["openid", "profile", "email"],
+      codeChallenge,
+      codeChallengeMethod: "S256",
+      prompt,
+    },
+  );
 
   return Response.redirect(authorizationUrl, 302);
 };

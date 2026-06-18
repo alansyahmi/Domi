@@ -1,38 +1,25 @@
-import fs from "node:fs";
-import path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 type EnvMap = Record<string, string | undefined>;
 
-function parseEnvFile(filePath: string): EnvMap {
-  if (!fs.existsSync(filePath)) return {};
+export const envStorage = new AsyncLocalStorage<EnvMap>();
 
-  const contents = fs.readFileSync(filePath, "utf8");
-  return Object.fromEntries(
-    contents
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .filter((line) => !line.startsWith("#"))
-      .map((line) => {
-        const index = line.indexOf("=");
-        if (index === -1) return null;
-        return [line.slice(0, index), line.slice(index + 1)] as const;
-      })
-      .filter((entry): entry is readonly [string, string] => entry !== null),
-  );
-}
-
-const fileEnv = (() => {
-  const cwd = process.cwd();
-  return {
-    ...parseEnvFile(path.join(cwd, ".env")),
-    ...parseEnvFile(path.join(cwd, ".env.local")),
-  };
-})();
-
+/**
+ * Return the current environment variables.
+ *
+ * In Cloudflare Workers, the Worker's fetch() handler wraps every request in
+ * `envStorage.run(env, ...)`, so `getStore()` returns the Worker's env vars
+ * (bindings + secrets).
+ *
+ * In local Node.js dev (wrangler dev, Netlify dev, vitest), `envStorage.run()`
+ * may not be called, so we fall back to `process.env`.
+ */
 export function getRuntimeEnv(): EnvMap {
-  return {
-    ...fileEnv,
-    ...process.env,
-  };
+  const store = envStorage.getStore();
+  if (store) {
+    return store;
+  }
+  // Fallback for local Node.js dev — Wrangler / Netlify CLI load .env files
+  // into process.env automatically.
+  return process.env as EnvMap;
 }
