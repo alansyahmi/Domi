@@ -33,14 +33,14 @@ var __publicField = (obj, key, value) => {
   return value;
 };
 
-// .wrangler/tmp/bundle-4vru00/strip-cf-connecting-ip-header.js
+// .wrangler/tmp/bundle-ojOm0Q/strip-cf-connecting-ip-header.js
 function stripCfConnectingIPHeader(input, init) {
   const request = new Request(input, init);
   request.headers.delete("CF-Connecting-IP");
   return request;
 }
 var init_strip_cf_connecting_ip_header = __esm({
-  ".wrangler/tmp/bundle-4vru00/strip-cf-connecting-ip-header.js"() {
+  ".wrangler/tmp/bundle-ojOm0Q/strip-cf-connecting-ip-header.js"() {
     __name(stripCfConnectingIPHeader, "stripCfConnectingIPHeader");
     globalThis.fetch = new Proxy(globalThis.fetch, {
       apply(target, thisArg, argArray) {
@@ -1416,14 +1416,14 @@ var require_p_retry = __commonJS({
   }
 });
 
-// .wrangler/tmp/bundle-4vru00/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-ojOm0Q/middleware-loader.entry.ts
 init_strip_cf_connecting_ip_header();
 init_modules_watch_stub();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
 init_performance2();
 
-// .wrangler/tmp/bundle-4vru00/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-ojOm0Q/middleware-insertion-facade.js
 init_strip_cf_connecting_ip_header();
 init_modules_watch_stub();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
@@ -7530,6 +7530,13 @@ async function authenticateWithCode(envUrl, clientId, clientSecret, code, redire
   };
 }
 __name(authenticateWithCode, "authenticateWithCode");
+function getLogoutUrl(envUrl, postLogoutRedirectUri) {
+  const params = new URLSearchParams();
+  params.set("post_logout_redirect_uri", postLogoutRedirectUri);
+  const base = envUrl.replace(/\/+$/, "");
+  return `${base}/oidc/logout?${params.toString()}`;
+}
+__name(getLogoutUrl, "getLogoutUrl");
 
 // netlify/functions/login.ts
 function getEnv() {
@@ -7752,8 +7759,9 @@ var logout_default = /* @__PURE__ */ __name(async (req) => {
   }
   const headers = new Headers();
   headers.append("Set-Cookie", clearCookie(SESSION_COOKIE));
-  const returnTo = runtimeEnv.SCALEKIT_SIGN_OUT_REDIRECT_URI || "/login";
-  headers.append("Location", returnTo);
+  const postLogoutRedirectUri = runtimeEnv.SCALEKIT_SIGN_OUT_REDIRECT_URI || `${new URL(req.url).origin}/?logout=true`;
+  const scalekitLogoutUrl = runtimeEnv.SCALEKIT_ENV_URL ? getLogoutUrl(runtimeEnv.SCALEKIT_ENV_URL, postLogoutRedirectUri) : postLogoutRedirectUri;
+  headers.append("Location", scalekitLogoutUrl);
   return new Response(null, { status: 302, headers });
 }, "default");
 
@@ -27277,7 +27285,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env2, _ctx, middlewareCtx
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-4vru00/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-ojOm0Q/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -27314,7 +27322,7 @@ function __facade_invoke__(request, env2, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-4vru00/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-ojOm0Q/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

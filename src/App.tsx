@@ -471,16 +471,30 @@ function SignatisWorkspace({
       return;
     }
 
-    try {
-      await fetch("/logout", {
-        method: "POST",
-        headers: {
-          "x-csrf-token": data.csrfToken,
-        },
-      });
-    } catch {
+    // POST to /logout — the server clears our session cookie and returns a
+    // 302 redirect to Scalekit's sign-out URL (which then bounces back to our
+    // app).  Use redirect: "manual" so we can navigate the page ourselves
+    // rather than letting fetch chase the full redirect chain.
+    const resp = await fetch("/logout", {
+      method: "POST",
+      headers: {
+        "x-csrf-token": data.csrfToken,
+      },
+      redirect: "manual",
+    });
+
+    if (resp.type === "opaqueredirect" || resp.status === 302) {
+      // Follow the redirect manually — the server points the browser at
+      // Scalekit's sign-out endpoint which will clear the Scalekit session
+      // and then redirect back to our app.
+      const location = resp.headers.get("Location");
+      if (location) {
+        window.location.href = location;
+        return;
+      }
     }
-    // Force a full page reload to "/" to ensure routing is re-evaluated
+
+    // Fallback: hard reload landing page
     window.location.href = "/?logout=true";
   }
 

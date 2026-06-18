@@ -277,3 +277,27 @@ export async function authenticateWithCode(
     refreshToken: data.refresh_token,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Logout URL builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the Scalekit sign-out URL.
+ *
+ * After clearing our local session cookie, we redirect the browser here so that
+ * Scalekit also clears its own session.  Scalekit then redirects the browser
+ * back to `postLogoutRedirectUri`.
+ *
+ * Equivalent to the official SDK's `getLogoutUrl`.
+ */
+export function getLogoutUrl(
+  envUrl: string,
+  postLogoutRedirectUri: string,
+): string {
+  const params = new URLSearchParams();
+  params.set("post_logout_redirect_uri", postLogoutRedirectUri);
+
+  const base = envUrl.replace(/\/+$/, "");
+  return `${base}/oidc/logout?${params.toString()}`;
+}
