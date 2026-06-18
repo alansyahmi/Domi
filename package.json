@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 58234",
     "preview": "wrangler dev --port 58233",
+    "deploy": "npm run build && wrangler deploy",
     "dev:all": "concurrently --names wrangler,vite --prefix-colors blue,green \"npm run preview\" \"npm run dev\"",
     "build": "tsc -b && vite build",
     "test": "vitest run",
