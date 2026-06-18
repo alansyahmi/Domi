@@ -45,7 +45,8 @@ async function apiJson<T>(
     let msg = `${response.status} ${response.statusText}`;
     try {
       const errJson = (await response.json()) as { error?: string };
-      if (errJson.error) msg = errJson.error;
+      // Preserve the status code prefix so the UI can detect auth errors
+      if (errJson.error) msg = `[${response.status}] ${errJson.error}`;
     } catch (e) {
       // ignore
     }

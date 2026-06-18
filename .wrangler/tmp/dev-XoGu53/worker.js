@@ -27216,7 +27216,7 @@ var worker_default = {
       if (env2.ASSETS) {
         const response = await env2.ASSETS.fetch(request);
         if (response.status === 404 && !pathname.includes(".")) {
-          const indexRequest = new Request(new URL("/index.html", request.url), request);
+          const indexRequest = new Request(new URL("/", request.url), request);
           return await env2.ASSETS.fetch(indexRequest);
         }
         return response;

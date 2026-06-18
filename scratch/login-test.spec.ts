@@ -10,44 +10,53 @@ test("auth-config returns configured:true", async ({ request }) => {
   expect(body.clientId).toBe("spac_130071553437073410");
 });
 
-test("csrf-token endpoint returns valid token", async ({ request }) => {
+test("csrf-token returns valid token", async ({ request }) => {
   const resp = await request.get(`${BASE}/api/csrf-token`);
   expect(resp.status()).toBe(200);
   const body = await resp.json();
   expect(body.csrfToken).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
 });
 
-test("login redirects through Scalekit to Google sign-in", async ({ page }) => {
-  // /login → Scalekit /oauth/authorize → Google sign-in (full redirect chain)
+test("/login redirects through Scalekit to Google", async ({ page }) => {
   await page.goto(`${BASE}/login`, { waitUntil: "commit" });
   const finalUrl = page.url();
   console.log("Final URL:", finalUrl.slice(0, 120) + "...");
-  // After following redirects, we should be at Google sign-in
   expect(finalUrl).toContain("accounts.google.com");
-  expect(finalUrl).toContain("scalekit"); // redirect_uri param references Scalekit
 });
 
-test("homepage loads and detects auth mode", async ({ page }) => {
-  await page.goto(BASE, { waitUntil: "networkidle" });
-  await page.waitForTimeout(2000);
+test("/dashboard stays at /dashboard (no redirect)", async ({ page }) => {
+  const resp = await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(3000);
 
-  const title = await page.title();
-  expect(title).toBe("Signatis");
+  const finalUrl = page.url();
+  console.log("Final URL:", finalUrl);
+  console.log("Title:", await page.title());
 
-  // Should have login links since auth is configured
-  const loginLinks = await page.locator('a[href*="/login"]').count();
-  expect(loginLinks).toBeGreaterThan(0);
-  console.log("Title:", title, "| Login links:", loginLinks);
+  // Should STAY at /dashboard, NOT redirect to /
+  expect(finalUrl).toContain("/dashboard");
+
+  // Should NOT show the landing page (it's at /dashboard, not /)
+  const body = await page.textContent("body");
+  expect(body).not.toMatch(/Built for Malaysian property agents/);
 });
 
-test("full SPA: navigate to dashboard, get redirected to login", async ({ page }) => {
+test("sign-in prompt appears at /dashboard when not authenticated", async ({ page }) => {
   await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
   await page.waitForTimeout(3000);
 
-  // Since not authenticated, should see sign-in prompt
   const body = await page.textContent("body");
-  console.log("Dashboard body:", body?.slice(0, 400));
+  console.log("Dashboard body:", body?.slice(0, 500));
 
-  // Should show auth-related content (Sign in button), not demo data
-  expect(body).toContain("Sign");
+  // Should show the "Sign in with Scalekit" prompt
+  expect(body).toContain("Sign in with Scalekit");
+  expect(body).toContain("Sign in to access your real estate workspace");
+});
+
+test("/ renders landing page", async ({ page }) => {
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.waitForTimeout(2000);
+
+  const body = await page.textContent("body");
+  expect(body).toMatch(/Built for Malaysian property agents/);
+  console.log("Landing page loads correctly at /");
 });

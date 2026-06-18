@@ -67,8 +67,10 @@ export default {
       if (env.ASSETS) {
         const response = await env.ASSETS.fetch(request);
         // Fallback to index.html for React Router client-side routing (SPA)
+        // Use "/" instead of "/index.html" to avoid Cloudflare redirect rules
+        // that may redirect /index.html → /
         if (response.status === 404 && !pathname.includes(".")) {
-          const indexRequest = new Request(new URL("/index.html", request.url), request);
+          const indexRequest = new Request(new URL("/", request.url), request);
           return await env.ASSETS.fetch(indexRequest);
         }
         return response;
