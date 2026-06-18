@@ -66,15 +66,15 @@ export default function ReportActionBar({
         <option value="">Select prospect...</option>
         {leads.map(lead => <option key={lead.id} value={lead.id}>{lead.name} ({lead.email})</option>)}
       </select>
-      <button 
-        className="primary-button py-1.5 px-3 text-sm flex gap-1 items-center"
+      <button
+        className="primary-button btn-sm"
         onClick={() => void handleSend()}
         disabled={!selectedLeadId || isSending}
       >
         {isSending ? "Sending..." : <><Send size={14} /> Send</>}
       </button>
-      <button 
-        className="ghost-button px-2 py-1.5 text-slate-400 hover:text-slate-600 text-sm"
+      <button
+        className="ghost-button"
         onClick={() => setShowSendModal(false)}
       >
         Cancel
@@ -123,11 +123,11 @@ export default function ReportActionBar({
 
       {showSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
-            <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center mb-5 text-emerald-600">
+          <div className="rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 flex flex-col items-center text-center animate-in zoom-in-95 duration-200" style={{ background: "#2a2a2a" }}>
+            <div className="h-16 w-16 rounded-full flex items-center justify-center mb-5" style={{ background: "rgba(5, 150, 105, 0.15)", color: "#6ee7b7" }}>
               <Check size={32} strokeWidth={3} />
             </div>
-            <h3 className="text-xl font-extrabold text-slate-900 mb-2">Report Sent!</h3>
+            <h3 className="text-xl font-extrabold mb-2" style={{ color: "rgba(247,247,244,0.92)" }}>Report Sent!</h3>
             <p className="text-slate-600 mb-8 leading-relaxed">
               The property report was successfully delivered to your prospect. They'll be able to view it instantly.
             </p>

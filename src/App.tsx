@@ -534,7 +534,7 @@ function SignatisWorkspace({
       <main className="min-h-screen grid place-items-center p-6">
         <section className="card max-w-xl p-8 text-center">
           <h1 className="section-title">re:AI could not start</h1>
-          <p className="mt-4 text-slate-600">{error}</p>
+          <p className="mt-4" style={{ color: "rgba(247,247,244,0.6)" }}>{error}</p>
           <button
             className="primary-button mt-6"
             onClick={() => setRetryCount((prev) => prev + 1)}
@@ -549,12 +549,12 @@ function SignatisWorkspace({
 
   if (!data || !dashboard) {
     return (
-      <main className="min-h-screen grid place-items-center bg-[#f7f9fb]">
-        <div className="card p-10 text-center landing-card-shadow border border-slate-200/80 max-w-sm w-full mx-4 animate-pulse">
+      <main className="min-h-screen grid place-items-center bg-[#1a1a1a]">
+        <div className="card p-10 text-center landing-card-shadow border border-white/10 max-w-sm w-full mx-4 animate-pulse">
           <div className="hci-loader-container">
             <div className="hci-loader-logo">re</div>
             <div>
-              <p className="text-slate-600 font-bold m-0">Loading re:AI workspace...</p>
+              <p className="font-bold m-0" style={{ color: "rgba(247,247,244,0.6)" }}>Loading re:AI workspace...</p>
               <div className="hci-loading-bar" />
             </div>
           </div>

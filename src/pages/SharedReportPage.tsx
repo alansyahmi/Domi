@@ -55,7 +55,7 @@ export default function SharedReportPage() {
           <img src={faviconUrl} alt="" aria-hidden="true" className="brand-mark mx-auto mb-4" />
           <h1 className="section-title">Report unavailable</h1>
           <p className="mt-4 text-slate-600">{state.message}</p>
-          <Link className="secondary-button mt-6" to="/dashboard">
+          <Link className="primary-button mt-6" to="/dashboard">
             Return to re:AI
           </Link>
         </section>
@@ -63,5 +63,5 @@ export default function SharedReportPage() {
     );
   }
 
-  return <SharedReportView agent={state.agent} report={state.report} />;
+  return <div className="shared-report-page"><SharedReportView agent={state.agent} report={state.report} /></div>;
 }

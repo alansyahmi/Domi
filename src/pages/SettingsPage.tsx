@@ -108,24 +108,12 @@ export default function SettingsPage({
   const [copyGlowType, setCopyGlowType] = useState<"success" | "fail">("success");
   const [copyGlowKey, setCopyGlowKey] = useState(0);
 
-  const [activeGlowButton, setActiveGlowButton] = useState<string | null>(null);
-
   // Animation timeout refs to handle rapid clicking and cleanup
   const successTimeoutRef = useRef<number | null>(null);
   const successDelayRef = useRef<number | null>(null);
   const copyTimeoutRef = useRef<number | null>(null);
   const copiedResetRef = useRef<number | null>(null);
-  const activeGlowTimerRef = useRef<number | null>(null);
   const simulatedFailureRef = useRef<number | null>(null);
-
-  function triggerButtonGlow(buttonId: string) {
-    if (activeGlowTimerRef.current) window.clearTimeout(activeGlowTimerRef.current);
-
-    setActiveGlowButton(buttonId);
-    activeGlowTimerRef.current = window.setTimeout(() => {
-      setActiveGlowButton(null);
-    }, 1200);
-  }
 
   function triggerProfileGlow(type: "success" | "fail") {
     if (successTimeoutRef.current) window.clearTimeout(successTimeoutRef.current);
@@ -160,14 +148,12 @@ export default function SettingsPage({
       if (successDelayRef.current) window.clearTimeout(successDelayRef.current);
       if (copyTimeoutRef.current) window.clearTimeout(copyTimeoutRef.current);
       if (copiedResetRef.current) window.clearTimeout(copiedResetRef.current);
-      if (activeGlowTimerRef.current) window.clearTimeout(activeGlowTimerRef.current);
       if (simulatedFailureRef.current) window.clearTimeout(simulatedFailureRef.current);
     };
   }, []);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    triggerButtonGlow("save-profile");
     setIsSaving(true);
     try {
       await onSave(form);
@@ -181,7 +167,6 @@ export default function SettingsPage({
   }
 
   function submitFail() {
-    triggerButtonGlow("simulate-profile-failure");
     setIsFailing(true);
     if (simulatedFailureRef.current) window.clearTimeout(simulatedFailureRef.current);
 
@@ -192,7 +177,6 @@ export default function SettingsPage({
   }
 
   async function copyAddress() {
-    triggerButtonGlow("copy-ingestion-address");
     if (copiedResetRef.current) window.clearTimeout(copiedResetRef.current);
 
     try {
@@ -213,13 +197,10 @@ export default function SettingsPage({
   }
 
   function mockCopyFail() {
-    triggerButtonGlow("mock-copy-failure");
     triggerCopyGlow("fail");
   }
 
   async function connectPortal(portal: (typeof AVAILABLE_PORTALS)[number]) {
-    triggerButtonGlow(`connect-${portal.id}`);
-
     try {
       await onConnectIntegration(portal.id, portal.name, portal.description);
     } catch (error) {
@@ -228,8 +209,6 @@ export default function SettingsPage({
   }
 
   async function disconnectPortal(integrationId: string) {
-    triggerButtonGlow(`disconnect-${integrationId}`);
-
     try {
       await onDisconnectIntegration(integrationId);
     } catch (error) {
@@ -355,16 +334,16 @@ export default function SettingsPage({
                   onChange={(event) => setForm({ ...form, bio: event.target.value })}
                 />
               </label>
-              <div className="flex flex-col sm:flex-row gap-3 mt-2">
+              <div className="card-seam-footer">
                 <button
-                  className={`primary-button flex-1 glow-on-hover rainbow ${isSaving ? "saving" : ""} ${activeGlowButton === "save-profile" ? "active-glow" : ""}`}
+                  className={`primary-button ${isSaving ? "saving" : ""}`}
                   type="submit"
                   disabled={isSaving || isFailing}
                 >
                   <span>Save Changes</span>
                 </button>
                 <button
-                  className={`secondary-button flex-1 border-red-300 text-red-600 glow-on-hover rainbow ${isFailing ? "saving" : ""} ${activeGlowButton === "simulate-profile-failure" ? "active-glow" : ""}`}
+                  className="secondary-button btn-danger"
                   type="button"
                   onClick={submitFail}
                   disabled={isSaving || isFailing}
@@ -406,7 +385,7 @@ export default function SettingsPage({
             <div className="mt-6 rounded-md border border-[#2d2d2d] bg-slate-100 p-5">
               <div className="flex items-center justify-between gap-4">
                 <span className="eyebrow">Current Plan</span>
-                <span className="status-chip bg-[#1e1e1e] text-[#121212] text-[#121212]">Active</span>
+                <span className="status-chip bg-[#1e1e1e] text-white">Active</span>
               </div>
               <h3 className="mt-3 text-2xl font-extrabold">{agent.plan}</h3>
               <p className="text-slate-700">RM 499.00 / month</p>
@@ -419,13 +398,15 @@ export default function SettingsPage({
                 ))}
               </ul>
             </div>
-            <button
-              className={`secondary-button w-full mt-5 glow-on-hover rainbow ${activeGlowButton === "manage-billing" ? "active-glow" : ""}`}
-              type="button"
-              onClick={() => triggerButtonGlow("manage-billing")}
-            >
-              <span>Manage Billing</span>
-            </button>
+            <div className="card-seam-footer">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => {}}
+              >
+                <span>Manage Billing</span>
+              </button>
+            </div>
           </section>
         </div>
 
@@ -447,7 +428,7 @@ export default function SettingsPage({
                   {agent.ingestionAddress}
                 </code>
                 <button
-                  className={`primary-button rounded-t-none sm:rounded-l-none sm:rounded-r-md glow-on-hover rainbow ${activeGlowButton === "copy-ingestion-address" ? "active-glow" : ""}`}
+                  className="primary-button rounded-t-none sm:rounded-l-none sm:rounded-r-md"
                   onClick={() => void copyAddress()}
                 >
                   <span>
@@ -457,7 +438,7 @@ export default function SettingsPage({
                 </button>
               </div>
               <button
-                className={`secondary-button border-red-300 text-red-600 glow-on-hover rainbow ${activeGlowButton === "mock-copy-failure" ? "active-glow" : ""}`}
+                className="secondary-button btn-danger"
                 onClick={() => void mockCopyFail()}
               >
                 <span>Mock Fail</span>
@@ -536,7 +517,7 @@ export default function SettingsPage({
                       {onDeleteWhatsAppCredentials && (
                         <button
                           type="button"
-                          className="px-4 py-2 text-red-600 font-semibold hover:bg-red-50 rounded-md transition-colors"
+                          className="secondary-button btn-danger"
                           onClick={() => void onDeleteWhatsAppCredentials()}
                         >
                           Disconnect
@@ -544,7 +525,7 @@ export default function SettingsPage({
                       )}
                       <button
                         type="submit"
-                        className="primary-button bg-emerald-600 hover:bg-emerald-700 !py-2 !px-6"
+                        className="primary-button btn-success"
                         disabled={isSavingWhatsApp}
                       >
                         {isSavingWhatsApp ? "Saving..." : "Connect WhatsApp"}
@@ -572,7 +553,7 @@ export default function SettingsPage({
                         <p className="m-0 text-xs text-slate-500 truncate">{portal.description}</p>
                       </div>
                       <button
-                        className={`secondary-button !py-1.5 !px-3 text-xs glow-on-hover rainbow ${activeGlowButton === `connect-${portal.id}` ? "active-glow" : ""}`}
+                        className="secondary-button btn-sm"
                         onClick={() => void connectPortal(portal)}
                       >
                         <span>Connect</span>
@@ -612,7 +593,7 @@ export default function SettingsPage({
                         </div>
                         <span className="status-chip status-ready">Connected</span>
                         <button
-                          className={`icon-button text-red-600 hover:bg-red-50 glow-on-hover rainbow ${activeGlowButton === `disconnect-${integration.id}` ? "active-glow" : ""}`}
+                          className="icon-button btn-danger"
                           onClick={() => void disconnectPortal(integration.id)}
                           aria-label={`Remove ${integration.name}`}
                         >

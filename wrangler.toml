@@ -10,8 +10,8 @@ compatibility_flags = [ "nodejs_compat" ]
 [vars]
 SCALEKIT_CLIENT_ID = "spac_130071553437073410"
 SCALEKIT_ENV_URL = "https://swarty.scalekit.dev"
-SCALEKIT_REDIRECT_URI = "https://re-ai.app/callback"
-SCALEKIT_SIGN_OUT_REDIRECT_URI = "https://re-ai.app/?logout=true"
+SCALEKIT_REDIRECT_URI = "https://re-ai.alansyahmi2004.workers.dev/callback"
+SCALEKIT_SIGN_OUT_REDIRECT_URI = "https://re-ai.alansyahmi2004.workers.dev/?logout=true"
 TURSO_DATABASE_URL = "libsql://signatis-alansyahmi.aws-ap-northeast-1.turso.io"
 
 [assets]

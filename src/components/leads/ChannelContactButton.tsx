@@ -16,16 +16,12 @@ export function ChannelContactButton({ lead, size = "md" }: { lead: Pick<Lead, "
   const label = channelLabel(lead.preferredChannel);
   const icon = channelIcons[lead.preferredChannel] ?? <MessageCircle size={16} />;
 
-  const sizeClasses = size === "sm"
-    ? "px-2.5 py-1.5 text-xs gap-1.5"
-    : "px-4 py-2 text-sm gap-2";
-
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`inline-flex items-center font-semibold rounded-lg transition-colors bg-[#041627] text-white hover:bg-[#1a2b3c] ${sizeClasses}`}
+      className={`primary-button ${size === "sm" ? "btn-sm" : ""}`}
       title={`Contact via ${label}`}
     >
       {icon}

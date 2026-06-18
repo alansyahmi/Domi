@@ -16,7 +16,6 @@ function AnimatedNumber({ value }: { value: number | string }) {
     const step = (timestamp: number) => {
       if (!startTimestamp) startTimestamp = timestamp;
       const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-      // easeOutQuart
       const ease = 1 - Math.pow(1 - progress, 4);
       setDisplayValue(numericValue * ease);
       if (progress < 1) {
@@ -32,30 +31,6 @@ function AnimatedNumber({ value }: { value: number | string }) {
   return <>{displayValue.toFixed(2)}</>;
 }
 
-function MetricCard({
-  label,
-  value,
-  hint,
-  gold,
-}: {
-  label: string;
-  value: string | number;
-  hint: string;
-  gold?: boolean;
-}) {
-  return (
-    <section className={`card metric-card ${gold ? "gold" : ""}`}>
-      <p className="metric-label">{label}</p>
-      <div className="mt-4 flex items-end gap-4">
-        <strong className="metric-value">
-          <AnimatedNumber value={value} />
-        </strong>
-        <span className="mb-2 text-emerald-600 font-semibold">{hint}</span>
-      </div>
-    </section>
-  );
-}
-
 function ReportStatus({ report }: { report: PropertyReport }) {
   return (
     <span className={`status-chip ${report.status === "ready" ? "status-ready" : "status-running"}`}>
@@ -64,81 +39,175 @@ function ReportStatus({ report }: { report: PropertyReport }) {
   );
 }
 
-export default function DashboardPage({ 
+export default function DashboardPage({
   dashboard,
-  onInjectDemoLead 
-}: { 
+  onInjectDemoLead
+}: {
   dashboard: DashboardData;
   onInjectDemoLead?: () => void;
 }) {
+  const avgEngagement = dashboard.highIntentLeads.length > 0
+    ? Math.round(
+      dashboard.highIntentLeads.reduce(
+        (total, lead) => total + Math.min(100, lead.emailOpens * 5 + lead.linkClicks * 8), 0
+      ) / dashboard.highIntentLeads.length
+    )
+    : 0;
+
   return (
-    <main className="page">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <MetricCard label="Total Leads Scored" value={dashboard.totals.leadsScored} hint="+12%" />
-        <MetricCard label="Average Intent Score" value={dashboard.totals.averageIntentScore.toFixed(2)} hint="High" gold />
-        <MetricCard label="Reports Generated" value={dashboard.totals.reportsGenerated} hint="This Month" />
+    <main
+      style={{
+        maxWidth: "92rem",
+        margin: "0 auto",
+        padding: "0.35rem 2.5rem 5rem",
+        position: "relative",
+        overflowX: "hidden",
+        minHeight: "calc(100vh - 6rem)",
+        background: `
+          radial-gradient(900px 360px at 50% 0%, rgba(255,255,255,0.07), transparent 60%),
+          linear-gradient(180deg, rgba(58,58,58,0.96), rgba(38,38,38,0.96))
+        `,
+      }}
+    >
+      {/* ── Animated bars (landing page Launch mode style) ── */}
+      <div className="reai-bars" aria-hidden="true" style={{ right: "2.5rem" }}>
+        <span />
+        <span />
+        <span />
+        <span />
       </div>
 
-      <div className="mt-12 grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(24rem,1fr)] gap-10">
-        <section>
-          <div className="dashboard-section-header">
-            <h2 className="section-title">High-Intent Leads</h2>
-            <div className="flex gap-2">
-              {onInjectDemoLead && (
-                <button 
-                  onClick={onInjectDemoLead}
-                  className="secondary-button !px-3"
-                  title="Simulate incoming lead"
-                >
-                  <UserPlus size={18} />
-                </button>
-              )}
-              <Link to="/leads" className="secondary-button">
-                View All
-              </Link>
-            </div>
+      {/* ── Stats cards ── */}
+      <div className="reai-hero-stats" style={{ marginTop: 0 }}>
+        <article className="reai-stat-card">
+          <span className="reai-stat-value">
+            <AnimatedNumber value={dashboard.totals.leadsScored} />
+          </span>
+          <span className="reai-stat-label">Total Leads Scored</span>
+        </article>
+        <article className="reai-stat-card">
+          <span className="reai-stat-value">
+            <AnimatedNumber value={dashboard.totals.averageIntentScore.toFixed(2)} />
+          </span>
+          <span className="reai-stat-label">Average Intent Score</span>
+        </article>
+        <article className="reai-stat-card">
+          <span className="reai-stat-value">
+            <AnimatedNumber value={dashboard.totals.reportsGenerated} />
+          </span>
+          <span className="reai-stat-label">Reports Generated</span>
+        </article>
+      </div>
+
+      {/* ── Secondary metrics ── */}
+      <div className="reai-hero-metrics">
+        <div>
+          <span className="reai-metric-label">High-Intent Prospects</span>
+          <span className="reai-metric-value">{dashboard.highIntentLeads.length}</span>
+        </div>
+        <div>
+          <span className="reai-metric-label">Avg Engagement</span>
+          <span className="reai-metric-value">{avgEngagement}%</span>
+        </div>
+      </div>
+
+      {/* ── High-Intent Leads list ── */}
+      <div className="mt-10">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h3 className="m-0 text-base font-bold tracking-wider uppercase" style={{ color: "rgba(247,247,244,0.48)", letterSpacing: "0.12em" }}>
+            High-Intent Leads
+          </h3>
+          <div className="flex gap-2">
+            {onInjectDemoLead && (
+              <button
+                onClick={onInjectDemoLead}
+                className="secondary-button btn-sm"
+                title="Simulate incoming lead"
+              >
+                <UserPlus size={16} />
+              </button>
+            )}
+            <Link to="/leads" className="secondary-button btn-sm">
+              View All
+            </Link>
           </div>
-          <div className="grid gap-4">
-            {dashboard.highIntentLeads.map((lead) => (
-              <article key={lead.id} className="card border-l-4 border-l-white p-5 flex items-center gap-5">
+        </div>
+        <div className="grid gap-3">
+          {dashboard.highIntentLeads.length > 0 ? (
+            dashboard.highIntentLeads.map((lead) => (
+              <article
+                key={lead.id}
+                className="glass-surface flex items-center gap-4"
+                style={{
+                  padding: "1rem 1.25rem",
+                  borderRadius: "1.2rem",
+                  borderLeft: "4px solid #ffd45a",
+                }}
+              >
                 <div className="avatar">{initials(lead.name)}</div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="m-0 text-xl font-extrabold">{lead.name}</h3>
-                  <p className="m-0 text-slate-700 truncate">
-                    {lead.propertyInterest} • {lead.budget}
-                  </p>
+                  <div className="font-bold" style={{ color: "rgba(247,247,244,0.92)", fontSize: "1.05rem" }}>
+                    {lead.name}
+                  </div>
+                  <div style={{ color: "rgba(247,247,244,0.5)", fontSize: "0.9rem" }}>
+                    {lead.propertyInterest} &bull; {lead.budget}
+                  </div>
                 </div>
                 <div className="text-center">
-                  <div className="eyebrow">Intent</div>
-                  <div className="text-3xl font-extrabold">{lead.intent}</div>
+                  <div className="eyebrow" style={{ fontSize: "0.7rem" }}>Intent</div>
+                  <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "rgba(247,247,244,0.92)" }}>{lead.intent}</div>
                 </div>
                 <ChannelContactButton lead={lead} size="sm" />
               </article>
-            ))}
-          </div>
-        </section>
+            ))
+          ) : (
+            <div style={{ color: "rgba(247,247,244,0.35)", fontSize: "0.95rem", padding: "1.5rem 0", textAlign: "center" }}>
+              No high-intent prospects yet. New leads will appear here once scored.
+            </div>
+          )}
+        </div>
+      </div>
 
-        <section>
-          <h2 className="section-title mb-6">Recent Reports</h2>
-          <div className="card overflow-hidden">
-            {dashboard.recentReports.map((report) => (
-              <article key={report.id} className="border-b border-[#2d2d2d] last:border-b-0 p-5 flex items-start gap-4">
-                <div className="mt-1">
+      {/* ── Recent Reports list ── */}
+      <div className="mt-8 pb-2">
+        <h3 className="m-0 mb-4 text-base font-bold tracking-wider uppercase" style={{ color: "rgba(247,247,244,0.48)", letterSpacing: "0.12em" }}>
+          Recent Reports
+        </h3>
+        <div className="grid gap-3">
+          {dashboard.recentReports.length > 0 ? (
+            dashboard.recentReports.map((report) => (
+              <article
+                key={report.id}
+                className="glass-surface flex items-center gap-4"
+                style={{
+                  padding: "0.9rem 1.25rem",
+                  borderRadius: "1.2rem",
+                }}
+              >
+                <div style={{ marginTop: "0.1rem" }}>
                   {report.status === "running" ? (
-                    <RefreshCw size={20} className="text-slate-300" aria-hidden="true" />
+                    <RefreshCw size={18} style={{ color: "rgba(247,247,244,0.35)" }} aria-hidden="true" />
                   ) : (
-                    <TrendingUp size={20} className="text-emerald-600" aria-hidden="true" />
+                    <TrendingUp size={18} style={{ color: "#6ee7b7" }} aria-hidden="true" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="m-0 text-lg font-extrabold">{report.title}</h3>
-                  <p className="m-0 text-slate-700">{formatDateTime(report.generatedAt)}</p>
+                  <div className="font-bold truncate" style={{ color: "rgba(247,247,244,0.92)", fontSize: "1rem" }}>
+                    {report.title}
+                  </div>
+                  <div style={{ color: "rgba(247,247,244,0.5)", fontSize: "0.85rem" }}>
+                    {formatDateTime(report.generatedAt)}
+                  </div>
                 </div>
                 <ReportStatus report={report} />
               </article>
-            ))}
-          </div>
-        </section>
+            ))
+          ) : (
+            <div style={{ color: "rgba(247,247,244,0.35)", fontSize: "0.95rem", padding: "1.5rem 0", textAlign: "center" }}>
+              No reports generated yet. Create your first report to see it here.
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );

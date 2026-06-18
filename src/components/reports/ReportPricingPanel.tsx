@@ -99,7 +99,7 @@ export default function ReportPricingPanel({
         {cards.map((card) => (
           <div
             key={card.label}
-            className={isAgent ? "bg-white p-4 rounded border border-slate-200" : "bg-slate-50 p-5 rounded-lg border border-slate-200"}
+            className={isAgent ? "bg-white/5 p-4 rounded border border-slate-200" : "bg-slate-50 p-5 rounded-lg border border-slate-200"}
           >
             <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-2">{card.label}</span>
             <strong className={`${card.tone ? `text-xl font-extrabold px-2 py-0.5 rounded ${card.tone}` : "text-2xl text-slate-900 font-extrabold"}`}>

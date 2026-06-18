@@ -296,7 +296,7 @@ export default function ReportInputPanel({
             {saving ? "Generating" : "Generate Report"}
           </button>
         </div>
-        {submitError ? <div className="card border-red-200 bg-red-50 px-4 py-3 text-red-700">{submitError}</div> : null}
+        {submitError ? <div className="px-4 py-3 rounded-lg" style={{ background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.3)", color: "#fca5a5" }}>{submitError}</div> : null}
       </div>
     </form>
   );

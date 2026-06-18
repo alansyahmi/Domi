@@ -277,11 +277,11 @@ export default function LeadManagementPage({
           <article
             key={lead.id}
             className={`grid grid-cols-1 lg:grid-cols-[2fr_0.7fr_1.2fr_1.2fr_1.2fr_1fr_auto] gap-4 lg:gap-6 px-6 lg:px-8 py-6 border-t border-[#2d2d2d] items-center ${
-              lead.intent === 1 ? "border-l-4 border-l-white" : ""
+              lead.intent === 1 ? "border-l-4 border-l-[#ffd45a]" : ""
             }`}
           >
             <div className="flex items-center gap-4">
-              <div className="avatar small bg-[#1e1e1e] text-[#121212]">{initials(lead.name)}</div>
+              <div className="avatar small bg-[#1e1e1e] text-white">{initials(lead.name)}</div>
               <div>
                 <h2 className="m-0 text-xl font-extrabold">{lead.name}</h2>
                 <p className="m-0 text-slate-300">{lead.email}</p>
@@ -313,14 +313,14 @@ export default function LeadManagementPage({
             </div>
             <div className="flex gap-2">
               <button
-                className="p-2 rounded hover:bg-slate-200 text-slate-700 transition-colors"
+                className="icon-button btn-sm"
                 onClick={() => setSelectedLead(lead)}
                 title="View Lead Profile"
               >
                 <Eye size={18} />
               </button>
               <button
-                className="p-2 rounded hover:bg-red-100 text-red-600 transition-colors"
+                className="icon-button btn-sm btn-danger"
                 onClick={() => handleDeleteLead(lead.id)}
                 title="Delete Lead"
               >
@@ -340,14 +340,14 @@ export default function LeadManagementPage({
           <div className="w-full max-w-lg h-full bg-[#1e1e1e] shadow-2xl flex flex-col p-6 overflow-y-auto">
             <div className="flex justify-between items-center border-b border-[#2d2d2d] pb-4 mb-6">
               <div className="flex items-center gap-4">
-                <div className="avatar bg-[#1e1e1e] text-[#121212]">{initials(selectedLead.name)}</div>
+                <div className="avatar bg-[#1e1e1e] text-white">{initials(selectedLead.name)}</div>
                 <div>
                   <h2 className="text-2xl font-extrabold m-0">{selectedLead.name}</h2>
                   <span className={`tag mt-1 inline-block ${sourceTone(selectedLead.source)}`}>{selectedLead.source}</span>
                 </div>
               </div>
               <button
-                className="p-2 rounded-full hover:bg-slate-100 text-slate-500"
+                className="icon-button"
                 onClick={() => setSelectedLead(null)}
               >
                 <X size={20} />
@@ -364,9 +364,9 @@ export default function LeadManagementPage({
                 <div>
                   <p className="text-xs uppercase text-slate-500 font-semibold mb-1">Status Tier</p>
                   <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                    selectedLead.tier === "Hot" ? "bg-amber-100 text-amber-800 border border-amber-200" :
-                    selectedLead.tier === "Warm" ? "bg-blue-100 text-blue-800 border border-blue-200" :
-                    "bg-slate-100 text-slate-800 border border-[#2d2d2d]"
+                    selectedLead.tier === "Hot" ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" :
+                    selectedLead.tier === "Warm" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" :
+                    "bg-white/5 text-slate-300 border border-[#2d2d2d]"
                   }`}>
                     {selectedLead.tier}
                   </span>
@@ -391,7 +391,7 @@ export default function LeadManagementPage({
                       className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                         selectedLead.stage === stage
                           ? "bg-[#1e1e1e] text-white border-[#041627]"
-                          : "bg-[#1e1e1e] text-slate-300 border-[#2d2d2d] hover:border-slate-500"
+                          : "bg-[#1e1e1e] text-slate-300 border-[#2d2d2d] hover:border-white/20"
                       }`}
                     >
                       {stage.replace("_", " ")}
@@ -441,8 +441,8 @@ export default function LeadManagementPage({
                     <div className="bg-[#1e1e1e]/10 rounded-lg p-3 text-sm text-slate-100 italic mb-4 border border-white/20">
                       "Hi {selectedLead.name.split(" ")[0]}, I saw you were looking at {selectedLead.propertyInterest || "some properties"} recently. Are you still searching? I have some new exclusive insights I can share with you!"
                     </div>
-                    <button 
-                      className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white py-2.5 rounded-lg font-bold transition-all shadow-sm disabled:opacity-50"
+                    <button
+                      className="primary-button btn-success w-full"
                       onClick={() => void handleActionableOutreach()}
                       disabled={isSendingMessage || selectedLead.stage !== "new"}
                     >
@@ -521,7 +521,7 @@ export default function LeadManagementPage({
                   ) : (
                     leadEvents.map((event) => (
                       <div key={event.id} className="relative">
-                        <div className="absolute -left-[23px] top-1 bg-[#1e1e1e] p-0.5 rounded-full border-2 border-slate-400 text-slate-500">
+                        <div className="absolute -left-[23px] top-1 bg-[#1e1e1e] p-0.5 rounded-full border-2 border-white/20 text-slate-500">
                           <Activity size={10} />
                         </div>
                         <div>
@@ -538,9 +538,9 @@ export default function LeadManagementPage({
               </div>
             </div>
 
-            <div className="border-t border-[#2d2d2d] pt-4 mt-6">
+            <div className="seam-footer-p6">
               <button
-                className="w-full flex items-center justify-center gap-2 py-3 bg-red-50 hover:bg-red-100 text-red-600 font-semibold rounded-lg transition-colors"
+                className="primary-button btn-danger"
                 onClick={() => handleDeleteLead(selectedLead.id)}
               >
                 <Trash2 size={18} />
@@ -561,7 +561,7 @@ export default function LeadManagementPage({
                 Add New Prospect
               </h2>
               <button
-                className="p-1 rounded-full hover:bg-[#1e1e1e]/10 text-white/80 hover:text-white"
+                className="icon-button btn-sm"
                 onClick={() => setIsAddModalOpen(false)}
               >
                 <X size={20} />
@@ -677,7 +677,7 @@ export default function LeadManagementPage({
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
-                  className="px-4 py-2 border border-[#2d2d2d] rounded-lg text-slate-700 hover:bg-[#121212] transition-colors"
+                  className="secondary-button"
                   onClick={() => setIsAddModalOpen(false)}
                 >
                   Cancel
@@ -685,7 +685,7 @@ export default function LeadManagementPage({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-[#1e1e1e] hover:bg-[#2d2d2d] text-white font-semibold rounded-lg transition-colors disabled:opacity-50"
+                  className="primary-button"
                 >
                   {isSubmitting ? "Adding..." : "Add Prospect"}
                 </button>

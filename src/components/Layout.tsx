@@ -16,8 +16,6 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import type { Agent } from "../types";
 
-const faviconUrl = new URL("../../favicon.png", import.meta.url).href;
-
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: Gauge },
   { to: "/report-generator", label: "Report Generator", icon: Home },
@@ -85,11 +83,11 @@ export default function Layout({ agent, children, demoMode, notice, onLogout }: 
         <div className="topbar-container">
           {/* Left: Brand logo & motto */}
           <Link to="/dashboard" className="brand-group">
-            <img src={faviconUrl} alt="" aria-hidden="true" className="brand-mark" />
-            <div className="brand-info">
-              <span className="brand-name">re:AI</span>
-              <span className="brand-plan">Real estate intelligence</span>
-            </div>
+            <span className="brand-name brand-name-button">
+              <span>re</span>
+              <span className="brand-colon">:</span>
+              <span>AI</span>
+            </span>
           </Link>
 
           {/* Center: Navigation Links (Desktop) */}
@@ -146,7 +144,7 @@ export default function Layout({ agent, children, demoMode, notice, onLogout }: 
 
       {notice ? (
         <div className="mx-auto max-w-368 px-4 md:px-10 pt-4">
-          <div className="card border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">{notice}</div>
+          <div className="px-4 py-3 rounded-lg" style={{ background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.3)", color: "#6ee7b7" }}>{notice}</div>
         </div>
       ) : null}
 

@@ -53,7 +53,7 @@ export default function SharedReportView({
   };
 
   return (
-    <main className="min-h-screen bg-[#f7f9fb] text-slate-800 antialiased font-sans">
+    <main className="min-h-screen bg-[#1a1a1a] text-slate-800 antialiased font-sans">
       {/* Header bar */}
       <header className="sticky top-0 bg-[#1e1e1e]/90 backdrop-blur-md border-b border-[#2d2d2d] py-4 px-6 md:px-12 flex justify-between items-center z-40">
         <div className="flex items-center gap-2">
@@ -64,7 +64,7 @@ export default function SharedReportView({
           href={buildSharedReportPdfUrl(report.shareToken)}
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-2 px-4 py-2 border border-[#2d2d2d] rounded-lg text-sm font-semibold hover:bg-[#121212] transition-colors"
+          className="secondary-button btn-sm"
         >
           <Download size={16} />
           Download PDF
@@ -147,7 +147,7 @@ export default function SharedReportView({
         <div className="space-y-6">
           {/* Agent Card */}
           <div className="bg-[#1e1e1e] rounded-xl border border-[#2d2d2d] p-6 shadow-sm text-center">
-            <div className="avatar mx-auto bg-[#1e1e1e] text-[#121212] text-white font-bold text-2xl w-16 h-16 rounded-full flex items-center justify-center mb-4">
+            <div className="avatar mx-auto bg-[#1e1e1e] text-white font-bold text-2xl w-16 h-16 rounded-full flex items-center justify-center mb-4">
               {agent.avatarInitials}
             </div>
             <h2 className="text-xl font-extrabold m-0 text-slate-900">{agent.fullName}</h2>
@@ -177,15 +177,15 @@ export default function SharedReportView({
             <p className="text-xs text-slate-500 mb-6">Leave your contact details and receive specialized assistance on this market segment.</p>
 
             {isSuccess ? (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-5 text-center text-emerald-800">
-                <CheckCircle size={36} className="text-emerald-600 mx-auto mb-3" />
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-5 text-center" style={{ color: "#a7f3d0" }}>
+                <CheckCircle size={36} className="mx-auto mb-3" style={{ color: "#6ee7b7" }} />
                 <h3 className="text-lg font-bold m-0">Inquiry Submitted!</h3>
                 <p className="text-sm mt-2">Your interest has been logged. The listing agent will connect with you shortly.</p>
               </div>
             ) : (
               <form onSubmit={handleInquirySubmit} className="space-y-4">
                 {errorMessage && (
-                  <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 text-xs leading-relaxed">
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-xs leading-relaxed" style={{ color: "#fca5a5" }}>
                     {errorMessage}
                   </div>
                 )}
@@ -250,7 +250,7 @@ export default function SharedReportView({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-[#1e1e1e] hover:bg-[#2d2d2d] text-white font-semibold rounded-lg transition-colors disabled:opacity-50 text-sm"
+                  className="primary-button w-full"
                 >
                   <Send size={16} />
                   {isSubmitting ? "Sending..." : "Submit Inquiry"}
