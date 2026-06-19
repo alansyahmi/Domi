@@ -418,7 +418,7 @@ describe("Tavily report research provider", () => {
     expect(result.comparableListings?.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("caps mapped Tavily citations at nine balanced sources", async () => {
+  it("caps mapped Tavily citations at 30 balanced sources", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue({
@@ -634,5 +634,248 @@ describe("Tavily report research provider", () => {
       bathrooms: 2,
     });
   });
+
+  it("extracts bedroom and bathroom counts from trailing digits in the title when not found in content", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        answer: "The Peak listings.",
+        results: [
+          {
+            title: "The Peak Condominium, Sabah 3 2 1",
+            url: "https://www.iproperty.com.my/property/kota-kinabalu/the-peak-condominium/sale-107416348/",
+            content: "Penthouse at The Peak. RM 800,000 asking. 1,400 sqft built up.",
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = createTavilyResearchProvider({
+      TAVILY_API_KEY: "tvly-test",
+    });
+    const result = await provider.research({ propertyName: "The Peak", listingIntent: "sale" });
+
+    expect(result.comparableListings).toHaveLength(1);
+    expect(result.comparableListings?.[0]).toMatchObject({
+      title: "The Peak Condominium, Sabah 3 2 1",
+      askingPriceRm: 800000,
+      builtUpSqft: 1400,
+      bedrooms: 3,
+      bathrooms: 2,
+    });
+  });
+
+  it("parses BND and B$ currency prices", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, init: { body: string }) => {
+      if (url === "https://api.tavily.com/extract") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [], failed_results: [] }) });
+      }
+      const body = JSON.parse(init.body);
+      const query: string = body.query ?? "";
+      if (query.includes("facebook.com") || query.includes("Rimbunan Hijau") || query.includes("price")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            answer: "Brunei listing.",
+            results: [
+              {
+                title: "Taman Rimbunan Hijau for sale",
+                url: "https://www.facebook.com/groups/PropertyBrunei/posts/26070731522566362",
+                content: "Rumah untuk dijual di Taman Rimbunan Hijau. BND 350,000 nego. 4 bedrooms 3 bathrooms.",
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ answer: "Generic.", results: [] }) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = createTavilyResearchProvider({ TAVILY_API_KEY: "tvly-test" });
+    const result = await provider.research({ propertyName: "Taman Rimbunan Hijau", listingIntent: "sale" });
+
+    expect(result.comparableListings).toHaveLength(1);
+    expect(result.comparableListings?.[0]).toMatchObject({
+      askingPriceRm: 350000,
+      bedrooms: 4,
+      bathrooms: 3,
+    });
+  });
+
+  it("parses prices with dot thousands separator (European style)", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, init: { body: string }) => {
+      if (url === "https://api.tavily.com/extract") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [], failed_results: [] }) });
+      }
+      const body = JSON.parse(init.body);
+      const query: string = body.query ?? "";
+      if (query.includes("facebook.com") || query.includes("Rimbunan Hijau") || query.includes("price")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            answer: "Listing.",
+            results: [
+              {
+                title: "Taman Rimbunan Hijau house",
+                url: "https://www.facebook.com/groups/PropertyBrunei/posts/26070731522566362",
+                content: "RM 450.000 for sale. Taman Rimbunan Hijau. 3 2 1200 sqft",
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ answer: "Generic.", results: [] }) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = createTavilyResearchProvider({ TAVILY_API_KEY: "tvly-test" });
+    const result = await provider.research({ propertyName: "Taman Rimbunan Hijau", listingIntent: "sale" });
+
+    expect(result.comparableListings?.[0]).toMatchObject({ askingPriceRm: 450000 });
+  });
+
+  it("parses no-space currency like RM1500", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, init: { body: string }) => {
+      if (url === "https://api.tavily.com/extract") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [], failed_results: [] }) });
+      }
+      const body = JSON.parse(init.body);
+      const query: string = body.query ?? "";
+      if (query.includes("facebook.com") || query.includes("price")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            answer: "Listing.",
+            results: [
+              {
+                title: "Mont Kiara condo for sale",
+                url: "https://www.facebook.com/marketplace/item/123456789/",
+                content: "Mont Kiara condo RM650000 asking price. 2br 1ba 850sqft.",
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ answer: "Generic.", results: [] }) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = createTavilyResearchProvider({ TAVILY_API_KEY: "tvly-test" });
+    const result = await provider.research({ propertyName: "Mont Kiara", listingIntent: "sale" });
+
+    expect(result.comparableListings).toHaveLength(1);
+    expect(result.comparableListings?.[0]).toMatchObject({ askingPriceRm: 650000 });
+  });
+
+  it("parses juta/jt suffix for million in Malay", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, init: { body: string }) => {
+      if (url === "https://api.tavily.com/extract") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [], failed_results: [] }) });
+      }
+      const body = JSON.parse(init.body);
+      const query: string = body.query ?? "";
+      if (query.includes("facebook.com") || query.includes("price")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            answer: "Listing.",
+            results: [
+              {
+                title: "Mont Kiara luxury condo",
+                url: "https://www.facebook.com/groups/KLProperty/posts/123456789/",
+                content: "Mont Kiara premium condo. Harga 1.2 juta. 3br 2ba 1400sqft.",
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ answer: "Generic.", results: [] }) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = createTavilyResearchProvider({ TAVILY_API_KEY: "tvly-test" });
+    const result = await provider.research({ propertyName: "Mont Kiara", listingIntent: "sale" });
+
+    expect(result.comparableListings).toHaveLength(1);
+    expect(result.comparableListings?.[0]).toMatchObject({ askingPriceRm: 1200000 });
+  });
+
+  it("detects monthly rental rate and infers rent intent", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, init: { body: string }) => {
+      if (url === "https://api.tavily.com/extract") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [], failed_results: [] }) });
+      }
+      const body = JSON.parse(init.body);
+      const query: string = body.query ?? "";
+      if (query.includes("facebook.com") || query.includes("price")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            answer: "Rental listing.",
+            results: [
+              {
+                title: "Mont Kiara apartment for rent",
+                url: "https://www.facebook.com/groups/KLRental/posts/987654321/",
+                content: "Mont Kiara apartment. RM 2,800 per month. Partially furnished. 2br 1ba.",
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ answer: "Generic.", results: [] }) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = createTavilyResearchProvider({ TAVILY_API_KEY: "tvly-test" });
+    const result = await provider.research({ propertyName: "Mont Kiara", listingIntent: "rent" });
+
+    expect(result.comparableListings).toHaveLength(1);
+    expect(result.comparableListings?.[0]).toMatchObject({
+      askingPriceRm: 2800,
+      listingIntent: "rent",
+    });
+  });
+
+  it("handles price ranges by taking the lower bound", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, init: { body: string }) => {
+      if (url === "https://api.tavily.com/extract") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [], failed_results: [] }) });
+      }
+      const body = JSON.parse(init.body);
+      const query: string = body.query ?? "";
+      if (query.includes("facebook.com") || query.includes("price")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            answer: "Range listing.",
+            results: [
+              {
+                title: "Mont Kiara condo range",
+                url: "https://www.iproperty.com.my/mont-kiara/condo/sale-501234568/",
+                content: "Mont Kiara condo RM 450,000 - RM 550,000. 2br 2ba 900sqft.",
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ answer: "Generic.", results: [] }) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = createTavilyResearchProvider({ TAVILY_API_KEY: "tvly-test" });
+    const result = await provider.research({ propertyName: "Mont Kiara", listingIntent: "sale" });
+
+    expect(result.comparableListings).toHaveLength(1);
+    // The regex matches RM 450,000 first (before the dash)
+    expect(result.comparableListings?.[0]?.askingPriceRm).toBe(450000);
+  });
+
+  it("accepts Facebook groups/posts URLs as listing detail pages", () => {
+    expect(isSearchResultUrl("https://www.facebook.com/groups/PropertyBrunei/posts/26070731522566362")).toBe(false);
+    expect(isSearchResultUrl("https://www.facebook.com/groups/KLRental/posts/987654321")).toBe(false);
+    expect(isSearchResultUrl("https://www.facebook.com/share/p/abc123def456")).toBe(false);
+  });
 });
+
 

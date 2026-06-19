@@ -22,7 +22,9 @@ import {
   getCredentials,
   saveCredentials,
   deleteCredentials,
+  deletePropertyData,
 } from "../../src/server/db";
+
 import { getRuntimeEnv } from "../../src/server/runtime-env";
 import { validateReportInput } from "../../src/domain/reports";
 import { generatePropertyReport } from "../../src/server/report-pipeline";
@@ -300,6 +302,17 @@ export default async (req: Request) => {
       await deleteLead(db, agent.id, leadDeleteMatch[1]);
       return json({ success: true }, { headers: responseHeaders });
     }
+
+    const propertyDeleteMatch = endpoint.match(/^properties\/delete-cache$/);
+    if (propertyDeleteMatch && req.method === "POST") {
+      const body = await readJson<{ propertyKey?: string; propertyName?: string }>(req);
+      if (!body.propertyKey || !body.propertyName) {
+        return json({ error: "propertyKey and propertyName are required." }, { status: 422, headers: responseHeaders });
+      }
+      await deletePropertyData(db, agent.id, body.propertyKey, body.propertyName);
+      return json({ success: true }, { headers: responseHeaders });
+    }
+
 
     const settingsMatch = endpoint.match(/^settings$/);
     if (settingsMatch && req.method === "POST") {

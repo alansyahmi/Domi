@@ -21,8 +21,10 @@ import {
   setLeadTelegramChatIdApi,
   sendReportApi,
   injectDemoLeadApi,
+  deletePropertyCacheApi,
   type BootstrapData,
 } from "./lib/api";
+
 import Layout from "./components/Layout";
 import DashboardPage from "./pages/DashboardPage";
 import LeadManagementPage from "./pages/LeadManagementPage";
@@ -472,6 +474,26 @@ function SignatisWorkspace({
     setNotice(`Prospect ${lead.name} deleted.`);
   }
 
+  async function deletePropertyCache(propertyName: string): Promise<void> {
+    if (!data) return;
+    const propertyKey = buildReportPropertyKey({ propertyName });
+
+    if (!data.demoMode) {
+      await deletePropertyCacheApi(propertyKey, propertyName);
+    }
+
+    setData({
+      ...data,
+      reports: data.reports.filter(
+        (r) =>
+          r.propertyKey !== propertyKey &&
+          r.propertyName?.toLowerCase() !== propertyName.toLowerCase()
+      ),
+    });
+    setNotice("Property cache and associated reports removed.");
+  }
+
+
   async function getLeadEvents(leadId: string): Promise<LeadEvent[]> {
     if (!data) return [];
     if (data.demoMode) {
@@ -616,7 +638,7 @@ function SignatisWorkspace({
           <Route path="/dashboard" element={<DashboardPage dashboard={dashboard} onInjectDemoLead={handleInjectDemoLead} />} />
           <Route
             path="/report-generator"
-            element={<ReportGeneratorPage reports={data.reports} leads={data.leads} onCreateReport={createReport} onSendReport={sendReport} />}
+            element={<ReportGeneratorPage reports={data.reports} leads={data.leads} onCreateReport={createReport} onSendReport={sendReport} onDeletePropertyCache={deletePropertyCache} />}
           />
           <Route
             path="/leads"

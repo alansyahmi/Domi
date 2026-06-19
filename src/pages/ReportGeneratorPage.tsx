@@ -1,7 +1,6 @@
 import { useState } from "react";
 import ReportInputPanel from "../components/reports/ReportInputPanel";
 import ReportResultPanel from "../components/reports/ReportResultPanel";
-import ReportWorkflowStatus from "../components/reports/ReportWorkflowStatus";
 import { formatDateTime } from "../lib/format";
 import type { PropertyReport, PropertyReportInput } from "../types";
 
@@ -10,11 +9,13 @@ export default function ReportGeneratorPage({
   leads,
   onCreateReport,
   onSendReport,
+  onDeletePropertyCache,
 }: {
   reports: PropertyReport[];
   leads: import("../types").Lead[];
   onCreateReport: (input: PropertyReportInput) => Promise<PropertyReport>;
   onSendReport: (reportId: string, leadId: string) => Promise<void>;
+  onDeletePropertyCache: (propertyName: string) => Promise<void>;
 }) {
   const [latest, setLatest] = useState<PropertyReport | null>(reports[0] ?? null);
   const [generating, setGenerating] = useState(false);
@@ -38,10 +39,6 @@ export default function ReportGeneratorPage({
         ) : null}
       </div>
 
-      <div className="mt-8">
-        <ReportWorkflowStatus active={generating} startTime={startTime} />
-      </div>
-
       <div className="mt-8 grid grid-cols-1 xl:grid-cols-[minmax(28rem,0.9fr)_minmax(0,1.2fr)] gap-8">
         <ReportInputPanel
           onCreateReport={onCreateReport}
@@ -49,7 +46,11 @@ export default function ReportGeneratorPage({
           onReportCreated={setLatest}
           onGenerationStart={setStartTime}
           cachedReports={reports}
+          onDeletePropertyCache={onDeletePropertyCache}
+          generating={generating}
+          startTime={startTime}
         />
+
 
         {latest ? (
           <ReportResultPanel report={latest} leads={leads} onSendReport={onSendReport} />

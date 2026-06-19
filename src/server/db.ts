@@ -817,6 +817,23 @@ export async function savePropertyIntelligence(
   });
 }
 
+export async function deletePropertyData(
+  db: ReAIDbClient,
+  agentId: string,
+  propertyKey: string,
+  propertyName: string,
+): Promise<void> {
+  await db.execute({
+    sql: "DELETE FROM property_intelligence_cache WHERE property_key = ?",
+    args: [propertyKey],
+  });
+  await db.execute({
+    sql: "DELETE FROM property_reports WHERE agent_id = ? AND (property_key = ? OR LOWER(property_name) = ? OR LOWER(title) = ?)",
+    args: [agentId, propertyKey, propertyName.toLowerCase().trim(), `${propertyName.toLowerCase().trim()} analysis`],
+  });
+}
+
+
 export async function getDeveloperCache(
   db: ReAIDbClient,
   developerKey: string,

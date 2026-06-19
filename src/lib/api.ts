@@ -310,3 +310,14 @@ export async function sendReportApi(
     body: JSON.stringify({ reportId, leadId }),
   });
 }
+
+export async function deletePropertyCacheApi(
+  propertyKey: string,
+  propertyName: string,
+): Promise<{ success: boolean }> {
+  return await apiJson<{ success: boolean }>("/api/properties/delete-cache", {
+    method: "POST",
+    body: JSON.stringify({ propertyKey, propertyName }),
+  });
+}
+

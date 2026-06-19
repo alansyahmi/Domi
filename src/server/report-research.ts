@@ -126,10 +126,18 @@ function buildTavilyQueryVariations(input: PropertyReportInput, sourceType: Tavi
   }
   if (sourceType === "comparable_listing") {
     const intentPart = input.listingIntent === "rent" ? '"for rent"' : input.listingIntent === "sale" ? '"for sale"' : '("for sale" OR "for rent")';
+    const rentSuffix = input.listingIntent === "rent" ? ' "per month" OR monthly OR sebulan OR "monthly rental"' : "";
     return [
+      // Portal + Facebook listing sweep
       compact(`"${propertyName}" ${intentPart} site:iproperty.com.my OR site:propertyguru.com.my OR site:mudah.my OR site:facebook.com`),
+      // Structured listing specs (portal detail pages)
       compact(`"${propertyName}" ${intentPart} price built-up sqft bedrooms bathrooms "${area}"`),
-      compact(`"${primaryLocation}" ${intentPart} price sqft bedrooms bathrooms Malaysia`),
+      // Social media / informal post pricing — cast a wider net with price keywords
+      compact(`"${propertyName}" ${intentPart} RM OR harga OR price OR nego OR negotiable "${area}"`),
+      // Facebook group posts specifically — the site: operator targets them
+      compact(`"${propertyName}" ${intentPart} RM OR BND OR harga site:facebook.com`),
+      // Rental-specific: capture monthly rates in informal posts
+      compact(`"${primaryLocation}" ${intentPart} "RM" OR price OR harga${rentSuffix} sqft bedrooms "${area}"`),
     ];
   }
   if (sourceType === "transaction") {
@@ -152,6 +160,8 @@ function buildTavilyQueryVariations(input: PropertyReportInput, sourceType: Tavi
     compact(`${base} review complaint forum resident experience noise midnight defects maintenance parking developer track record Malay English ulasan aduan forum komuniti pengalaman penghuni bising malam masalah -site:propertyguru.com.my -site:iproperty.com.my`),
     compact(`"${propertyName}" ulasan penghuni masalah aduan komuniti forum review pengalaman residents "${area}"`),
     compact(`"${primaryLocation}" forum resident review complaint parking noise maintenance Malaysia`),
+    // Pricing signals in community discussions: is it worth the price?
+    compact(`"${propertyName}" harga berbaloi mahal murah worth price overpriced "${area}"`),
   ];
 }
 
@@ -207,7 +217,7 @@ function isComparableListingDetailUrl(value: string): boolean {
     }
 
     if (host === "facebook.com" || host.endsWith(".facebook.com")) {
-      return /\/(?:posts|marketplace\/item|groups\/[^/]+\/permalink)\b/i.test(path) && !parsed.search;
+      return /\/(?:posts|marketplace\/item|groups\/[^/]+\/(?:permalink|posts)|share\/p)\b/i.test(path) && !parsed.search;
     }
 
     return false;
@@ -428,40 +438,195 @@ function parseFirstNumber(text: string, pattern: RegExp): number | undefined {
   return Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
-function parseAskingPriceRm(text: string): number | undefined {
-  const match = text.match(/\bRM\s*([0-9][0-9,]*(?:\.\d+)?)\s*(k|m|million|mil)?\b/i);
-  if (!match?.[1]) return undefined;
-  let value = Number(match[1].replace(/,/g, ""));
-  if (!Number.isFinite(value) || value <= 0) return undefined;
-  
-  const suffix = match[2]?.toLowerCase();
-  if (suffix === "k") {
-    value *= 1000;
-  } else if (suffix === "m" || suffix === "million" || suffix === "mil") {
-    value *= 1000000;
+/**
+ * Normalize a numeric string that may use commas or dots as thousands separators.
+ * Handles: "1,234,567", "123.456.789", "1.234.567,89", "1,234,567.89", "1234567"
+ */
+function normalizeNumberStr(numStr: string): number {
+  const hasComma = numStr.includes(",");
+  const hasDot = numStr.includes(".");
+  const dotCount = hasDot ? (numStr.match(/\./g)?.length ?? 0) : 0;
+  const commaCount = hasComma ? (numStr.match(/,/g)?.length ?? 0) : 0;
+
+  if (hasComma && hasDot) {
+    // Both present: determine which is thousands and which is decimal
+    const lastComma = numStr.lastIndexOf(",");
+    const lastDot = numStr.lastIndexOf(".");
+    if (lastDot > lastComma) {
+      // "1,234,567.89" — commas are thousands, dot is decimal
+      return Number(numStr.replace(/,/g, ""));
+    }
+    // "1.234.567,89" — dots are thousands, comma is decimal
+    return Number(numStr.replace(/\./g, "").replace(",", "."));
   }
-  return value;
+  if (dotCount > 1) {
+    // Multiple dots: European thousands separator e.g. "123.000.000"
+    return Number(numStr.replace(/\./g, ""));
+  }
+  if (dotCount === 1 && /\.\d{3}$/.test(numStr)) {
+    // Single dot followed by exactly 3 digits: likely European thousands
+    // separator (e.g. "450.000" → 450000). Property prices are rarely
+    // specified to 3 decimal places, so treat this as thousands.
+    return Number(numStr.replace(/\./g, ""));
+  }
+  if (commaCount > 1) {
+    // Multiple commas: standard thousands separator e.g. "1,234,567"
+    return Number(numStr.replace(/,/g, ""));
+  }
+  if (commaCount === 1 && /,\d{3}$/.test(numStr)) {
+    // "1,500" — comma as thousands separator
+    return Number(numStr.replace(/,/g, ""));
+  }
+  // Single comma with 1-2 trailing digits: decimal (e.g. "1500,50")
+  // Single dot with 1-2 trailing digits: decimal (e.g. "1500.50")
+  // No separators: plain number
+  return Number(numStr.replace(/,/g, ""));
 }
 
+/** Suffix multipliers for price shorthand: "450k" → ×1000, "1.2m" → ×1000000 */
+const PRICE_SUFFIX_MULTIPLIER: Record<string, number> = {
+  k: 1000,
+  ribu: 1000,
+  m: 1000000,
+  mil: 1000000,
+  million: 1000000,
+  juta: 1000000,
+  jt: 1000000,
+};
+
+function applyPriceSuffix(value: number, suffix?: string): number {
+  if (!suffix) return value;
+  const multiplier = PRICE_SUFFIX_MULTIPLIER[suffix.toLowerCase()];
+  return multiplier ? value * multiplier : value;
+}
+
+/**
+ * Parse an asking price from text, supporting multiple currency formats
+ * commonly found in Malaysian and Bruneian property listings:
+ *
+ *   RM 450,000 | RM450k | RM1.2m | BND 250,000 | B$350000 | $450,000
+ *   RM 450.000 (dots as thousands) | RM 123 000 (spaces)
+ *   RM 450,000 - RM 550,000 (ranges — takes the lower bound)
+ *   harga RM 450k | price: 450,000 | asking 1.2 juta
+ */
+function parseAskingPriceRm(text: string): number | undefined {
+  // Comprehensive currency-anchored pattern.
+  // Group 1: number  |  Group 2: suffix (k/m/juta/etc.)
+  const match = text.match(
+    /\b(?:RM|BND|B\$|SGD)\s*([0-9][0-9.,]*(?:\.\d+)?)\s*(k|m|mil|million|juta|jt|ribu)?\b/i,
+  );
+  if (!match?.[1]) return undefined;
+  const value = normalizeNumberStr(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return undefined;
+  return applyPriceSuffix(value, match[2]);
+}
+
+/**
+ * Fallback price parser for text that lacks a clear currency prefix.
+ * Used for informal posts (Facebook, forums) where the price may be
+ * implied by surrounding keywords rather than an explicit "RM" marker.
+ *
+ * Applies a plausibility floor (≥ 30000 for sale, ≥ 150 for rent) to
+ * avoid matching unrelated numbers.
+ */
 function parseLoosePriceRm(text: string): number | undefined {
-  const patterns = [
-    /\b(?:asking\s+price|price|priced\s+at)\s*(?:rm\s*)?([0-9][0-9,]*(?:\.\d+)?)\s*(k|m|million|mil)?\b/i,
-    /\b(?:rm\s*)?([0-9][0-9,]*(?:\.\d+)?)\s*(k|m|million|mil)\b/i,
-    /\b(?:rm\s*)?([0-9]{1,3}(?:,[0-9]{3}){1,3})\b/i,
+  const patterns: Array<{ re: RegExp; suffixGroup?: number }> = [
+    // "asking price 450,000" / "price: 1.2m" / "harga RM 450k"
+    {
+      re: /\b(?:asking\s+price|price|priced\s+at|harga|jual|sewa)\s*:?\s*(?:rm\s*)?([0-9][0-9.,]*(?:\.\d+)?)\s*(k|m|mil|million|juta|jt|ribu)?\b/i,
+      suffixGroup: 2,
+    },
+    // "RM 450k" but RM didn't trigger parseAskingPriceRm (edge case)
+    {
+      re: /\b(?:rm|bnd|b\$)\s*([0-9][0-9.,]*(?:\.\d+)?)\s*(k|m|mil|million|juta|jt|ribu)?\b/i,
+      suffixGroup: 2,
+    },
+    // "$450,000" / "$ 450k" — dollar sign in property context
+    {
+      re: /\$\s*([0-9][0-9.,]*(?:\.\d+)?)\s*(k|m|mil|million|juta|jt)?\b/i,
+      suffixGroup: 2,
+    },
+    // Number with suffix: "450k" / "1.2m" / "1.2 juta" (standalone with suffix)
+    {
+      re: /\b([0-9][0-9.,]*(?:\.\d+)?)\s*(k|m|mil|million|juta|jt)\b/i,
+      suffixGroup: 2,
+    },
+    // Plain large number in a price-like position: "1,234,567" / "450.000"
+    {
+      re: /\b([0-9]{1,3}(?:[,.]\d{3}){1,3})\b/,
+    },
   ];
 
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
+  for (const { re, suffixGroup } of patterns) {
+    const match = text.match(re);
     if (!match?.[1]) continue;
-    let value = Number(match[1].replace(/,/g, ""));
+    const value = normalizeNumberStr(match[1]);
     if (!Number.isFinite(value) || value <= 0) continue;
-    const suffix = match[2]?.toLowerCase();
-    if (suffix === "k") value *= 1000;
-    else if (suffix === "m" || suffix === "million" || suffix === "mil") value *= 1000000;
-    if (value >= 30000) return value;
+    const scaled = suffixGroup ? applyPriceSuffix(value, match[suffixGroup]) : value;
+    if (scaled >= 30000) return scaled;
   }
 
   return undefined;
+}
+
+/**
+ * Aggressively extract any price-like number from social-media post text.
+ * Facebook group posts often lack structured markup — the price is buried
+ * in freeform text like:
+ *
+ *   "Taman Rimbunan Hijau for sale! 450k nego. 3BR 2BA"
+ *   "Rumah untuk dijual. Harga: RM 350,000 boleh runding"
+ *   "Monthly rental $1,200 unfurnished"
+ *
+ * This parser casts a wider net than parseLoosePriceRm but still requires
+ * contextual signals (currency symbol, suffix, or price keyword in vicinity)
+ * to avoid matching irrelevant numbers like sqft or phone numbers.
+ */
+function parsePriceFromSocialPost(text: string): number | undefined {
+  const compactText = text.replace(/\s+/g, " ").trim();
+
+  // Signal words that indicate a number near them might be a price
+  const priceContextRe = /\b(?:price|harga|jual|sewa|sale|rent|asking|nego|negotiable|boleh\s*runding|monthly|per\s*month|priced|offer|offering|dijual|disewa|rm|bnd|b\$)\b/i;
+
+  // If the text has no pricing context at all, don't guess
+  if (!priceContextRe.test(compactText)) return undefined;
+
+  // Try the structured parsers first
+  const structured = parseAskingPriceRm(compactText);
+  if (structured !== undefined) return structured;
+
+  // Try loose patterns
+  const loose = parseLoosePriceRm(compactText);
+  if (loose !== undefined) return loose;
+
+  // Broad sweep: any number ≥ 30000 near a price keyword
+  // Look within a 100-char window around each price keyword
+  priceContextRe.lastIndex = 0;
+  let ctxMatch: RegExpExecArray | null;
+  while ((ctxMatch = priceContextRe.exec(compactText)) !== null) {
+    const windowStart = Math.max(0, ctxMatch.index - 60);
+    const windowEnd = Math.min(compactText.length, ctxMatch.index + 100);
+    const window = compactText.slice(windowStart, windowEnd);
+
+    // Match any substantial number in this window
+    const numRe = /\b([0-9][0-9.,]{2,}(?:\.\d+)?)\s*(k|m|mil|million|juta|jt)?\b/gi;
+    let numMatch: RegExpExecArray | null;
+    while ((numMatch = numRe.exec(window)) !== null) {
+      const value = normalizeNumberStr(numMatch[1]);
+      if (!Number.isFinite(value) || value <= 0) continue;
+      const scaled = applyPriceSuffix(value, numMatch[2]);
+      // Broad floor: most property prices in Malaysia/Brunei are ≥ 30000 for sale
+      // or ≥ 150 for rent — accept anything plausibly priced
+      if (scaled >= 150) return scaled;
+    }
+  }
+
+  return undefined;
+}
+
+/** Detect explicit monthly rental phrasing to distinguish rent from sale prices. */
+function isMonthlyRental(text: string): boolean {
+  return /\b(?:per\s*month|monthly|\/month|\/mth|\/mo|sebulan|per\s*bulan|sewa\s*bulanan)\b/i.test(text);
 }
 
 function parseBuiltUpSqft(text: string): number | undefined {
@@ -501,6 +666,20 @@ function parseLooseRoomCounts(text: string): { bedrooms?: number; bathrooms?: nu
   return {};
 }
 
+function parseTrailingRoomCounts(title: string): { bedrooms?: number; bathrooms?: number } {
+  // Matches trailing " 3 2" or " 3 2 1" at the end of listing titles (typical on iProperty/PropertyGuru)
+  const match = title.trim().match(/\b([1-9])\s+([1-9])(?:\s+[0-9])?$/);
+  if (match) {
+    const bedrooms = Number(match[1]);
+    const bathrooms = Number(match[2]);
+    if (bedrooms <= 10 && bathrooms <= 10) {
+      return { bedrooms, bathrooms };
+    }
+  }
+  return {};
+}
+
+
 function parseMaintenanceFeePsf(text: string): number | undefined {
   const psfMatch = text.match(/\b(?:maintenance|sinking\s+fund|service\s+charge)\s*(?:fee|cost)?\s*:?\s*RM\s*([\d.]+)\s*(?:per\s*sqft|psf|\/sqft)/i);
   if (psfMatch) {
@@ -527,23 +706,23 @@ interface TransactedPriceRaw {
 function parseTransactedPrices(text: string, sourceName?: string): TransactedPriceRaw[] {
   const results: TransactedPriceRaw[] = [];
   const seen = new Set<number>();
+  const CURRENCY = /(?:RM|BND|B\$|SGD)/.source;
   const patterns = [
     // "Transacted: RM 520,000 on 15 Jan 2026"
-    /\b(?:transacted|sold(?:\s+price)?|NPL)\s*:?\s*RM\s*([\d,]+)(?:\s*(?:k|m|million|mil))?\s*(?:on\s+(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}))?/gi,
+    new RegExp(`\\b(?:transacted|sold(?:\\s+price)?|NPL)\\s*:?\\s*${CURRENCY}\\s*([\\d,]+(?:\\.[\\d]+)?)\\s*(k|m|mil|million|juta|jt)?\\s*(?:on\\s+(\\d{1,2}\\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+\\d{4}))?`, "gi"),
     // "RM 750,000 (Mar 2026)" near "sold" or "transacted" context
-    /\bRM\s*([\d,]+)(?:\s*(k|m|million|mil))?\s*\((\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4})\)/gi,
+    new RegExp(`\\b${CURRENCY}\\s*([\\d,]+(?:\\.[\\d]+)?)\\s*(k|m|mil|million|juta|jt)?\\s*\\((\\d{1,2}\\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+\\d{4})\\)`, "gi"),
     // "last transacted: RM 450k"
-    /\blast\s+transacted\s*:?\s*RM\s*([\d,]+)(?:\s*(k|m|million|mil))?/gi,
+    new RegExp(`\\blast\\s+transacted\\s*:?\\s*${CURRENCY}\\s*([\\d,]+(?:\\.[\\d]+)?)\\s*(k|m|mil|million|juta|jt)?`, "gi"),
   ];
   for (const pattern of patterns) {
     pattern.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(text)) !== null) {
-      let price = Number(match[1].replace(/,/g, ""));
-      const suffix = match[2]?.toLowerCase();
-      if (suffix === "k") price *= 1000;
-      else if (suffix === "m" || suffix === "million" || suffix === "mil") price *= 1000000;
+      let price = normalizeNumberStr(match[1]);
       if (!Number.isFinite(price) || price <= 0 || seen.has(price)) continue;
+      const suffix = match[2]?.toLowerCase();
+      if (suffix) price = applyPriceSuffix(price, suffix);
       seen.add(price);
       const sqftMatch = text.match(/\b([\d,]{3,})\s*sqft\b/i);
       results.push({
@@ -691,8 +870,8 @@ function parseDeveloperName(text: string): string | undefined {
 }
 
 function inferListingIntent(text: string, fallback?: ListingIntent): ListingIntent | undefined {
-  if (/\b(for rent|rental|sewa|rent)\b/i.test(text)) return "rent";
-  if (/\b(for sale|sale|sell|jual|asking price)\b/i.test(text)) return "sale";
+  if (/\b(for rent|rental|sewa|rent|disewa|penyewa|tenant|monthly|per\s*month|\/mth|\/mo|sebulan)\b/i.test(text)) return "rent";
+  if (/\b(for sale|sale|sell|jual|asking price|dijual|penjual)\b/i.test(text)) return "sale";
   return fallback === "sale" || fallback === "rent" ? fallback : undefined;
 }
 
@@ -725,23 +904,33 @@ function extractComparableListing(
   // Prefer the full extracted page content (exact specs) over the search snippet.
   const detail = (fullContent?.trim() ? fullContent : result.content ?? "").slice(0, MAX_EXTRACT_CONTENT_CHARS);
   const text = compact(`${result.title} ${detail}`);
+  const sourceHost = result.url ? hostFromUrl(result.url) : undefined;
+  const isSocialSource = sourceHost === "facebook.com" || sourceHost?.endsWith?.(".facebook.com");
+
+  // Cascading price parsers: strict → loose → social-post
   const strictPrice = parseAskingPriceRm(text);
   const loosePrice = strictPrice === undefined ? parseLoosePriceRm(text) : undefined;
-  const parsedPrice = strictPrice ?? loosePrice;
+  const socialPrice = (strictPrice ?? loosePrice) === undefined && isSocialSource
+    ? parsePriceFromSocialPost(text)
+    : undefined;
+  const parsedPrice = strictPrice ?? loosePrice ?? socialPrice;
   const looseRooms = parseLooseRoomCounts(text);
-  const sourceHost = result.url ? hostFromUrl(result.url) : undefined;
-  const priceNote = parsedPrice !== undefined && (strictPrice === undefined || sourceHost === "facebook.com")
+  const priceNote = parsedPrice !== undefined && (strictPrice === undefined || isSocialSource)
     ? "Price inferred from post text."
     : undefined;
 
-  const intent = inferListingIntent(text, input.listingIntent);
+  // Detect rental intent: explicit keywords override the fallback
+  const monthlyRental = isMonthlyRental(text);
+  const intent = monthlyRental ? "rent" : inferListingIntent(text, input.listingIntent);
   if (parsedPrice !== undefined) {
     if (intent === "rent" && parsedPrice < 150) {
       return null; // garbage price matched
-    } else if (intent === "sale" && parsedPrice < 30000) {
+    } else if (intent !== "rent" && parsedPrice < 30000) {
       return null; // garbage price matched
     }
   }
+
+  const trailingRooms = parseTrailingRoomCounts(result.title ?? "");
 
   return {
     title: compact(result.title),
@@ -749,8 +938,8 @@ function extractComparableListing(
     url: compact(result.url),
     askingPriceRm: parsedPrice,
     builtUpSqft: parseBuiltUpSqft(text),
-    bedrooms: parseBedrooms(text) ?? looseRooms.bedrooms,
-    bathrooms: parseBathrooms(text) ?? looseRooms.bathrooms,
+    bedrooms: parseBedrooms(text) ?? looseRooms.bedrooms ?? trailingRooms.bedrooms,
+    bathrooms: parseBathrooms(text) ?? looseRooms.bathrooms ?? trailingRooms.bathrooms,
     listingIntent: intent,
     snippet: result.content ? compact(result.content) : undefined,
     priceNote,
@@ -864,14 +1053,16 @@ function buildComparableFromCard(
     if (intent === "sale" && card.askingPriceRm < 30000) return null;
   }
 
+  const trailingRooms = parseTrailingRoomCounts(card.title);
+
   return {
     title: compact(card.title),
     sourceName: sourceNameFromUrl(card.url),
     url: compact(card.url),
     askingPriceRm: card.askingPriceRm,
     builtUpSqft: card.builtUpSqft,
-    bedrooms: card.bedrooms,
-    bathrooms: card.bathrooms,
+    bedrooms: card.bedrooms ?? trailingRooms.bedrooms,
+    bathrooms: card.bathrooms ?? trailingRooms.bathrooms,
     listingIntent: intent,
   };
 }

@@ -832,7 +832,8 @@ export function buildReportPdfHtml(report: PropertyReport, agent: Agent): string
 
 export async function generateReportPdf(report: PropertyReport, agent: Agent): Promise<Uint8Array> {
   try {
-    const { chromium } = await import("@playwright/test");
+    const pkg = "@playwright/test";
+    const { chromium } = await import(/* @vite-ignore */ pkg);
     const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });

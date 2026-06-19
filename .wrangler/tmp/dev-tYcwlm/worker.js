@@ -33,14 +33,14 @@ var __publicField = (obj, key, value) => {
   return value;
 };
 
-// .wrangler/tmp/bundle-ydQOaC/strip-cf-connecting-ip-header.js
+// .wrangler/tmp/bundle-22cuRI/strip-cf-connecting-ip-header.js
 function stripCfConnectingIPHeader(input, init) {
   const request = new Request(input, init);
   request.headers.delete("CF-Connecting-IP");
   return request;
 }
 var init_strip_cf_connecting_ip_header = __esm({
-  ".wrangler/tmp/bundle-ydQOaC/strip-cf-connecting-ip-header.js"() {
+  ".wrangler/tmp/bundle-22cuRI/strip-cf-connecting-ip-header.js"() {
     __name(stripCfConnectingIPHeader, "stripCfConnectingIPHeader");
     globalThis.fetch = new Proxy(globalThis.fetch, {
       apply(target, thisArg, argArray) {
@@ -1416,14 +1416,14 @@ var require_p_retry = __commonJS({
   }
 });
 
-// .wrangler/tmp/bundle-ydQOaC/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-22cuRI/middleware-loader.entry.ts
 init_strip_cf_connecting_ip_header();
 init_modules_watch_stub();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
 init_performance2();
 
-// .wrangler/tmp/bundle-ydQOaC/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-22cuRI/middleware-insertion-facade.js
 init_strip_cf_connecting_ip_header();
 init_modules_watch_stub();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
@@ -4719,7 +4719,8 @@ async function ensureSchema(db) {
   const leadCols = [
     "stage TEXT NOT NULL DEFAULT 'new'",
     "preferred_channel TEXT NOT NULL DEFAULT 'whatsapp'",
-    "last_contacted_at TEXT"
+    "last_contacted_at TEXT",
+    "telegram_chat_id TEXT"
   ];
   for (const col of leadCols) {
     try {
@@ -4785,6 +4786,7 @@ function mapLead(row) {
     tier: String(row.tier),
     stage: String(row.stage ?? "new"),
     preferredChannel: String(row.preferred_channel ?? "whatsapp"),
+    telegramChatId: row.telegram_chat_id ? String(row.telegram_chat_id) : void 0,
     lastContactedAt: row.last_contacted_at ? String(row.last_contacted_at) : void 0,
     createdAt: String(row.created_at)
   };
@@ -5090,9 +5092,9 @@ async function getDashboardData(db, agent) {
   return {
     agent,
     totals: {
-      leadsScored: Math.max(1248, leads.length),
-      averageIntentScore: averageScore || 0.84,
-      reportsGenerated: Math.max(342, reports.length),
+      leadsScored: leads.length,
+      averageIntentScore: averageScore,
+      reportsGenerated: reports.length,
       highIntentLeads: leads.filter((lead) => lead.intent === 1).length
     },
     highIntentLeads: leads.filter((lead) => lead.intent === 1).slice(0, 3),
@@ -5223,6 +5225,17 @@ async function savePropertyIntelligence(db, cache) {
   });
 }
 __name(savePropertyIntelligence, "savePropertyIntelligence");
+async function deletePropertyData(db, agentId, propertyKey, propertyName) {
+  await db.execute({
+    sql: "DELETE FROM property_intelligence_cache WHERE property_key = ?",
+    args: [propertyKey]
+  });
+  await db.execute({
+    sql: "DELETE FROM property_reports WHERE agent_id = ? AND (property_key = ? OR LOWER(property_name) = ? OR LOWER(title) = ?)",
+    args: [agentId, propertyKey, propertyName.toLowerCase().trim(), `${propertyName.toLowerCase().trim()} analysis`]
+  });
+}
+__name(deletePropertyData, "deletePropertyData");
 async function savePropertyReport(db, report2) {
   await db.execute({
     sql: `INSERT INTO property_reports (
@@ -5489,6 +5502,13 @@ async function updateLeadStage(db, agentId, leadId, newStage) {
   });
 }
 __name(updateLeadStage, "updateLeadStage");
+async function setLeadTelegramChatId(db, agentId, leadId, chatId) {
+  await db.execute({
+    sql: "UPDATE leads SET telegram_chat_id = ? WHERE id = ? AND agent_id = ?",
+    args: [chatId || null, leadId, agentId]
+  });
+}
+__name(setLeadTelegramChatId, "setLeadTelegramChatId");
 async function getLeadEvents(db, agentId, leadId) {
   const result = await db.execute({
     sql: "SELECT * FROM lead_events WHERE lead_id = ? AND agent_id = ? ORDER BY occurred_at DESC",
@@ -5632,10 +5652,18 @@ function buildTavilyQueryVariations(input, sourceType) {
   }
   if (sourceType === "comparable_listing") {
     const intentPart = input.listingIntent === "rent" ? '"for rent"' : input.listingIntent === "sale" ? '"for sale"' : '("for sale" OR "for rent")';
+    const rentSuffix = input.listingIntent === "rent" ? ' "per month" OR monthly OR sebulan OR "monthly rental"' : "";
     return [
+      // Portal + Facebook listing sweep
       compact(`"${propertyName}" ${intentPart} site:iproperty.com.my OR site:propertyguru.com.my OR site:mudah.my OR site:facebook.com`),
+      // Structured listing specs (portal detail pages)
       compact(`"${propertyName}" ${intentPart} price built-up sqft bedrooms bathrooms "${area}"`),
-      compact(`"${primaryLocation}" ${intentPart} price sqft bedrooms bathrooms Malaysia`)
+      // Social media / informal post pricing — cast a wider net with price keywords
+      compact(`"${propertyName}" ${intentPart} RM OR harga OR price OR nego OR negotiable "${area}"`),
+      // Facebook group posts specifically — the site: operator targets them
+      compact(`"${propertyName}" ${intentPart} RM OR BND OR harga site:facebook.com`),
+      // Rental-specific: capture monthly rates in informal posts
+      compact(`"${primaryLocation}" ${intentPart} "RM" OR price OR harga${rentSuffix} sqft bedrooms "${area}"`)
     ];
   }
   if (sourceType === "transaction") {
@@ -5655,7 +5683,9 @@ function buildTavilyQueryVariations(input, sourceType) {
   return [
     compact(`${base} review complaint forum resident experience noise midnight defects maintenance parking developer track record Malay English ulasan aduan forum komuniti pengalaman penghuni bising malam masalah -site:propertyguru.com.my -site:iproperty.com.my`),
     compact(`"${propertyName}" ulasan penghuni masalah aduan komuniti forum review pengalaman residents "${area}"`),
-    compact(`"${primaryLocation}" forum resident review complaint parking noise maintenance Malaysia`)
+    compact(`"${primaryLocation}" forum resident review complaint parking noise maintenance Malaysia`),
+    // Pricing signals in community discussions: is it worth the price?
+    compact(`"${propertyName}" harga berbaloi mahal murah worth price overpriced "${area}"`)
   ];
 }
 __name(buildTavilyQueryVariations, "buildTavilyQueryVariations");
@@ -5702,7 +5732,7 @@ function isComparableListingDetailUrl(value) {
       return /\/(?:sale|rent)-\d+\/?$/i.test(path2) && !parsed.search;
     }
     if (host === "facebook.com" || host.endsWith(".facebook.com")) {
-      return /\/(?:posts|marketplace\/item|groups\/[^/]+\/permalink)\b/i.test(path2) && !parsed.search;
+      return /\/(?:posts|marketplace\/item|groups\/[^/]+\/(?:permalink|posts)|share\/p)\b/i.test(path2) && !parsed.search;
     }
     return false;
   } catch {
@@ -5784,22 +5814,138 @@ function parseFirstNumber(text, pattern) {
   return Number.isFinite(value) && value > 0 ? value : void 0;
 }
 __name(parseFirstNumber, "parseFirstNumber");
+function normalizeNumberStr(numStr) {
+  const hasComma = numStr.includes(",");
+  const hasDot = numStr.includes(".");
+  const dotCount = hasDot ? numStr.match(/\./g)?.length ?? 0 : 0;
+  const commaCount = hasComma ? numStr.match(/,/g)?.length ?? 0 : 0;
+  if (hasComma && hasDot) {
+    const lastComma = numStr.lastIndexOf(",");
+    const lastDot = numStr.lastIndexOf(".");
+    if (lastDot > lastComma) {
+      return Number(numStr.replace(/,/g, ""));
+    }
+    return Number(numStr.replace(/\./g, "").replace(",", "."));
+  }
+  if (dotCount > 1) {
+    return Number(numStr.replace(/\./g, ""));
+  }
+  if (dotCount === 1 && /\.\d{3}$/.test(numStr)) {
+    return Number(numStr.replace(/\./g, ""));
+  }
+  if (commaCount > 1) {
+    return Number(numStr.replace(/,/g, ""));
+  }
+  if (commaCount === 1 && /,\d{3}$/.test(numStr)) {
+    return Number(numStr.replace(/,/g, ""));
+  }
+  return Number(numStr.replace(/,/g, ""));
+}
+__name(normalizeNumberStr, "normalizeNumberStr");
+var PRICE_SUFFIX_MULTIPLIER = {
+  k: 1e3,
+  ribu: 1e3,
+  m: 1e6,
+  mil: 1e6,
+  million: 1e6,
+  juta: 1e6,
+  jt: 1e6
+};
+function applyPriceSuffix(value, suffix) {
+  if (!suffix)
+    return value;
+  const multiplier = PRICE_SUFFIX_MULTIPLIER[suffix.toLowerCase()];
+  return multiplier ? value * multiplier : value;
+}
+__name(applyPriceSuffix, "applyPriceSuffix");
 function parseAskingPriceRm(text) {
-  const match = text.match(/\bRM\s*([0-9][0-9,]*(?:\.\d+)?)\s*(k|m|million|mil)?\b/i);
+  const match = text.match(
+    /\b(?:RM|BND|B\$|SGD)\s*([0-9][0-9.,]*(?:\.\d+)?)\s*(k|m|mil|million|juta|jt|ribu)?\b/i
+  );
   if (!match?.[1])
     return void 0;
-  let value = Number(match[1].replace(/,/g, ""));
+  const value = normalizeNumberStr(match[1]);
   if (!Number.isFinite(value) || value <= 0)
     return void 0;
-  const suffix = match[2]?.toLowerCase();
-  if (suffix === "k") {
-    value *= 1e3;
-  } else if (suffix === "m" || suffix === "million" || suffix === "mil") {
-    value *= 1e6;
-  }
-  return value;
+  return applyPriceSuffix(value, match[2]);
 }
 __name(parseAskingPriceRm, "parseAskingPriceRm");
+function parseLoosePriceRm(text) {
+  const patterns = [
+    // "asking price 450,000" / "price: 1.2m" / "harga RM 450k"
+    {
+      re: /\b(?:asking\s+price|price|priced\s+at|harga|jual|sewa)\s*:?\s*(?:rm\s*)?([0-9][0-9.,]*(?:\.\d+)?)\s*(k|m|mil|million|juta|jt|ribu)?\b/i,
+      suffixGroup: 2
+    },
+    // "RM 450k" but RM didn't trigger parseAskingPriceRm (edge case)
+    {
+      re: /\b(?:rm|bnd|b\$)\s*([0-9][0-9.,]*(?:\.\d+)?)\s*(k|m|mil|million|juta|jt|ribu)?\b/i,
+      suffixGroup: 2
+    },
+    // "$450,000" / "$ 450k" — dollar sign in property context
+    {
+      re: /\$\s*([0-9][0-9.,]*(?:\.\d+)?)\s*(k|m|mil|million|juta|jt)?\b/i,
+      suffixGroup: 2
+    },
+    // Number with suffix: "450k" / "1.2m" / "1.2 juta" (standalone with suffix)
+    {
+      re: /\b([0-9][0-9.,]*(?:\.\d+)?)\s*(k|m|mil|million|juta|jt)\b/i,
+      suffixGroup: 2
+    },
+    // Plain large number in a price-like position: "1,234,567" / "450.000"
+    {
+      re: /\b([0-9]{1,3}(?:[,.]\d{3}){1,3})\b/
+    }
+  ];
+  for (const { re, suffixGroup } of patterns) {
+    const match = text.match(re);
+    if (!match?.[1])
+      continue;
+    const value = normalizeNumberStr(match[1]);
+    if (!Number.isFinite(value) || value <= 0)
+      continue;
+    const scaled = suffixGroup ? applyPriceSuffix(value, match[suffixGroup]) : value;
+    if (scaled >= 3e4)
+      return scaled;
+  }
+  return void 0;
+}
+__name(parseLoosePriceRm, "parseLoosePriceRm");
+function parsePriceFromSocialPost(text) {
+  const compactText = text.replace(/\s+/g, " ").trim();
+  const priceContextRe = /\b(?:price|harga|jual|sewa|sale|rent|asking|nego|negotiable|boleh\s*runding|monthly|per\s*month|priced|offer|offering|dijual|disewa|rm|bnd|b\$)\b/i;
+  if (!priceContextRe.test(compactText))
+    return void 0;
+  const structured = parseAskingPriceRm(compactText);
+  if (structured !== void 0)
+    return structured;
+  const loose = parseLoosePriceRm(compactText);
+  if (loose !== void 0)
+    return loose;
+  priceContextRe.lastIndex = 0;
+  let ctxMatch;
+  while ((ctxMatch = priceContextRe.exec(compactText)) !== null) {
+    const windowStart = Math.max(0, ctxMatch.index - 60);
+    const windowEnd = Math.min(compactText.length, ctxMatch.index + 100);
+    const window = compactText.slice(windowStart, windowEnd);
+    const numRe = /\b([0-9][0-9.,]{2,}(?:\.\d+)?)\s*(k|m|mil|million|juta|jt)?\b/gi;
+    let numMatch;
+    while ((numMatch = numRe.exec(window)) !== null) {
+      const value = normalizeNumberStr(numMatch[1]);
+      if (!Number.isFinite(value) || value <= 0)
+        continue;
+      const scaled = applyPriceSuffix(value, numMatch[2]);
+      if (scaled >= 150)
+        return scaled;
+    }
+  }
+  return void 0;
+}
+__name(parsePriceFromSocialPost, "parsePriceFromSocialPost");
+function isMonthlyRental(text) {
+  return /\b(?:per\s*month|monthly|\/month|\/mth|\/mo|sebulan|per\s*bulan|sewa\s*bulanan)\b/i.test(text);
+}
+__name(isMonthlyRental, "isMonthlyRental");
 function parseBuiltUpSqft(text) {
   return parseFirstNumber(text, /\b([0-9][0-9,]{2,5})\s*(?:sq\.?\s*ft|sqft|sf|square feet)\b/i);
 }
@@ -5812,29 +5958,63 @@ function parseBathrooms(text) {
   return parseFirstNumber(text, /\b([0-9]+)\s*(?:bathrooms?|baths?|ba)\b/i);
 }
 __name(parseBathrooms, "parseBathrooms");
+function parseLooseRoomCounts(text) {
+  const compactText = compact(text);
+  const shorthand = compactText.match(/\b([0-9]{1,2})\s*[bB]\s+([0-9]{1,2})\s*[bB]\b/);
+  if (shorthand?.[1] && shorthand?.[2]) {
+    const bedrooms = Number(shorthand[1]);
+    const bathrooms = Number(shorthand[2]);
+    return {
+      bedrooms: Number.isFinite(bedrooms) && bedrooms > 0 ? bedrooms : void 0,
+      bathrooms: Number.isFinite(bathrooms) && bathrooms > 0 ? bathrooms : void 0
+    };
+  }
+  const labeled = compactText.match(/\b([0-9]{1,2})\s*(?:bed(?:room)?s?|br)\s+([0-9]{1,2})\s*(?:bath(?:room)?s?|ba)\b/i);
+  if (labeled?.[1] && labeled?.[2]) {
+    const bedrooms = Number(labeled[1]);
+    const bathrooms = Number(labeled[2]);
+    return {
+      bedrooms: Number.isFinite(bedrooms) && bedrooms > 0 ? bedrooms : void 0,
+      bathrooms: Number.isFinite(bathrooms) && bathrooms > 0 ? bathrooms : void 0
+    };
+  }
+  return {};
+}
+__name(parseLooseRoomCounts, "parseLooseRoomCounts");
+function parseTrailingRoomCounts(title2) {
+  const match = title2.trim().match(/\b([1-9])\s+([1-9])(?:\s+[0-9])?$/);
+  if (match) {
+    const bedrooms = Number(match[1]);
+    const bathrooms = Number(match[2]);
+    if (bedrooms <= 10 && bathrooms <= 10) {
+      return { bedrooms, bathrooms };
+    }
+  }
+  return {};
+}
+__name(parseTrailingRoomCounts, "parseTrailingRoomCounts");
 function parseTransactedPrices(text, sourceName) {
   const results = [];
   const seen = /* @__PURE__ */ new Set();
+  const CURRENCY = /(?:RM|BND|B\$|SGD)/.source;
   const patterns = [
     // "Transacted: RM 520,000 on 15 Jan 2026"
-    /\b(?:transacted|sold(?:\s+price)?|NPL)\s*:?\s*RM\s*([\d,]+)(?:\s*(?:k|m|million|mil))?\s*(?:on\s+(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}))?/gi,
+    new RegExp(`\\b(?:transacted|sold(?:\\s+price)?|NPL)\\s*:?\\s*${CURRENCY}\\s*([\\d,]+(?:\\.[\\d]+)?)\\s*(k|m|mil|million|juta|jt)?\\s*(?:on\\s+(\\d{1,2}\\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+\\d{4}))?`, "gi"),
     // "RM 750,000 (Mar 2026)" near "sold" or "transacted" context
-    /\bRM\s*([\d,]+)(?:\s*(k|m|million|mil))?\s*\((\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4})\)/gi,
+    new RegExp(`\\b${CURRENCY}\\s*([\\d,]+(?:\\.[\\d]+)?)\\s*(k|m|mil|million|juta|jt)?\\s*\\((\\d{1,2}\\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+\\d{4})\\)`, "gi"),
     // "last transacted: RM 450k"
-    /\blast\s+transacted\s*:?\s*RM\s*([\d,]+)(?:\s*(k|m|million|mil))?/gi
+    new RegExp(`\\blast\\s+transacted\\s*:?\\s*${CURRENCY}\\s*([\\d,]+(?:\\.[\\d]+)?)\\s*(k|m|mil|million|juta|jt)?`, "gi")
   ];
   for (const pattern of patterns) {
     pattern.lastIndex = 0;
     let match;
     while ((match = pattern.exec(text)) !== null) {
-      let price = Number(match[1].replace(/,/g, ""));
-      const suffix = match[2]?.toLowerCase();
-      if (suffix === "k")
-        price *= 1e3;
-      else if (suffix === "m" || suffix === "million" || suffix === "mil")
-        price *= 1e6;
+      let price = normalizeNumberStr(match[1]);
       if (!Number.isFinite(price) || price <= 0 || seen.has(price))
         continue;
+      const suffix = match[2]?.toLowerCase();
+      if (suffix)
+        price = applyPriceSuffix(price, suffix);
       seen.add(price);
       const sqftMatch = text.match(/\b([\d,]{3,})\s*sqft\b/i);
       results.push({
@@ -5971,9 +6151,9 @@ function parseDeveloperName(text) {
 }
 __name(parseDeveloperName, "parseDeveloperName");
 function inferListingIntent(text, fallback) {
-  if (/\b(for rent|rental|sewa|rent)\b/i.test(text))
+  if (/\b(for rent|rental|sewa|rent|disewa|penyewa|tenant|monthly|per\s*month|\/mth|\/mo|sebulan)\b/i.test(text))
     return "rent";
-  if (/\b(for sale|sale|sell|jual|asking price)\b/i.test(text))
+  if (/\b(for sale|sale|sell|jual|asking price|dijual|penjual)\b/i.test(text))
     return "sale";
   return fallback === "sale" || fallback === "rent" ? fallback : void 0;
 }
@@ -6000,25 +6180,35 @@ function extractComparableListing(input, result, fullContent) {
     return null;
   const detail = (fullContent?.trim() ? fullContent : result.content ?? "").slice(0, MAX_EXTRACT_CONTENT_CHARS);
   const text = compact(`${result.title} ${detail}`);
-  const parsedPrice = parseAskingPriceRm(text);
-  const intent = inferListingIntent(text, input.listingIntent);
+  const sourceHost = result.url ? hostFromUrl(result.url) : void 0;
+  const isSocialSource = sourceHost === "facebook.com" || sourceHost?.endsWith?.(".facebook.com");
+  const strictPrice = parseAskingPriceRm(text);
+  const loosePrice = strictPrice === void 0 ? parseLoosePriceRm(text) : void 0;
+  const socialPrice = (strictPrice ?? loosePrice) === void 0 && isSocialSource ? parsePriceFromSocialPost(text) : void 0;
+  const parsedPrice = strictPrice ?? loosePrice ?? socialPrice;
+  const looseRooms = parseLooseRoomCounts(text);
+  const priceNote = parsedPrice !== void 0 && (strictPrice === void 0 || isSocialSource) ? "Price inferred from post text." : void 0;
+  const monthlyRental = isMonthlyRental(text);
+  const intent = monthlyRental ? "rent" : inferListingIntent(text, input.listingIntent);
   if (parsedPrice !== void 0) {
     if (intent === "rent" && parsedPrice < 150) {
       return null;
-    } else if (intent === "sale" && parsedPrice < 3e4) {
+    } else if (intent !== "rent" && parsedPrice < 3e4) {
       return null;
     }
   }
+  const trailingRooms = parseTrailingRoomCounts(result.title ?? "");
   return {
     title: compact(result.title),
     sourceName: sourceNameFromUrl(result.url),
     url: compact(result.url),
     askingPriceRm: parsedPrice,
     builtUpSqft: parseBuiltUpSqft(text),
-    bedrooms: parseBedrooms(text),
-    bathrooms: parseBathrooms(text),
+    bedrooms: parseBedrooms(text) ?? looseRooms.bedrooms ?? trailingRooms.bedrooms,
+    bathrooms: parseBathrooms(text) ?? looseRooms.bathrooms ?? trailingRooms.bathrooms,
     listingIntent: intent,
-    snippet: result.content ? compact(result.content) : void 0
+    snippet: result.content ? compact(result.content) : void 0,
+    priceNote
   };
 }
 __name(extractComparableListing, "extractComparableListing");
@@ -6099,14 +6289,15 @@ function buildComparableFromCard(input, card) {
     if (intent === "sale" && card.askingPriceRm < 3e4)
       return null;
   }
+  const trailingRooms = parseTrailingRoomCounts(card.title);
   return {
     title: compact(card.title),
     sourceName: sourceNameFromUrl(card.url),
     url: compact(card.url),
     askingPriceRm: card.askingPriceRm,
     builtUpSqft: card.builtUpSqft,
-    bedrooms: card.bedrooms,
-    bathrooms: card.bathrooms,
+    bedrooms: card.bedrooms ?? trailingRooms.bedrooms,
+    bathrooms: card.bathrooms ?? trailingRooms.bathrooms,
     listingIntent: intent
   };
 }
@@ -6512,7 +6703,7 @@ __name(fetchNeighborhoodVibe, "fetchNeighborhoodVibe");
 // src/server/report-pipeline.ts
 var CACHE_FRESHNESS_DAYS = 7;
 var MIN_INDEX_CITATIONS = 2;
-var MAX_REPORT_CITATIONS = 9;
+var MAX_REPORT_CITATIONS = 30;
 var DAY_MS = 24 * 60 * 60 * 1e3;
 function createId(prefix) {
   return `${prefix}_${Date.now().toString(36)}_${randomBytesBase64url(8)}`;
@@ -6560,6 +6751,7 @@ function sanitizeComparableListings(listings) {
     sourceName: listing.sourceName?.trim(),
     url: listing.url.trim(),
     askingPriceRm: listing.askingPriceRm && listing.askingPriceRm > 0 ? Math.round(listing.askingPriceRm) : void 0,
+    priceNote: listing.priceNote?.trim(),
     builtUpSqft: listing.builtUpSqft && listing.builtUpSqft > 0 ? Math.round(listing.builtUpSqft) : void 0,
     bedrooms: listing.bedrooms && listing.bedrooms > 0 ? Math.round(listing.bedrooms) : void 0,
     bathrooms: listing.bathrooms && listing.bathrooms > 0 ? Math.round(listing.bathrooms) : void 0,
@@ -7249,7 +7441,10 @@ function renderPricingPanel(report2) {
   const comparableRows = report2.comparableListings.map((comp) => `
       <tr>
         <td class="col-title">${comp.url ? `<a href="${escapeHtml(comp.url)}" target="_blank" rel="noreferrer">${escapeHtml(comp.title)}</a>` : escapeHtml(comp.title)}</td>
-        <td>${escapeHtml(comp.askingPriceRm && comp.askingPriceRm > 0 ? `RM ${comp.askingPriceRm.toLocaleString("en-MY")}` : "TBD")}</td>
+        <td>
+          <div class="col-value">${escapeHtml(comp.askingPriceRm && comp.askingPriceRm > 0 ? `RM ${comp.askingPriceRm.toLocaleString("en-MY")}` : "TBD")}</div>
+          ${comp.priceNote ? `<div class="price-note">${escapeHtml(comp.priceNote)}</div>` : ""}
+        </td>
         <td>${escapeHtml(comp.builtUpSqft && comp.builtUpSqft > 0 ? `${comp.builtUpSqft.toLocaleString("en-MY")} sqft` : "TBD")}</td>
         <td>${escapeHtml(comp.bedrooms || comp.bathrooms ? `${comp.bedrooms ?? "-"}b / ${comp.bathrooms ?? "-"}ba` : "TBD")}</td>
         <td>${escapeHtml(comp.sourceName || "portal")}</td>
@@ -7744,6 +7939,8 @@ function buildReportPdfHtml(report2, agent) {
             color: #cbd5e1;
             font-size: 10px;
           }
+          .col-value { font-weight: 800; color: #f8fafc; }
+          .price-note { margin-top: 3px; color: var(--muted); font-size: 9px; font-style: italic; }
           .col-title { font-weight: 800; color: #f8fafc; }
           .col-title a { color: #93c5fd; }
           .empty-state {
@@ -7939,8 +8136,11 @@ function buildReportPdfHtml(report2, agent) {
 __name(buildReportPdfHtml, "buildReportPdfHtml");
 async function generateReportPdf(report2, agent) {
   try {
-    const playwrightPkg = "@playwright/test";
-    const { chromium } = await import(playwrightPkg);
+    const pkg = "@playwright/test";
+    const { chromium } = await import(
+      /* @vite-ignore */
+      pkg
+    );
     const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
@@ -7957,12 +8157,315 @@ async function generateReportPdf(report2, agent) {
     } finally {
       await browser.close();
     }
-  } catch (err) {
-    console.error("Failed to generate PDF:", err);
-    throw new Error("PDF generation is not supported on this platform. " + (err instanceof Error ? err.message : String(err)));
+  } catch {
+    return generateFallbackReportPdf(report2, agent);
   }
 }
 __name(generateReportPdf, "generateReportPdf");
+function generateFallbackReportPdf(report2, agent) {
+  const pages = new FallbackPdfLayout(report2, agent).render();
+  const objects = buildFallbackPdfObjects(pages);
+  let pdf2 = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(pdf2, "utf8"));
+    pdf2 += `${index + 1} 0 obj
+${object}
+endobj
+`;
+  });
+  const xrefOffset = Buffer.byteLength(pdf2, "utf8");
+  pdf2 += `xref
+0 ${objects.length + 1}
+`;
+  pdf2 += "0000000000 65535 f \n";
+  for (const offset of offsets.slice(1)) {
+    pdf2 += `${String(offset).padStart(10, "0")} 00000 n 
+`;
+  }
+  pdf2 += `trailer
+<< /Size ${objects.length + 1} /Root 1 0 R >>
+startxref
+${xrefOffset}
+%%EOF`;
+  return new TextEncoder().encode(pdf2);
+}
+__name(generateFallbackReportPdf, "generateFallbackReportPdf");
+var FALLBACK_PAGE_WIDTH = 612;
+var FALLBACK_PAGE_HEIGHT = 792;
+var FALLBACK_PANEL_X = 42;
+var FALLBACK_PANEL_Y = 42;
+var FALLBACK_PANEL_W = 528;
+var FALLBACK_PANEL_H = 708;
+var FALLBACK_CONTENT_X = 66;
+var FALLBACK_CONTENT_W = 480;
+var FALLBACK_TOP_Y = 684;
+var FALLBACK_BOTTOM_Y = 90;
+var FALLBACK_COLORS = {
+  navy: [0.016, 0.086, 0.153],
+  navySoft: [0.102, 0.169, 0.235],
+  gold: [1, 0.831, 0.353],
+  background: [0.969, 0.976, 0.984],
+  surface: [1, 1, 1],
+  surfaceSoft: [0.945, 0.957, 0.969],
+  line: [0.863, 0.89, 0.918],
+  muted: [0.4, 0.455, 0.522],
+  success: [0.02, 0.588, 0.412],
+  danger: [0.761, 0.149, 0.149]
+};
+function fallbackEscapePdfText(value) {
+  return value.replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "'").replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+}
+__name(fallbackEscapePdfText, "fallbackEscapePdfText");
+function fallbackColor(colorValue, operator = "rg") {
+  return `${colorValue.map((part) => part.toFixed(3)).join(" ")} ${operator}`;
+}
+__name(fallbackColor, "fallbackColor");
+function fallbackFillRect(x, y, width, height, fill) {
+  return `${fallbackColor(fill)} ${x} ${y} ${width} ${height} re f`;
+}
+__name(fallbackFillRect, "fallbackFillRect");
+function fallbackStrokeRect(x, y, width, height, stroke) {
+  return `${fallbackColor(stroke, "RG")} ${x} ${y} ${width} ${height} re S`;
+}
+__name(fallbackStrokeRect, "fallbackStrokeRect");
+function fallbackLine(x1, y1, x2, y2, stroke, width = 1) {
+  return `${width} w ${fallbackColor(stroke, "RG")} ${x1} ${y1} m ${x2} ${y2} l S`;
+}
+__name(fallbackLine, "fallbackLine");
+function fallbackTextAt(x, y, size, value, font = "F1", fill = FALLBACK_COLORS.navy) {
+  return `BT /${font} ${size} Tf ${fallbackColor(fill)} ${x} ${y} Td (${fallbackEscapePdfText(value)}) Tj ET`;
+}
+__name(fallbackTextAt, "fallbackTextAt");
+function fallbackWrapText(value, maxLength = 82) {
+  const words = value.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  const lines = [];
+  let current = "";
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length > maxLength && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+  if (current)
+    lines.push(current);
+  return lines.length ? lines : [""];
+}
+__name(fallbackWrapText, "fallbackWrapText");
+function fallbackCitationLabel(citation) {
+  if (citation.sourceType === "official")
+    return "Official";
+  if (citation.sourceType === "community")
+    return "Community";
+  if (citation.sourceType === "model")
+    return "Model";
+  if (citation.sourceType === "comparable_listing")
+    return "Current Listing";
+  return "Source";
+}
+__name(fallbackCitationLabel, "fallbackCitationLabel");
+var FallbackPdfLayout = class {
+  constructor(report2, agent) {
+    this.report = report2;
+    this.agent = agent;
+    this.addPage();
+  }
+  pages = [];
+  cursorY = FALLBACK_TOP_Y;
+  render() {
+    this.renderHero();
+    this.renderMetricGrid();
+    this.renderComparableListings();
+    this.renderSections();
+    this.renderCitations();
+    this.renderFinalFooters();
+    return this.pages;
+  }
+  current() {
+    return this.pages[this.pages.length - 1];
+  }
+  add(command) {
+    this.current().commands.push(command);
+  }
+  addPage() {
+    const pageNumber = this.pages.length + 1;
+    const page = { commands: [], pageNumber };
+    this.pages.push(page);
+    this.cursorY = FALLBACK_TOP_Y;
+    page.commands.push(
+      fallbackFillRect(0, 0, FALLBACK_PAGE_WIDTH, FALLBACK_PAGE_HEIGHT, FALLBACK_COLORS.background),
+      fallbackFillRect(FALLBACK_PANEL_X, FALLBACK_PANEL_Y, FALLBACK_PANEL_W, FALLBACK_PANEL_H, FALLBACK_COLORS.surface),
+      fallbackStrokeRect(FALLBACK_PANEL_X, FALLBACK_PANEL_Y, FALLBACK_PANEL_W, FALLBACK_PANEL_H, FALLBACK_COLORS.line),
+      fallbackFillRect(FALLBACK_PANEL_X, 710, FALLBACK_PANEL_W, 40, FALLBACK_COLORS.navy),
+      fallbackFillRect(66, 721, 18, 18, FALLBACK_COLORS.gold),
+      fallbackTextAt(92, 724, 10, "SIGNATIS PROPERTY REPORT", "F2", FALLBACK_COLORS.surface),
+      fallbackTextAt(390, 724, 8.5, `PDF ${PDF_VERSION}`, "F1", FALLBACK_COLORS.gold),
+      fallbackTextAt(460, 724, 9, `Page ${pageNumber}`, "F1", FALLBACK_COLORS.surface),
+      fallbackFillRect(FALLBACK_PANEL_X, 42, FALLBACK_PANEL_W, 34, FALLBACK_COLORS.navy),
+      fallbackTextAt(66, 55, 8.5, `${this.agent.email}  |  ${this.agent.phone}`, "F1", FALLBACK_COLORS.surface)
+    );
+    if (pageNumber > 1) {
+      page.commands.push(
+        fallbackTextAt(FALLBACK_CONTENT_X, 682, 13, this.report.title, "F2", FALLBACK_COLORS.navy),
+        fallbackLine(FALLBACK_CONTENT_X, 668, FALLBACK_CONTENT_X + FALLBACK_CONTENT_W, 668, FALLBACK_COLORS.line)
+      );
+      this.cursorY = 646;
+    }
+  }
+  renderFinalFooters() {
+    const total = this.pages.length;
+    for (const page of this.pages) {
+      page.commands.push(fallbackTextAt(500, 55, 8.5, `${page.pageNumber}/${total}`, "F1", FALLBACK_COLORS.surface));
+    }
+  }
+  ensureSpace(height) {
+    if (this.cursorY - height < FALLBACK_BOTTOM_Y) {
+      this.addPage();
+    }
+  }
+  writeWrapped(text, options = {}) {
+    const x = options.x ?? FALLBACK_CONTENT_X;
+    const size = options.size ?? 10;
+    const maxLength = options.maxLength ?? 92;
+    const lineGap = options.lineGap ?? 4;
+    const lines = fallbackWrapText(text, maxLength);
+    const lineHeight = size + lineGap;
+    this.ensureSpace(lines.length * lineHeight + (options.after ?? 0));
+    for (const wrappedLine of lines) {
+      this.add(fallbackTextAt(x, this.cursorY, size, wrappedLine, options.font ?? "F1", options.fill ?? FALLBACK_COLORS.navy));
+      this.cursorY -= lineHeight;
+    }
+    this.cursorY -= options.after ?? 0;
+  }
+  renderHero() {
+    const input = this.report.inputSnapshot;
+    this.add(fallbackTextAt(FALLBACK_CONTENT_X, 674, 24, this.report.title, "F3", FALLBACK_COLORS.navy));
+    this.add(fallbackTextAt(FALLBACK_CONTENT_X, 648, 10.5, `${this.agent.fullName}${this.agent.agencyName ? ` | ${this.agent.agencyName}` : ""}`, "F2", FALLBACK_COLORS.navySoft));
+    this.add(fallbackTextAt(FALLBACK_CONTENT_X, 630, 10.5, `${this.report.address} | ${this.report.propertyType}`, "F1", FALLBACK_COLORS.muted));
+    this.add(fallbackTextAt(FALLBACK_CONTENT_X, 612, 10.5, `${labelValue(input.listingIntent)} | ${labelValue(input.tenure)} | ${formatRm3(input.askingPriceRm)}`, "F1", FALLBACK_COLORS.muted));
+    this.add(fallbackLine(FALLBACK_CONTENT_X, 594, FALLBACK_CONTENT_X + FALLBACK_CONTENT_W, 594, FALLBACK_COLORS.gold, 2));
+    this.cursorY = 568;
+  }
+  renderMetricGrid() {
+    const priceCertLabel = this.report.analytics.priceCertainty >= 0.6 ? "High" : this.report.analytics.priceCertainty >= 0.35 ? "Moderate" : "Low";
+    const metrics = [
+      ["Market signal", this.report.marketSignal],
+      ["Buyer sentiment", this.report.analytics.sentiment],
+      ["Data completeness", `${Math.round(this.report.analytics.dataCompleteness * 100)}% (${this.report.citations.length} src)`],
+      ["Price certainty", `${priceCertLabel}${this.report.analytics.priceCertainty < 0.35 ? " (askings only)" : ""}`],
+      ["Confidence", `${Math.round(this.report.analytics.confidenceScore * 100)}%`],
+      ["Source coverage", `${this.report.citations.length} citations`]
+    ];
+    const cardW = 232;
+    const cardH = 58;
+    this.ensureSpace(216);
+    metrics.forEach(([label, value], index) => {
+      const x = FALLBACK_CONTENT_X + index % 2 * (cardW + 16);
+      const y = this.cursorY - Math.floor(index / 2) * (cardH + 12) - cardH;
+      this.add(fallbackFillRect(x, y, cardW, cardH, FALLBACK_COLORS.surfaceSoft));
+      this.add(fallbackStrokeRect(x, y, cardW, cardH, FALLBACK_COLORS.line));
+      this.add(fallbackTextAt(x + 12, y + 36, 8.5, label.toUpperCase(), "F2", FALLBACK_COLORS.muted));
+      this.add(fallbackTextAt(x + 12, y + 17, 11, value, "F2", FALLBACK_COLORS.navy));
+    });
+    this.cursorY -= 216;
+  }
+  renderComparableListings() {
+    if (this.report.comparableListings.length === 0)
+      return;
+    this.ensureSpace(84);
+    this.add(fallbackTextAt(FALLBACK_CONTENT_X, this.cursorY, 15, "Comparable Listings", "F2", FALLBACK_COLORS.navy));
+    this.cursorY -= 10;
+    this.add(fallbackLine(FALLBACK_CONTENT_X, this.cursorY, FALLBACK_CONTENT_X + FALLBACK_CONTENT_W, this.cursorY, FALLBACK_COLORS.line));
+    this.cursorY -= 16;
+    const items = this.report.comparableListings.slice(0, 3);
+    for (const listing of items) {
+      this.ensureSpace(92);
+      this.add(fallbackFillRect(FALLBACK_CONTENT_X, this.cursorY - 52, FALLBACK_CONTENT_W, listing.priceNote ? 90 : 78, FALLBACK_COLORS.surfaceSoft));
+      this.add(fallbackStrokeRect(FALLBACK_CONTENT_X, this.cursorY - 52, FALLBACK_CONTENT_W, listing.priceNote ? 90 : 78, FALLBACK_COLORS.line));
+      this.add(fallbackTextAt(FALLBACK_CONTENT_X + 12, this.cursorY - 2, 10, listing.title, "F2", FALLBACK_COLORS.navy));
+      this.add(fallbackTextAt(FALLBACK_CONTENT_X + 12, this.cursorY - 18, 8.5, `${formatRm3(listing.askingPriceRm ?? 0)}${listing.builtUpSqft ? ` | ${listing.builtUpSqft.toLocaleString("en-MY")} sqft` : ""}${listing.bedrooms || listing.bathrooms ? ` | ${listing.bedrooms ?? "-"}b / ${listing.bathrooms ?? "-"}ba` : ""}`, "F1", FALLBACK_COLORS.muted));
+      if (listing.priceNote) {
+        this.add(fallbackTextAt(FALLBACK_CONTENT_X + 12, this.cursorY - 32, 8, listing.priceNote, "F1", FALLBACK_COLORS.muted));
+        this.add(fallbackTextAt(FALLBACK_CONTENT_X + 12, this.cursorY - 46, 8, `${listing.sourceName || "portal"}${listing.listingIntent ? ` \u2022 ${labelValue(listing.listingIntent)}` : ""}`, "F1", FALLBACK_COLORS.navySoft));
+      } else {
+        this.add(fallbackTextAt(FALLBACK_CONTENT_X + 12, this.cursorY - 34, 8, `${listing.sourceName || "portal"}${listing.listingIntent ? ` \u2022 ${labelValue(listing.listingIntent)}` : ""}`, "F1", FALLBACK_COLORS.navySoft));
+      }
+      this.cursorY -= listing.priceNote ? 100 : 88;
+    }
+  }
+  renderSectionTitle(title2) {
+    this.ensureSpace(38);
+    this.add(fallbackTextAt(FALLBACK_CONTENT_X, this.cursorY, 15, title2, "F2", FALLBACK_COLORS.navy));
+    this.cursorY -= 10;
+    this.add(fallbackLine(FALLBACK_CONTENT_X, this.cursorY, FALLBACK_CONTENT_X + FALLBACK_CONTENT_W, this.cursorY, FALLBACK_COLORS.line));
+    this.cursorY -= 18;
+  }
+  renderSections() {
+    for (const section of this.report.contentSections) {
+      this.renderSectionTitle(section.title);
+      this.writeWrapped(section.body, {
+        size: 10,
+        fill: FALLBACK_COLORS.navySoft,
+        maxLength: 94,
+        after: 14
+      });
+    }
+  }
+  renderCitations() {
+    if (this.report.citations.length === 0)
+      return;
+    this.renderSectionTitle("Sources");
+    for (const citation of this.report.citations) {
+      const label = fallbackCitationLabel(citation);
+      this.ensureSpace(56);
+      this.add(fallbackFillRect(FALLBACK_CONTENT_X, this.cursorY - 34, FALLBACK_CONTENT_W, 42, FALLBACK_COLORS.surfaceSoft));
+      this.add(fallbackStrokeRect(FALLBACK_CONTENT_X, this.cursorY - 34, FALLBACK_CONTENT_W, 42, FALLBACK_COLORS.line));
+      this.add(fallbackTextAt(FALLBACK_CONTENT_X + 12, this.cursorY - 8, 8, label.toUpperCase(), "F2", label === "Community" ? FALLBACK_COLORS.danger : FALLBACK_COLORS.success));
+      this.writeWrapped(`${citation.title}: ${citation.url}`, {
+        x: FALLBACK_CONTENT_X + 12,
+        size: 8.5,
+        fill: FALLBACK_COLORS.navy,
+        maxLength: 96,
+        after: 8
+      });
+    }
+  }
+};
+__name(FallbackPdfLayout, "FallbackPdfLayout");
+function buildFallbackPdfObjects(pages) {
+  const fontObjectCount = 3;
+  const firstPageObject = 3;
+  const firstFontObject = firstPageObject + pages.length * 2;
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${pages.map((_, index) => `${firstPageObject + index * 2} 0 R`).join(" ")}] /Count ${pages.length} >>`
+  ];
+  pages.forEach((page, index) => {
+    const pageObject = firstPageObject + index * 2;
+    const contentObject = pageObject + 1;
+    const stream = page.commands.join("\n");
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${FALLBACK_PAGE_WIDTH} ${FALLBACK_PAGE_HEIGHT}] /Resources << /Font << /F1 ${firstFontObject} 0 R /F2 ${firstFontObject + 1} 0 R /F3 ${firstFontObject + 2} 0 R >> >> /Contents ${contentObject} 0 R >>`,
+      `<< /Length ${Buffer.byteLength(stream, "utf8")} >>
+stream
+${stream}
+endstream`
+    );
+  });
+  objects.push(
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold >>"
+  );
+  if (objects.length !== 2 + pages.length * 2 + fontObjectCount) {
+    throw new Error("PDF object assembly failed.");
+  }
+  return objects;
+}
+__name(buildFallbackPdfObjects, "buildFallbackPdfObjects");
 
 // src/server/notifications/whatsapp.ts
 init_strip_cf_connecting_ip_header();
@@ -8044,6 +8547,48 @@ function normalizePhoneNumber(phone) {
   return digits;
 }
 __name(normalizePhoneNumber, "normalizePhoneNumber");
+
+// src/server/notifications/telegram.ts
+init_strip_cf_connecting_ip_header();
+init_modules_watch_stub();
+init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
+init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
+init_performance2();
+var TELEGRAM_API_BASE = "https://api.telegram.org";
+async function sendTelegramMessage(botToken, chatId, text) {
+  try {
+    const response = await fetch(`${TELEGRAM_API_BASE}/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      const err = data;
+      return { success: false, error: err?.description ?? `HTTP ${response.status}` };
+    }
+    const ok = data;
+    return { success: true, messageId: ok?.result?.message_id };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+__name(sendTelegramMessage, "sendTelegramMessage");
+async function verifyTelegramToken(botToken) {
+  try {
+    const response = await fetch(`${TELEGRAM_API_BASE}/bot${botToken}/getMe`);
+    const data = await response.json();
+    if (!response.ok) {
+      const err = data;
+      return { valid: false, error: err?.description ?? `HTTP ${response.status}` };
+    }
+    const ok = data;
+    return { valid: true, botName: ok?.result?.username ?? ok?.result?.first_name };
+  } catch (err) {
+    return { valid: false, error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+__name(verifyTelegramToken, "verifyTelegramToken");
 
 // src/server/notifications/index.ts
 init_strip_cf_connecting_ip_header();
@@ -8444,6 +8989,15 @@ var api_default = /* @__PURE__ */ __name(async (req) => {
       await deleteLead(db, agent.id, leadDeleteMatch[1]);
       return json({ success: true }, { headers: responseHeaders });
     }
+    const propertyDeleteMatch = endpoint.match(/^properties\/delete-cache$/);
+    if (propertyDeleteMatch && req.method === "POST") {
+      const body = await readJson(req);
+      if (!body.propertyKey || !body.propertyName) {
+        return json({ error: "propertyKey and propertyName are required." }, { status: 422, headers: responseHeaders });
+      }
+      await deletePropertyData(db, agent.id, body.propertyKey, body.propertyName);
+      return json({ success: true }, { headers: responseHeaders });
+    }
     const settingsMatch = endpoint.match(/^settings$/);
     if (settingsMatch && req.method === "POST") {
       const payload = await readJson(req);
@@ -8480,37 +9034,57 @@ var api_default = /* @__PURE__ */ __name(async (req) => {
       if (!lead) {
         return json({ error: "Lead not found." }, { status: 404, headers: responseHeaders });
       }
-      const creds = await getCredentials(db, agent.id, "whatsapp");
-      if (creds) {
-        const metadata = creds.metadata;
+      const telegramCreds = await getCredentials(db, agent.id, "telegram");
+      const whatsappCreds = await getCredentials(db, agent.id, "whatsapp");
+      let channel2 = "simulated";
+      if (telegramCreds && lead.telegramChatId) {
+        const result = await sendTelegramMessage(telegramCreds.encryptedValue, lead.telegramChatId, body.text);
+        if (result.success) {
+          channel2 = "telegram";
+          console.log("[Telegram] Message sent successfully.");
+        } else {
+          console.warn("[Telegram] Failed to send:", result.error);
+        }
+      } else if (whatsappCreds) {
+        const metadata = whatsappCreds.metadata;
         const result = await sendWhatsAppMessage(
-          { phoneNumberId: metadata.phoneNumberId ?? "", accessToken: creds.encryptedValue },
+          { phoneNumberId: metadata.phoneNumberId ?? "", accessToken: whatsappCreds.encryptedValue },
           lead.phone,
           body.text
         );
-        if (!result.success) {
-          console.warn("[WhatsApp] Failed to send using credentials, falling back to simulation. Error:", result.error);
-          console.log("[Simulated WhatsApp] To:", lead.phone, "Msg:", body.text);
-        } else {
+        if (result.success) {
+          channel2 = "whatsapp";
           console.log("[WhatsApp] Message sent successfully via Meta API.");
+        } else {
+          console.warn("[WhatsApp] Failed to send:", result.error);
         }
       } else {
-        console.log("[Simulated WhatsApp] To:", lead.phone, "Msg:", body.text);
+        console.log("[Simulated] Outreach to:", lead.phone, "Msg:", body.text);
       }
+      const eventLabel = channel2 === "telegram" ? "Sent Telegram outreach message" : channel2 === "whatsapp" ? "Sent WhatsApp outreach message" : "Outreach simulated (no messaging channel configured)";
       await db.execute({
         sql: `INSERT INTO lead_events (id, lead_id, agent_id, event_type, event_label, occurred_at) VALUES (?, ?, ?, ?, ?, ?)`,
         args: [
           `event_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
           leadId,
           agent.id,
-          "whatsapp_outreach",
-          "Sent WhatsApp outreach message",
+          channel2 === "telegram" ? "telegram_outreach" : "whatsapp_outreach",
+          eventLabel,
           (/* @__PURE__ */ new Date()).toISOString()
         ]
       });
       if (lead.stage === "new") {
         await updateLeadStage(db, agent.id, leadId, "contacted");
       }
+      return json({ success: true }, { headers: responseHeaders });
+    }
+    const leadTelegramMatch = endpoint.match(/^leads\/([^/]+)\/telegram-chat-id$/);
+    if (leadTelegramMatch && req.method === "PATCH") {
+      const body = await readJson(req);
+      if (body.chatId === void 0) {
+        return json({ error: "chatId is required." }, { status: 422, headers: responseHeaders });
+      }
+      await setLeadTelegramChatId(db, agent.id, leadTelegramMatch[1], body.chatId);
       return json({ success: true }, { headers: responseHeaders });
     }
     const leadStageMatch = endpoint.match(/^leads\/([^/]+)\/stage$/);
@@ -8627,6 +9201,46 @@ var api_default = /* @__PURE__ */ __name(async (req) => {
         { phoneNumberId: metadata.phoneNumberId ?? "", accessToken: creds.encryptedValue },
         agent.whatsappNumber || agent.phone,
         "\u2705 re:AI WhatsApp integration is working! You'll receive lead notifications here."
+      );
+      if (!result.success) {
+        return json({ error: result.error ?? "Failed to send test message." }, { status: 500, headers: responseHeaders });
+      }
+      return json({ success: true, messageId: result.messageId }, { headers: responseHeaders });
+    }
+    if (endpoint === "integrations/telegram/status" && req.method === "GET") {
+      const creds = await getCredentials(db, agent.id, "telegram");
+      const metadata = creds?.metadata;
+      return json({ connected: creds !== null, botName: metadata?.botName }, { headers: responseHeaders });
+    }
+    if (endpoint === "integrations/telegram/connect" && req.method === "POST") {
+      const body = await readJson(req);
+      if (!body.botToken?.trim()) {
+        return json({ error: "Bot token is required." }, { status: 422, headers: responseHeaders });
+      }
+      const verifyResult = await verifyTelegramToken(body.botToken);
+      if (!verifyResult.valid) {
+        return json({ error: verifyResult.error ?? "Invalid bot token." }, { status: 400, headers: responseHeaders });
+      }
+      await saveCredentials(db, agent.id, "telegram", body.botToken, { botName: verifyResult.botName });
+      return json({ success: true, botName: verifyResult.botName }, { headers: responseHeaders });
+    }
+    if (endpoint === "integrations/telegram/disconnect" && req.method === "POST") {
+      await deleteCredentials(db, agent.id, "telegram");
+      return json({ success: true }, { headers: responseHeaders });
+    }
+    if (endpoint === "integrations/telegram/test" && req.method === "POST") {
+      const body = await readJson(req);
+      if (!body.chatId?.trim()) {
+        return json({ error: "A chat_id is required for the test." }, { status: 422, headers: responseHeaders });
+      }
+      const creds = await getCredentials(db, agent.id, "telegram");
+      if (!creds) {
+        return json({ error: "Telegram bot not connected." }, { status: 400, headers: responseHeaders });
+      }
+      const result = await sendTelegramMessage(
+        creds.encryptedValue,
+        body.chatId,
+        "\u2705 re:AI Telegram integration is working! You'll receive lead notifications here."
       );
       if (!result.success) {
         return json({ error: result.error ?? "Failed to send test message." }, { status: 500, headers: responseHeaders });
@@ -28652,7 +29266,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env2, _ctx, middlewareCtx
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-ydQOaC/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-22cuRI/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -28689,7 +29303,7 @@ function __facade_invoke__(request, env2, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-ydQOaC/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-22cuRI/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

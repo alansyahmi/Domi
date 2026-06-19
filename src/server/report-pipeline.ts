@@ -37,8 +37,9 @@ import { getRuntimeEnv } from "./runtime-env";
 
 const CACHE_FRESHNESS_DAYS = 7;
 const MIN_INDEX_CITATIONS = 2;
-const MAX_REPORT_CITATIONS = 9;
+const MAX_REPORT_CITATIONS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
 
 interface GenerateOptions {
   provider?: ReportResearchProvider;

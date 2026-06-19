@@ -17,3 +17,7 @@ TURSO_DATABASE_URL = "libsql://signatis-alansyahmi.aws-ap-northeast-1.turso.io"
 [assets]
 directory = "./dist"
 binding = "ASSETS"
+
+[alias]
+"@playwright/test" = "./src/server/playwright-stub.ts"
+
