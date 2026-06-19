@@ -65,6 +65,8 @@ export default function SettingsPage({
   onDisconnectIntegration,
   onSaveWhatsAppCredentials,
   onDeleteWhatsAppCredentials,
+  onConnectTelegram,
+  onDisconnectTelegram,
 }: {
   agent: Agent;
   integrations: Integration[];
@@ -73,6 +75,8 @@ export default function SettingsPage({
   onDisconnectIntegration: (id: string) => Promise<void>;
   onSaveWhatsAppCredentials?: (phoneNumberId: string, accessToken: string) => Promise<void>;
   onDeleteWhatsAppCredentials?: () => Promise<void>;
+  onConnectTelegram?: (botToken: string) => Promise<{ botName?: string }>;
+  onDisconnectTelegram?: () => Promise<void>;
 }) {
   const [form, setForm] = useState({
     fullName: agent.fullName || "",
@@ -91,6 +95,42 @@ export default function SettingsPage({
     accessToken: "",
   });
   const [isSavingWhatsApp, setIsSavingWhatsApp] = useState(false);
+
+  const telegramConnected = integrations.some((i) => i.id === "telegram" && i.status === "connected");
+  const telegramIntegration = integrations.find((i) => i.id === "telegram");
+  const [telegramToken, setTelegramToken] = useState("");
+  const [isSavingTelegram, setIsSavingTelegram] = useState(false);
+  const [telegramError, setTelegramError] = useState<string | null>(null);
+  const [telegramSuccess, setTelegramSuccess] = useState<string | null>(null);
+
+  async function handleConnectTelegram(e: React.FormEvent) {
+    e.preventDefault();
+    if (!onConnectTelegram) return;
+    setIsSavingTelegram(true);
+    setTelegramError(null);
+    setTelegramSuccess(null);
+    try {
+      const result = await onConnectTelegram(telegramToken);
+      setTelegramToken("");
+      setTelegramSuccess(`Bot @${result.botName ?? "bot"} connected successfully!`);
+    } catch (err) {
+      setTelegramError(err instanceof Error ? err.message : "Failed to connect.");
+    } finally {
+      setIsSavingTelegram(false);
+    }
+  }
+
+  async function handleDisconnectTelegram() {
+    if (!onDisconnectTelegram) return;
+    setTelegramError(null);
+    setTelegramSuccess(null);
+    try {
+      await onDisconnectTelegram();
+    } catch (err) {
+      setTelegramError(err instanceof Error ? err.message : "Failed to disconnect.");
+    }
+  }
+
   const [promptSelectAccount, setPromptSelectAccount] = useState(() => {
     if (typeof window === "undefined") return true;
     const stored = localStorage.getItem("prompt_select_account");
@@ -532,6 +572,62 @@ export default function SettingsPage({
                       </button>
                     </div>
                   </form>
+                </article>
+
+                {/* ── Telegram Bot ── */}
+                <article className="rounded-xl border border-[#2d2d2d] p-6 bg-[#1e1e1e]">
+                  <div className="flex items-center gap-4 mb-5">
+                    <div className="avatar small flex items-center justify-center font-black text-white text-lg rounded-sm !w-10 !h-10" style={{ background: "#229ED9" }}>
+                      T
+                    </div>
+                    <div>
+                      <h4 className="m-0 text-xl font-extrabold text-slate-800">Telegram Bot</h4>
+                      <p className="m-0 text-sm text-slate-500">Send outreach messages directly to leads via a Telegram bot.</p>
+                    </div>
+                    {telegramConnected && (
+                      <span className="ml-auto text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: "rgba(74,222,128,0.1)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)" }}>
+                        Connected{telegramIntegration?.description ? ` · ${telegramIntegration.description}` : ""}
+                      </span>
+                    )}
+                  </div>
+
+                  {telegramConnected ? (
+                    <div className="flex flex-col gap-3">
+                      <p className="text-sm text-slate-400 m-0">Your Telegram bot is active. Leads with a Telegram chat ID will receive messages via the bot when you click <strong>Re-engage</strong>.</p>
+                      <div className="flex gap-3 pt-1">
+                        <button className="primary-button btn-danger" onClick={() => void handleDisconnectTelegram()}>
+                          Disconnect Bot
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <form className="grid gap-4" onSubmit={(e) => void handleConnectTelegram(e)}>
+                      <div className="rounded-lg px-4 py-3 text-sm" style={{ background: "rgba(34,158,217,0.07)", border: "1px solid rgba(34,158,217,0.15)", color: "rgba(247,247,244,0.7)" }}>
+                        <strong style={{ color: "#229ED9" }}>Setup:</strong> Open Telegram → search <strong>@BotFather</strong> → send <code>/newbot</code> → copy the token below.
+                      </div>
+                      <label className="form-field">
+                        <span className="form-label text-sm text-slate-700 font-bold">Bot Token</span>
+                        <input
+                          className="input bg-[#121212] border-[#2d2d2d]"
+                          placeholder="123456789:ABCdefGHI..."
+                          value={telegramToken}
+                          onChange={(e) => setTelegramToken(e.target.value)}
+                          required
+                        />
+                      </label>
+                      {telegramError && (
+                        <p className="text-xs text-red-400 m-0 px-3 py-2 rounded-lg" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.15)" }}>{telegramError}</p>
+                      )}
+                      {telegramSuccess && (
+                        <p className="text-xs m-0 px-3 py-2 rounded-lg" style={{ color: "#4ade80", background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.15)" }}>{telegramSuccess}</p>
+                      )}
+                      <div className="flex justify-end gap-3 mt-2">
+                        <button type="submit" className="primary-button btn-success" disabled={isSavingTelegram}>
+                          {isSavingTelegram ? "Verifying..." : "Connect Bot"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </article>
               </div>
 

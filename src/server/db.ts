@@ -252,6 +252,7 @@ export async function ensureSchema(db: ReAIDbClient): Promise<void> {
     "stage TEXT NOT NULL DEFAULT 'new'",
     "preferred_channel TEXT NOT NULL DEFAULT 'whatsapp'",
     "last_contacted_at TEXT",
+    "telegram_chat_id TEXT",
   ];
 
   for (const col of leadCols) {
@@ -322,6 +323,7 @@ export function mapLead(row: Record<string, unknown>): Lead {
     tier: String(row.tier) as Lead["tier"],
     stage: (String(row.stage ?? "new")) as LeadStage,
     preferredChannel: (String(row.preferred_channel ?? "whatsapp")) as PreferredChannel,
+    telegramChatId: row.telegram_chat_id ? String(row.telegram_chat_id) : undefined,
     lastContactedAt: row.last_contacted_at ? String(row.last_contacted_at) : undefined,
     createdAt: String(row.created_at),
   };
@@ -650,9 +652,9 @@ export async function getDashboardData(db: ReAIDbClient, agent: Agent): Promise<
   return {
     agent,
     totals: {
-      leadsScored: Math.max(1248, leads.length),
-      averageIntentScore: averageScore || 0.84,
-      reportsGenerated: Math.max(342, reports.length),
+      leadsScored: leads.length,
+      averageIntentScore: averageScore,
+      reportsGenerated: reports.length,
       highIntentLeads: leads.filter((lead) => lead.intent === 1).length,
     },
     highIntentLeads: leads.filter((lead) => lead.intent === 1).slice(0, 3),
@@ -1254,6 +1256,18 @@ export async function updateLeadStage(
       `Stage changed to ${newStage}`,
       now,
     ],
+  });
+}
+
+export async function setLeadTelegramChatId(
+  db: ReAIDbClient,
+  agentId: string,
+  leadId: string,
+  chatId: string,
+): Promise<void> {
+  await db.execute({
+    sql: "UPDATE leads SET telegram_chat_id = ? WHERE id = ? AND agent_id = ?",
+    args: [chatId || null, leadId, agentId],
   });
 }
 

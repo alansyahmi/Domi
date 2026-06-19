@@ -265,6 +265,42 @@ export async function deleteWhatsAppCredentialsApi(): Promise<{ success: boolean
   });
 }
 
+export async function setLeadTelegramChatIdApi(
+  leadId: string,
+  chatId: string,
+): Promise<{ success: boolean; error?: string }> {
+  return await apiJson<{ success: boolean; error?: string }>(`/api/leads/${leadId}/telegram-chat-id`, {
+    method: "PATCH",
+    body: JSON.stringify({ chatId }),
+  });
+}
+
+export async function connectTelegramApi(
+  botToken: string,
+): Promise<{ success: boolean; botName?: string; error?: string }> {
+  return await apiJson<{ success: boolean; botName?: string; error?: string }>(`/api/integrations/telegram/connect`, {
+    method: "POST",
+    body: JSON.stringify({ botToken }),
+  });
+}
+
+export async function disconnectTelegramApi(): Promise<{ success: boolean }> {
+  return await apiJson<{ success: boolean }>(`/api/integrations/telegram/disconnect`, {
+    method: "POST",
+  });
+}
+
+export async function testTelegramApi(chatId: string): Promise<{ success: boolean; error?: string }> {
+  return await apiJson<{ success: boolean; error?: string }>(`/api/integrations/telegram/test`, {
+    method: "POST",
+    body: JSON.stringify({ chatId }),
+  });
+}
+
+export async function getTelegramStatusApi(): Promise<{ connected: boolean; botName?: string }> {
+  return await apiJson<{ connected: boolean; botName?: string }>(`/api/integrations/telegram/status`);
+}
+
 export async function sendReportApi(
   reportId: string,
   leadId: string,

@@ -1,0 +1,10 @@
+const fs = require("fs");
+const os = require("os");
+const p = os.tmpdir() + "/anak_docx/word/document.xml";
+let xml = fs.readFileSync(p, "utf8");
+xml = xml.replace(/<\/w:p>/g, "\n").replace(/<w:br\s*\/?>/g, "\n").replace(/<w:tab\s*\/?>/g, "\t");
+let text = xml.replace(/<[^>]+>/g, "");
+text = text.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+text = text.split("\n").map((l) => l.replace(/\s+$/,"")).filter((l, i, a) => !(l.trim() === "" && (a[i - 1] || "").trim() === "")).join("\n");
+fs.writeFileSync(os.tmpdir() + "/anak-text.txt", text);
+console.log(text);

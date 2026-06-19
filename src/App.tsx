@@ -16,6 +16,9 @@ import {
   sendLeadMessageApi,
   saveWhatsAppCredentialsApi,
   deleteWhatsAppCredentialsApi,
+  connectTelegramApi,
+  disconnectTelegramApi,
+  setLeadTelegramChatIdApi,
   sendReportApi,
   injectDemoLeadApi,
   type BootstrapData,
@@ -301,6 +304,47 @@ function SignatisWorkspace({
     setNotice("WhatsApp Business API disconnected.");
   }
 
+  async function connectTelegram(botToken: string): Promise<{ botName?: string }> {
+    if (!data) return {};
+    const result = await connectTelegramApi(botToken);
+    if (!result.success) throw new Error(result.error ?? "Failed to connect Telegram bot.");
+    setData({
+      ...data,
+      settings: {
+        ...data.settings,
+        integrations: [
+          ...data.settings.integrations.filter((i) => i.id !== "telegram"),
+          { id: "telegram", agentId: data.settings.agent.id, name: "Telegram Bot", description: `@${result.botName ?? "bot"}`, status: "connected" }
+        ],
+      },
+    });
+    setNotice("Telegram bot connected.");
+    return { botName: result.botName };
+  }
+
+  async function disconnectTelegram(): Promise<void> {
+    if (!data) return;
+    await disconnectTelegramApi();
+    setData({
+      ...data,
+      settings: {
+        ...data.settings,
+        integrations: data.settings.integrations.filter((i) => i.id !== "telegram"),
+      },
+    });
+    setNotice("Telegram bot disconnected.");
+  }
+
+  async function setLeadTelegramChatId(leadId: string, chatId: string): Promise<void> {
+    if (!data) return;
+    const result = await setLeadTelegramChatIdApi(leadId, chatId);
+    if (!result.success) throw new Error(result.error ?? "Failed to save Telegram chat ID.");
+    setData({
+      ...data,
+      leads: data.leads.map((l) => l.id === leadId ? { ...l, telegramChatId: chatId || undefined } : l),
+    });
+  }
+
   async function submitSupport(input: Pick<SupportRequest, "name" | "category" | "subject" | "message">): Promise<void> {
     if (!data) return;
     if (!data.demoMode) {
@@ -584,6 +628,7 @@ function SignatisWorkspace({
                 onGetLeadEvents={getLeadEvents}
                 onUpdateLeadStage={updateLeadStage}
                 onSendLeadMessage={sendLeadMessage}
+                onSetLeadTelegramChatId={setLeadTelegramChatId}
               />
             }
           />
@@ -598,6 +643,8 @@ function SignatisWorkspace({
                 onDisconnectIntegration={disconnectIntegration}
                 onSaveWhatsAppCredentials={saveWhatsAppCredentials}
                 onDeleteWhatsAppCredentials={deleteWhatsAppCredentials}
+                onConnectTelegram={connectTelegram}
+                onDisconnectTelegram={disconnectTelegram}
               />
             }
           />

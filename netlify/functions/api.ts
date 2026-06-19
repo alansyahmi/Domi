@@ -18,6 +18,7 @@ import {
   deleteLead,
   getLeadEvents,
   updateLeadStage,
+  setLeadTelegramChatId,
   getCredentials,
   saveCredentials,
   deleteCredentials,
@@ -27,6 +28,7 @@ import { validateReportInput } from "../../src/domain/reports";
 import { generatePropertyReport } from "../../src/server/report-pipeline";
 import { generateReportPdf } from "../../src/server/report-pdf";
 import { verifyWhatsAppCredentials, sendWhatsAppMessage } from "../../src/server/notifications/whatsapp";
+import { sendTelegramMessage, verifyTelegramToken } from "../../src/server/notifications/telegram";
 import { notifyAgentNewLead } from "../../src/server/notifications";
 import type { Agent, PropertyReportInput } from "../../src/types";
 
@@ -340,24 +342,41 @@ export default async (req: Request) => {
         return json({ error: "Lead not found." }, { status: 404, headers: responseHeaders });
       }
 
-      const creds = await getCredentials(db, agent.id, "whatsapp");
-      if (creds) {
-        const metadata = creds.metadata as { phoneNumberId?: string };
+      // Try Telegram first (if configured and lead has a chat_id)
+      const telegramCreds = await getCredentials(db, agent.id, "telegram");
+      const whatsappCreds = await getCredentials(db, agent.id, "whatsapp");
+      let channel = "simulated";
+
+      if (telegramCreds && lead.telegramChatId) {
+        const result = await sendTelegramMessage(telegramCreds.encryptedValue, lead.telegramChatId, body.text);
+        if (result.success) {
+          channel = "telegram";
+          console.log("[Telegram] Message sent successfully.");
+        } else {
+          console.warn("[Telegram] Failed to send:", result.error);
+        }
+      } else if (whatsappCreds) {
+        const metadata = whatsappCreds.metadata as { phoneNumberId?: string };
         const result = await sendWhatsAppMessage(
-          { phoneNumberId: metadata.phoneNumberId ?? "", accessToken: creds.encryptedValue },
+          { phoneNumberId: metadata.phoneNumberId ?? "", accessToken: whatsappCreds.encryptedValue },
           lead.phone,
           body.text
         );
-        if (!result.success) {
-          console.warn("[WhatsApp] Failed to send using credentials, falling back to simulation. Error:", result.error);
-          console.log("[Simulated WhatsApp] To:", lead.phone, "Msg:", body.text);
-        } else {
+        if (result.success) {
+          channel = "whatsapp";
           console.log("[WhatsApp] Message sent successfully via Meta API.");
+        } else {
+          console.warn("[WhatsApp] Failed to send:", result.error);
         }
       } else {
-        // Fallback simulation mode
-        console.log("[Simulated WhatsApp] To:", lead.phone, "Msg:", body.text);
+        console.log("[Simulated] Outreach to:", lead.phone, "Msg:", body.text);
       }
+
+      const eventLabel = channel === "telegram"
+        ? "Sent Telegram outreach message"
+        : channel === "whatsapp"
+          ? "Sent WhatsApp outreach message"
+          : "Outreach simulated (no messaging channel configured)";
 
       // Log event
       await db.execute({
@@ -366,8 +385,8 @@ export default async (req: Request) => {
           `event_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
           leadId,
           agent.id,
-          "whatsapp_outreach",
-          "Sent WhatsApp outreach message",
+          channel === "telegram" ? "telegram_outreach" : "whatsapp_outreach",
+          eventLabel,
           new Date().toISOString(),
         ],
       });
@@ -377,6 +396,16 @@ export default async (req: Request) => {
         await updateLeadStage(db, agent.id, leadId, "contacted");
       }
 
+      return json({ success: true }, { headers: responseHeaders });
+    }
+
+    const leadTelegramMatch = endpoint.match(/^leads\/([^/]+)\/telegram-chat-id$/);
+    if (leadTelegramMatch && req.method === "PATCH") {
+      const body = await readJson<{ chatId?: string }>(req);
+      if (body.chatId === undefined) {
+        return json({ error: "chatId is required." }, { status: 422, headers: responseHeaders });
+      }
+      await setLeadTelegramChatId(db, agent.id, leadTelegramMatch[1], body.chatId);
       return json({ success: true }, { headers: responseHeaders });
     }
 
@@ -509,6 +538,52 @@ export default async (req: Request) => {
         { phoneNumberId: metadata.phoneNumberId ?? "", accessToken: creds.encryptedValue },
         agent.whatsappNumber || agent.phone,
         "✅ re:AI WhatsApp integration is working! You'll receive lead notifications here.",
+      );
+      if (!result.success) {
+        return json({ error: result.error ?? "Failed to send test message." }, { status: 500, headers: responseHeaders });
+      }
+      return json({ success: true, messageId: result.messageId }, { headers: responseHeaders });
+    }
+
+    // ── Telegram Integration ──────────────────────────────────
+
+    if (endpoint === "integrations/telegram/status" && req.method === "GET") {
+      const creds = await getCredentials(db, agent.id, "telegram");
+      const metadata = creds?.metadata as { botName?: string } | undefined;
+      return json({ connected: creds !== null, botName: metadata?.botName }, { headers: responseHeaders });
+    }
+
+    if (endpoint === "integrations/telegram/connect" && req.method === "POST") {
+      const body = await readJson<{ botToken?: string }>(req);
+      if (!body.botToken?.trim()) {
+        return json({ error: "Bot token is required." }, { status: 422, headers: responseHeaders });
+      }
+      const verifyResult = await verifyTelegramToken(body.botToken);
+      if (!verifyResult.valid) {
+        return json({ error: verifyResult.error ?? "Invalid bot token." }, { status: 400, headers: responseHeaders });
+      }
+      await saveCredentials(db, agent.id, "telegram", body.botToken, { botName: verifyResult.botName });
+      return json({ success: true, botName: verifyResult.botName }, { headers: responseHeaders });
+    }
+
+    if (endpoint === "integrations/telegram/disconnect" && req.method === "POST") {
+      await deleteCredentials(db, agent.id, "telegram");
+      return json({ success: true }, { headers: responseHeaders });
+    }
+
+    if (endpoint === "integrations/telegram/test" && req.method === "POST") {
+      const body = await readJson<{ chatId?: string }>(req);
+      if (!body.chatId?.trim()) {
+        return json({ error: "A chat_id is required for the test." }, { status: 422, headers: responseHeaders });
+      }
+      const creds = await getCredentials(db, agent.id, "telegram");
+      if (!creds) {
+        return json({ error: "Telegram bot not connected." }, { status: 400, headers: responseHeaders });
+      }
+      const result = await sendTelegramMessage(
+        creds.encryptedValue,
+        body.chatId,
+        "✅ re:AI Telegram integration is working! You'll receive lead notifications here.",
       );
       if (!result.success) {
         return json({ error: result.error ?? "Failed to send test message." }, { status: 500, headers: responseHeaders });

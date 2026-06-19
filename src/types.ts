@@ -48,6 +48,7 @@ export interface Lead {
   tier: "Hot" | "Warm" | "Cold";
   stage: LeadStage;
   preferredChannel: PreferredChannel;
+  telegramChatId?: string;
   lastContactedAt?: string;
   createdAt: string;
 }
