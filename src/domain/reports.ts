@@ -25,6 +25,27 @@ function isPropertyTenure(value: unknown): value is PropertyTenure {
   return typeof value === "string" && PROPERTY_TENURES.includes(value as PropertyTenure);
 }
 
+const OPTIONAL_LOCATION_PREFIXES = new Set([
+  "taman",
+  "tmn",
+  "bandar",
+  "bdr",
+  "jalan",
+  "jln",
+  "lorong",
+  "lrg",
+  "seksyen",
+  "section",
+  "sek",
+  "kampung",
+  "kampong",
+  "kg",
+  "bukit",
+  "bt",
+  "menara",
+  "mnr",
+]);
+
 function isValidUrl(value: string): boolean {
   try {
     const parsed = new URL(value);
@@ -207,7 +228,9 @@ export function matchesPropertyName(propertyName: string, text: string, strict =
     return haystack.includes(compact);
   }
 
-  return tokens.every((token) => haystack.includes(token));
+  const requiredTokens = tokens.filter((token) => !OPTIONAL_LOCATION_PREFIXES.has(token));
+  const tokensToCheck = requiredTokens.length > 0 ? requiredTokens : tokens;
+  return tokensToCheck.every((token) => haystack.includes(compactPropertyName(token)));
 }
 
 export function conflictsWithPropertyName(propertyName: string, text: string): boolean {

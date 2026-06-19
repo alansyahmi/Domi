@@ -205,7 +205,7 @@ describe("report pipeline", () => {
       }),
     ]);
     expect(sections["Current Listing Context"]).toContain("RM 1,250,000");
-    expect(sections["Pricing Posture"]).toContain("current listing signals");
+    expect(sections["Pricing Posture"]).toContain("measured pricing posture");
     expect(savedIndexCall).toBeTruthy();
     expect(JSON.parse(String((savedIndexCall?.[0] as { args: unknown[] }).args[2]))).toMatchObject({
       comparableListings: [
@@ -385,7 +385,7 @@ describe("report pipeline", () => {
     expect(sections["Strengths to Lead With"]).toContain("waterfront access");
     expect(sections["Watchouts and Buyer Questions"]).toContain("midnight noise");
     expect(sections["Watchouts and Buyer Questions"]).toContain("Buyer questions");
-    expect(sections["Recommended Listing Narrative"]).toContain("client-safe");
+    expect(sections["Recommended Listing Narrative"]).toContain("balanced");
     expect(report.contentSections.map((section) => section.body).join(" ")).not.toMatch(/cache|index|Tavily|live search/i);
   });
 
@@ -479,7 +479,7 @@ describe("report pipeline", () => {
       sql: expect.stringContaining("INSERT OR REPLACE INTO property_intelligence_cache"),
     }));
     expect(report.citations[0]?.title).toBe("Signatis deterministic market model");
-    expect(report.contentSections.map((section) => section.body).join(" ")).toContain("TL;DR");
+    expect(report.contentSections.map((section) => section.body).join(" ")).toContain("Market read:");
     expect(report.contentSections.map((section) => section.body).join(" ")).toContain("freehold");
   });
 

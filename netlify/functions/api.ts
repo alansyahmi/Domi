@@ -205,7 +205,7 @@ export default async (req: Request) => {
     }
 
     if (shareMatch[2] === "pdf") {
-      return pdf(generateReportPdf(report, agent), `${report.propertyKey || report.id}.pdf`);
+      return pdf(await generateReportPdf(report, agent), `${report.propertyKey || report.id}.pdf`);
     }
 
     return json({ report, agent });
@@ -439,7 +439,7 @@ export default async (req: Request) => {
       if (!report) {
         return json({ error: "Report not found." }, { status: 404, headers: responseHeaders });
       }
-      const pdfResponse = pdf(generateReportPdf(report, agent), `${report.propertyKey || report.id}.pdf`);
+      const pdfResponse = pdf(await generateReportPdf(report, agent), `${report.propertyKey || report.id}.pdf`);
       responseHeaders.forEach((value, key) => pdfResponse.headers.append(key, value));
       return pdfResponse;
     }

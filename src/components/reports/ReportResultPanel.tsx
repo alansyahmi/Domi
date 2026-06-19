@@ -43,6 +43,14 @@ function lookupDetail(report: PropertyReport): string {
   return `${freshness} | ${report.indexLookup.citationsCount} source${report.indexLookup.citationsCount === 1 ? "" : "s"}`;
 }
 
+function bodyToBullets(body: string): string[] {
+  return body
+    .split(/\n+/)
+    .flatMap((line) => line.split(/(?<=[.!?])\s+/))
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 export default function ReportResultPanel({ 
   report, 
   leads, 
@@ -174,7 +182,11 @@ export default function ReportResultPanel({
               <BarChart3 size={18} aria-hidden="true" />
               <h3>{section.title}</h3>
             </div>
-            <p>{section.body}</p>
+            <ul className="m-0 list-disc space-y-2 pl-5">
+              {bodyToBullets(section.body).map((item, index) => (
+                <li key={`${section.title}-${index}`}>{item}</li>
+              ))}
+            </ul>
           </article>
         ))}
       </div>

@@ -6,6 +6,14 @@ import ReportPricingPanel from "./ReportPricingPanel";
 
 const faviconUrl = new URL("../../../favicon.png", import.meta.url).href;
 
+function bodyToBullets(body: string): string[] {
+  return body
+    .split(/\n+/)
+    .flatMap((line) => line.split(/(?<=[.!?])\s+/))
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 export default function SharedReportView({
   agent,
   report,
@@ -116,7 +124,11 @@ export default function SharedReportView({
               {report.contentSections && report.contentSections.map((section, idx) => (
                 <div key={idx} className={`py-5 ${idx === 0 ? "pt-0" : ""}`}>
                   <h3 className="text-lg font-bold text-slate-900 mb-2">{section.title}</h3>
-                  <p className="text-slate-300 leading-relaxed m-0">{section.body}</p>
+                  <ul className="m-0 list-disc pl-5 space-y-2 text-slate-300 leading-relaxed">
+                    {bodyToBullets(section.body).map((item, bulletIdx) => (
+                      <li key={`${idx}-${bulletIdx}`}>{item}</li>
+                    ))}
+                  </ul>
                 </div>
               ))}
             </div>

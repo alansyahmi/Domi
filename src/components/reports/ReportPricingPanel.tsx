@@ -142,7 +142,12 @@ export default function ReportPricingPanel({
                       )}
                     </td>
                     <td className={`${isAgent ? "py-2 px-3 font-semibold text-slate-700" : sharedDark ? "py-3 px-4 font-semibold text-slate-200" : "py-3 px-4 font-semibold text-slate-700"}`}>
-                      {comp.askingPriceRm && comp.askingPriceRm > 0 ? `RM ${comp.askingPriceRm.toLocaleString("en-MY")}` : "TBD"}
+                      <div>{comp.askingPriceRm && comp.askingPriceRm > 0 ? `RM ${comp.askingPriceRm.toLocaleString("en-MY")}` : "TBD"}</div>
+                      {comp.priceNote ? (
+                        <div className={`mt-1 text-[10px] leading-snug italic ${sharedDark ? "text-slate-400" : "text-slate-500"}`}>
+                          {comp.priceNote}
+                        </div>
+                      ) : null}
                     </td>
                     <td className={`${isAgent ? "py-2 px-3 text-slate-600" : sharedDark ? "py-3 px-4 text-slate-300" : "py-3 px-4 text-slate-600"}`}>
                       {comp.builtUpSqft && comp.builtUpSqft > 0 ? `${comp.builtUpSqft.toLocaleString("en-MY")} sqft` : "TBD"}

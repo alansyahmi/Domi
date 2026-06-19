@@ -162,6 +162,7 @@ export interface ReportComparableListing {
   sourceName?: string;
   url: string;
   askingPriceRm?: number;
+  priceNote?: string;
   builtUpSqft?: number;
   bedrooms?: number;
   bathrooms?: number;

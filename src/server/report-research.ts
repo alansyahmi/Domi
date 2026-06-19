@@ -58,6 +58,53 @@ function buildBaseTavilyQuery(input: PropertyReportInput): string {
   ].filter(Boolean).join(" "));
 }
 
+function buildLocationVariants(input: PropertyReportInput): string[] {
+  const normalized = normalizeReportInput(input);
+  const raw = [normalized.propertyName, normalized.address]
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const variants = new Set<string>();
+  const prefixVariants: Array<[RegExp, string]> = [
+    [/^taman\s+/i, "Tmn "],
+    [/^tmn\s+/i, "Taman "],
+    [/^bandar\s+/i, "Bdr "],
+    [/^bdr\s+/i, "Bandar "],
+    [/^jalan\s+/i, "Jln "],
+    [/^jln\s+/i, "Jalan "],
+    [/^lorong\s+/i, "Lrg "],
+    [/^lrg\s+/i, "Lorong "],
+    [/^seksyen\s+/i, "Sek "],
+    [/^sek\s+/i, "Seksyen "],
+    [/^bukit\s+/i, "Bt "],
+    [/^bt\s+/i, "Bukit "],
+    [/^kampung\s+/i, "Kg "],
+    [/^kampong\s+/i, "Kg "],
+    [/^kg\s+/i, "Kampung "],
+    [/^menara\s+/i, "Mnr "],
+    [/^mnr\s+/i, "Menara "],
+  ];
+
+  for (const value of raw) {
+    variants.add(value);
+    for (const [pattern, replacement] of prefixVariants) {
+      if (pattern.test(value)) {
+        variants.add(value.replace(pattern, replacement));
+      }
+    }
+    variants.add(value.replace(/^taman\s+/i, ""));
+    variants.add(value.replace(/^bandar\s+/i, ""));
+    variants.add(value.replace(/^jalan\s+/i, ""));
+    variants.add(value.replace(/^lorong\s+/i, ""));
+    variants.add(value.replace(/^seksyen\s+/i, ""));
+    variants.add(value.replace(/^bukit\s+/i, ""));
+    variants.add(value.replace(/^kampung\s+/i, ""));
+    variants.add(value.replace(/^kampong\s+/i, ""));
+    variants.add(value.replace(/^menara\s+/i, ""));
+  }
+
+  return [...variants].map((value) => compact(value)).filter((value, index, arr) => Boolean(value) && arr.indexOf(value) === index);
+}
+
 type TavilySourceLane = Extract<ReportCitationSourceType, "official" | "community" | "comparable_listing" | "transaction" | "neighborhood">;
 
 function buildTavilyQueryVariations(input: PropertyReportInput, sourceType: TavilySourceLane): string[] {
@@ -66,10 +113,14 @@ function buildTavilyQueryVariations(input: PropertyReportInput, sourceType: Tavi
   const area = input.address?.trim()?.split(",")[0] || propertyName;
   const addressParts = input.address?.trim()?.split(",") ?? [];
   const city = addressParts.length > 1 ? addressParts[addressParts.length - 1].trim() : "Malaysia";
+  const locationVariants = buildLocationVariants(input);
+  const primaryLocation = locationVariants[0] || propertyName;
+  const secondaryLocation = locationVariants[1] || area;
 
   if (sourceType === "official") {
     return [
       compact(`${base} official developer listing sales gallery property portal Malaysia`),
+      compact(`"${primaryLocation}" official listing developer Malaysia`),
       compact(`"${propertyName}" developer pricing brochure "official launch" pakej harga maklumat pemaju hartanah Malaysia`),
     ];
   }
@@ -78,18 +129,21 @@ function buildTavilyQueryVariations(input: PropertyReportInput, sourceType: Tavi
     return [
       compact(`"${propertyName}" ${intentPart} site:iproperty.com.my OR site:propertyguru.com.my OR site:mudah.my OR site:facebook.com`),
       compact(`"${propertyName}" ${intentPart} price built-up sqft bedrooms bathrooms "${area}"`),
+      compact(`"${primaryLocation}" ${intentPart} price sqft bedrooms bathrooms Malaysia`),
     ];
   }
   if (sourceType === "transaction") {
     return [
       compact(`"${propertyName}" transacted price "sold price" transaction NPL "last transacted" site:brickz.my OR site:edgeprop.my "${area}" Malaysia`),
+      compact(`"${primaryLocation}" transacted price sold price Malaysia`),
       compact(`"${propertyName}" harga transaksi urusniaga dijual NPL brickz edgeprop "${area}" Malaysia`),
     ];
   }
   if (sourceType === "neighborhood") {
     return [
       compact(`"${area}" nearby facilities amenities "within walking distance" OR "minutes walk" OR "short drive" school "primary school" OR "secondary school" mall OR "shopping mall" hospital OR clinic LRT OR MRT station upcoming infrastructure development project "${city}" Malaysia`),
-      compact(`"${area}" kemudahan berdekatan sekolah klinik hospital mall stesen LRT MRT pembangunan infrastruktur kawasan perumahan taman "${city}" Malaysia`),
+      compact(`"${primaryLocation}" kemudahan berdekatan sekolah klinik hospital mall stesen LRT MRT pembangunan infrastruktur kawasan perumahan "${city}" Malaysia`),
+      compact(`"${secondaryLocation}" nearby facilities school hospital mall MRT "${city}" Malaysia`),
     ];
   }
 
@@ -97,6 +151,7 @@ function buildTavilyQueryVariations(input: PropertyReportInput, sourceType: Tavi
   return [
     compact(`${base} review complaint forum resident experience noise midnight defects maintenance parking developer track record Malay English ulasan aduan forum komuniti pengalaman penghuni bising malam masalah -site:propertyguru.com.my -site:iproperty.com.my`),
     compact(`"${propertyName}" ulasan penghuni masalah aduan komuniti forum review pengalaman residents "${area}"`),
+    compact(`"${primaryLocation}" forum resident review complaint parking noise maintenance Malaysia`),
   ];
 }
 
@@ -388,6 +443,27 @@ function parseAskingPriceRm(text: string): number | undefined {
   return value;
 }
 
+function parseLoosePriceRm(text: string): number | undefined {
+  const patterns = [
+    /\b(?:asking\s+price|price|priced\s+at)\s*(?:rm\s*)?([0-9][0-9,]*(?:\.\d+)?)\s*(k|m|million|mil)?\b/i,
+    /\b(?:rm\s*)?([0-9][0-9,]*(?:\.\d+)?)\s*(k|m|million|mil)\b/i,
+    /\b(?:rm\s*)?([0-9]{1,3}(?:,[0-9]{3}){1,3})\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match?.[1]) continue;
+    let value = Number(match[1].replace(/,/g, ""));
+    if (!Number.isFinite(value) || value <= 0) continue;
+    const suffix = match[2]?.toLowerCase();
+    if (suffix === "k") value *= 1000;
+    else if (suffix === "m" || suffix === "million" || suffix === "mil") value *= 1000000;
+    if (value >= 30000) return value;
+  }
+
+  return undefined;
+}
+
 function parseBuiltUpSqft(text: string): number | undefined {
   return parseFirstNumber(text, /\b([0-9][0-9,]{2,5})\s*(?:sq\.?\s*ft|sqft|sf|square feet)\b/i);
 }
@@ -398,6 +474,31 @@ function parseBedrooms(text: string): number | undefined {
 
 function parseBathrooms(text: string): number | undefined {
   return parseFirstNumber(text, /\b([0-9]+)\s*(?:bathrooms?|baths?|ba)\b/i);
+}
+
+function parseLooseRoomCounts(text: string): { bedrooms?: number; bathrooms?: number } {
+  const compactText = compact(text);
+  const shorthand = compactText.match(/\b([0-9]{1,2})\s*[bB]\s+([0-9]{1,2})\s*[bB]\b/);
+  if (shorthand?.[1] && shorthand?.[2]) {
+    const bedrooms = Number(shorthand[1]);
+    const bathrooms = Number(shorthand[2]);
+    return {
+      bedrooms: Number.isFinite(bedrooms) && bedrooms > 0 ? bedrooms : undefined,
+      bathrooms: Number.isFinite(bathrooms) && bathrooms > 0 ? bathrooms : undefined,
+    };
+  }
+
+  const labeled = compactText.match(/\b([0-9]{1,2})\s*(?:bed(?:room)?s?|br)\s+([0-9]{1,2})\s*(?:bath(?:room)?s?|ba)\b/i);
+  if (labeled?.[1] && labeled?.[2]) {
+    const bedrooms = Number(labeled[1]);
+    const bathrooms = Number(labeled[2]);
+    return {
+      bedrooms: Number.isFinite(bedrooms) && bedrooms > 0 ? bedrooms : undefined,
+      bathrooms: Number.isFinite(bathrooms) && bathrooms > 0 ? bathrooms : undefined,
+    };
+  }
+
+  return {};
 }
 
 function parseMaintenanceFeePsf(text: string): number | undefined {
@@ -624,7 +725,14 @@ function extractComparableListing(
   // Prefer the full extracted page content (exact specs) over the search snippet.
   const detail = (fullContent?.trim() ? fullContent : result.content ?? "").slice(0, MAX_EXTRACT_CONTENT_CHARS);
   const text = compact(`${result.title} ${detail}`);
-  const parsedPrice = parseAskingPriceRm(text);
+  const strictPrice = parseAskingPriceRm(text);
+  const loosePrice = strictPrice === undefined ? parseLoosePriceRm(text) : undefined;
+  const parsedPrice = strictPrice ?? loosePrice;
+  const looseRooms = parseLooseRoomCounts(text);
+  const sourceHost = result.url ? hostFromUrl(result.url) : undefined;
+  const priceNote = parsedPrice !== undefined && (strictPrice === undefined || sourceHost === "facebook.com")
+    ? "Price inferred from post text."
+    : undefined;
 
   const intent = inferListingIntent(text, input.listingIntent);
   if (parsedPrice !== undefined) {
@@ -641,10 +749,11 @@ function extractComparableListing(
     url: compact(result.url),
     askingPriceRm: parsedPrice,
     builtUpSqft: parseBuiltUpSqft(text),
-    bedrooms: parseBedrooms(text),
-    bathrooms: parseBathrooms(text),
+    bedrooms: parseBedrooms(text) ?? looseRooms.bedrooms,
+    bathrooms: parseBathrooms(text) ?? looseRooms.bathrooms,
     listingIntent: intent,
     snippet: result.content ? compact(result.content) : undefined,
+    priceNote,
   };
 }
 

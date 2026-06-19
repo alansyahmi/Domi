@@ -96,6 +96,7 @@ function sanitizeComparableListings(
       sourceName: listing.sourceName?.trim(),
       url: listing.url.trim(),
       askingPriceRm: listing.askingPriceRm && listing.askingPriceRm > 0 ? Math.round(listing.askingPriceRm) : undefined,
+      priceNote: listing.priceNote?.trim(),
       builtUpSqft: listing.builtUpSqft && listing.builtUpSqft > 0 ? Math.round(listing.builtUpSqft) : undefined,
       bedrooms: listing.bedrooms && listing.bedrooms > 0 ? Math.round(listing.bedrooms) : undefined,
       bathrooms: listing.bathrooms && listing.bathrooms > 0 ? Math.round(listing.bathrooms) : undefined,
@@ -298,44 +299,51 @@ function comparableContextText(input: ReturnType<typeof normalizeReportInput>, l
   return `Current listing signals include ${listings.length} cited active listing${listings.length === 1 ? "" : "s"} with ${comparablePriceRange(listings)}.${compStatsText} ${sample}. Treat these as directional asking context, not a valuation.`;
 }
 
-function objectionScripts(watchouts: string[], research: ReportResearchResult, input: ReturnType<typeof normalizeReportInput>): string {
-  const scripts: Record<string, string> = {
-    "noise or late-night disturbance":
-      `"I've reviewed resident feedback online, and noise from short-term rentals has been mentioned by some occupants. If this is a concern, we can prioritize units on higher floors or in quieter blocks, and we can confirm the current short-term rental policy with the management office before you commit."`,
-    "defects or maintenance follow-up":
-      `"Some residents have flagged maintenance follow-up in community forums. Every stratified property has service charge and management dynamics — we can review the latest AGM minutes and JMB financials together so you know exactly what you're buying into."`,
-    "parking or congestion":
-      `"Parking availability has come up in resident discussions. I'd recommend checking the assigned bay count for this specific unit and confirming visitor parking policies with the management office. If the buyer needs an extra bay, some owners do rent out unused spots."`,
-    "safety or access expectations":
-      `"Security and access are always top of mind for buyers. The development has gated access and security features typical for the area. I can arrange a viewing at different times of day so you can experience the access flow and security presence firsthand."`,
-    "developer track record":
-      `"Yes, this developer has a track record worth reviewing. I'd encourage looking at their completed projects to assess delivery quality and timeliness. The current building is standing and the legal framework is in place — what matters now is the management quality going forward."`,
-    "upcoming construction nearby":
-      `"There is upcoming infrastructure nearby which could affect both convenience and noise levels during construction. The long-term upside is better connectivity and potential capital appreciation. I can share the project timeline so you know what to expect and when."`,
-    "maintenance fee concerns":
-      `"Maintenance fees are a valid concern — they affect your holding cost and net yield. I can pull the exact per-square-foot rate and the sinking fund balance for this unit so we can compare it against similar developments in the area. A well-funded sinking fund is actually a positive signal."`,
-  };
+function bulletLines(lines: Array<string | undefined | null>): string {
+  return lines.filter((line): line is string => Boolean(line && line.trim())).join("\n");
+}
 
-  const relevant = watchouts
-    .filter((w) => scripts[w])
-    .map((w) => `🗣️ When the investor asks about ${w}:\n${scripts[w]}`);
+function conciseObjectionNotes(watchouts: string[], research: ReportResearchResult, input: ReturnType<typeof normalizeReportInput>): string {
+  const notes: string[] = [];
 
-  if (relevant.length === 0) {
-    // Generate a generic objection handler based on available data
-    const hasTransactions = (research.transactedPrices ?? []).length > 0;
-    const hasComparables = sanitizeComparableListings(research.comparableListings).length > 0;
-    const genericScripts: string[] = [];
-    if (!hasTransactions) {
-      genericScripts.push(`🗣️ When the investor asks about pricing accuracy:\n"We're working with asking prices from active listings because no recent transacted prices are publicly available for this development. That's actually common for newer projects in Malaysia — the data catches up over time. What I'd suggest is cross-referencing these asking prices with your own recent deal experience in the area to triangulate a fair offer."`);
-    }
-    if (hasComparables) {
-      genericScripts.push(`🗣️ When the investor compares this to another development:\n"The comparable listings in this report give us a directional range. Every unit is different — let me pull the specific floor plan, facing direction, and renovation condition so we can adjust the comparison fairly."`);
-    }
-    genericScripts.push(`🗣️ When the investor wants a guarantee:\n"I can't guarantee future prices, but I can guarantee you'll have the most complete picture available. This report surfaces both the strengths and the watchouts so you're making an informed decision — not a blind one."`);
-    return genericScripts.join("\n\n");
+  if (watchouts.includes("noise or late-night disturbance")) {
+    notes.push("Noise: verify floor, block, and management rules before the buyer commits.");
+  }
+  if (watchouts.includes("defects or maintenance follow-up")) {
+    notes.push("Maintenance: review AGM minutes, service charge, and sinking fund details before presenting.");
+  }
+  if (watchouts.includes("parking or congestion")) {
+    notes.push("Parking: confirm the exact bay allocation and visitor parking policy for this unit.");
+  }
+  if (watchouts.includes("safety or access expectations")) {
+    notes.push("Access: check the security flow at viewing time and confirm the gated-entry experience.");
+  }
+  if (watchouts.includes("developer track record")) {
+    notes.push("Developer: anchor the conversation on completed projects and current management quality.");
+  }
+  if (watchouts.includes("upcoming construction nearby")) {
+    notes.push("Construction: frame nearby works as a convenience tradeoff, not a surprise.");
+  }
+  if (watchouts.includes("maintenance fee concerns")) {
+    notes.push("Holding cost: compare service charges and sinking fund strength against nearby alternatives.");
   }
 
-  return relevant.join("\n\n");
+  const hasTransactions = (research.transactedPrices ?? []).length > 0;
+  const hasComparables = sanitizeComparableListings(research.comparableListings).length > 0;
+
+  if (!hasTransactions) {
+    notes.push("Pricing: present active asking prices as directional context, not a valuation.");
+  }
+  if (hasComparables) {
+    notes.push("Comparison: adjust for floor plan, facing, condition, and renovation quality.");
+  }
+
+  if (notes.length === 0) {
+    notes.push("Confidence: keep the tone measured, evidence-led, and clear about what still needs verification.");
+  }
+
+  notes.push(`Goal: help the buyer make a calm, informed decision about ${input.propertyName}.`);
+  return bulletLines(notes);
 }
 
 function buildContentSections(
@@ -388,12 +396,20 @@ function buildContentSections(
     );
   }
   const buyerProfileText = buyerProfileParts.length
-    ? `Likely best suited to ${buyerProfileParts.join("; ")}. For client conversations, frame the target buyer around these concrete use-case signals rather than generic lifestyle claims.`
-    : `Likely best suited to buyers who value the property type, location convenience, and lifestyle fit more than a purely lowest-price comparison. For client conversations, frame the target buyer around use-case fit, daily convenience, and tolerance for the watchouts noted below.`;
+    ? bulletLines([
+        `Best suited to ${buyerProfileParts.join("; ")}.`,
+        "Lead with the day-to-day use case instead of generic lifestyle language.",
+        "Position the property against convenience, layout fit, and price discipline.",
+      ])
+    : bulletLines([
+        "Best suited to buyers who value location convenience and lifestyle fit over a purely lowest-price comparison.",
+        "Frame the target buyer around daily use case, access, and layout fit.",
+        "Use the watchouts below to qualify whether the property is a real fit.",
+      ]);
 
   // Developer context for Strengths section
   const developerContext = analytics.developerTrackRecord?.developerName
-    ? ` Developer context: ${analytics.developerTrackRecord.developerName} is the developer behind this project. Verify their track record for past delivery quality and buyer satisfaction before presenting to clients.`
+    ? `Developer context: ${analytics.developerTrackRecord.developerName} is behind this project. Verify past delivery quality and buyer satisfaction before presenting.`
     : "";
 
   // Community quote for Watchouts
@@ -421,50 +437,63 @@ function buildContentSections(
     const yieldPct = analytics.estimatedGrossYield.toFixed(1);
     rentalYieldSection = {
       title: "Rental Yield Context",
-      body: `Based on ${rentalCompCount} cited rental listing${rentalCompCount === 1 ? "" : "s"} averaging RM ${analytics.averageRentalPrice.toLocaleString("en-MY", { maximumFractionDigits: 0 })}/month, the estimated gross rental yield at the asking price is approximately ${yieldPct}%. This is ${analytics.estimatedGrossYield >= 5 ? "competitive" : analytics.estimatedGrossYield >= 3 ? "moderate" : "below typical investor thresholds"} for the Malaysian residential market. Always verify against actual tenanted units and factor in maintenance fees, vacancy, and management costs.`,
+      body: bulletLines([
+        `Based on ${rentalCompCount} cited rental listing${rentalCompCount === 1 ? "" : "s"} averaging RM ${analytics.averageRentalPrice.toLocaleString("en-MY", { maximumFractionDigits: 0 })}/month, the estimated gross rental yield at the asking price is ${yieldPct}%.`,
+        analytics.estimatedGrossYield >= 5 ? "Yield is competitive for the Malaysian residential market." : analytics.estimatedGrossYield >= 3 ? "Yield is moderate and worth checking against your target return." : "Yield is below typical investor thresholds.",
+        "Verify against actual tenanted units and factor in maintenance fees, vacancy, and management costs.",
+      ]),
     };
   }
 
-  // Build TL;DR bullet box
   const tldrPropertyLine = `${input.propertyType}, ${input.bedrooms || "?"}+${input.bathrooms || "?"}, ${input.sqft > 0 ? `${input.sqft.toLocaleString("en-MY")} sqft` : "size TBC"}, ${input.tenure !== "unknown" ? input.tenure : "tenure TBC"}.`;
   const tldrPriceLine = comparableListings.length > 0
-    ? `Active listings in the area range ${comparablePriceRange(comparableListings)}.${realTxCount === 0 ? " However, zero recent transactions means this is based on asking prices only — treat as directional." : realTxCount === 1 ? " One recent transaction provides some price anchoring." : ` ${realTxCount} recent transactions provide pricing support.`}`
+    ? `${comparablePriceRange(comparableListings)} across active listings.${realTxCount === 0 ? " Treat this as directional because no recent transactions were cited." : realTxCount === 1 ? " One recent transaction provides some price anchoring." : ` ${realTxCount} recent transactions provide pricing support.`}`
     : "No comparable active listings were found. Verify pricing against your own recent deal experience.";
   const tldrPerk = analytics.neighborhoodVibe?.amenities?.length
-    ? `Nearby ${analytics.neighborhoodVibe.amenities.slice(0, 3).map((a) => a.name).join(", ")}${analytics.neighborhoodVibe.amenities.length > 3 ? ", and more" : ""} — ${analytics.neighborhoodVibe.label.toLowerCase()}.`
+    ? `Nearby ${analytics.neighborhoodVibe.amenities.slice(0, 3).map((a) => a.name).join(", ")}${analytics.neighborhoodVibe.amenities.length > 3 ? ", and more" : ""} support the convenience story.`
     : officialSignals.length > 0
-      ? `Source-backed positives include: ${officialSignals.slice(0, 2).join("; ")}.`
-      : "Verify key selling points before presenting to clients.";
+      ? `Source-backed positives include ${officialSignals.slice(0, 2).join("; ")}.`
+      : "Verify key selling points before presenting.";
   const tldrRisk = watchouts.length > 0
     ? `${input.propertyName} has watchouts around ${watchouts.slice(0, 3).join(", ")}. ${communityQuote}`
-    : "No specific red flags surfaced in community sources, but always verify maintenance, access, and noise during a physical viewing.";
+    : "No specific red flags surfaced, but always verify maintenance, access, and noise during a physical viewing.";
   const tldrEdge = watchouts.length > 0
-    ? `Lead with the location and lifestyle perks, but preempt the ${watchouts[0]} concern with the objection script provided in the Handling Objections section below.`
-    : "Lead with verified location and lifestyle advantages. Use the Best-Fit Buyer Profile to target the right prospect segment.";
+    ? `Lead with the location and lifestyle perks, then handle ${watchouts[0]} early in the conversation.`
+    : "Lead with verified location and lifestyle advantages, then qualify the buyer against the profile below.";
 
-  const tldrBody = `📌 TL;DR for the Agent\n\nProperty: ${tldrPropertyLine}\n\nMarket Price: ${tldrPriceLine}\n\nBiggest Perk: ${tldrPerk}\n\nBiggest Risk: ${tldrRisk}\n\nAgent's Edge: ${tldrEdge}`;
+  const tldrBody = bulletLines([
+    `Property: ${tldrPropertyLine}`,
+    `Market read: ${analytics.pricingTrend}.`,
+    `Price stance: ${tldrPriceLine}`,
+    `Main upside: ${tldrPerk}`,
+    `Main watchout: ${tldrRisk}`,
+    `Agent angle: ${tldrEdge}`,
+  ]);
 
-  // Build Investor Snapshot (sale intent only)
   let investorSnapshot: ReportContentSection | null = null;
   if (input.listingIntent === "sale" || (input.listingIntent as string) === "sale") {
     const yieldLine = analytics.estimatedGrossYield !== undefined
-      ? `Estimated Rental Yield: Based on asking price of ${formatRm(input.askingPriceRm > 0 ? input.askingPriceRm : (analytics.medianPrice ?? 0))}, estimated rental of RM ${(analytics.averageRentalPrice ?? 0).toLocaleString("en-MY", { maximumFractionDigits: 0 })}/month = ${analytics.estimatedGrossYield.toFixed(1)}% gross yield.`
-      : "Estimated Rental Yield: Insufficient rental comparable data to estimate yield. Verify against area rental listings before presenting.";
+      ? `Estimated gross yield: ${analytics.estimatedGrossYield.toFixed(1)}% based on asking price ${formatRm(input.askingPriceRm > 0 ? input.askingPriceRm : (analytics.medianPrice ?? 0))} and rental around RM ${(analytics.averageRentalPrice ?? 0).toLocaleString("en-MY", { maximumFractionDigits: 0 })}/month.`
+      : "Estimated gross yield: insufficient rental comparable data. Verify against area rental listings before presenting.";
     const feeLine = analytics.averageMaintenanceFeePsf !== undefined
-      ? `Maintenance Fee: ~RM ${analytics.averageMaintenanceFeePsf.toFixed(2)}/sqft based on cited comparables. Verify exact rate with management office.`
-      : "Maintenance Fee: Not cited in available sources — verify before presenting.";
+      ? `Maintenance fee: about RM ${analytics.averageMaintenanceFeePsf.toFixed(2)}/sqft based on cited comparables. Verify the exact rate with management.`
+      : "Maintenance fee: not cited in available sources, so verify before presenting.";
     const riskLine = watchouts.length > 0
-      ? `Capital Appreciation Risk: The flagged watchouts (${watchouts.slice(0, 2).join(", ")}) may suppress price growth compared to neighboring developments. Investor strategy: Buy for yield (rental income), not for flipping.`
-      : "Capital Appreciation Risk: No major red flags surfaced. Standard market risk applies — verify developer track record and area supply pipeline.";
+      ? `Capital appreciation risk: the flagged watchouts (${watchouts.slice(0, 2).join(", ")}) may cap upside versus nearby developments.`
+      : "Capital appreciation risk: no major red flags surfaced, but standard market risk still applies.";
 
     investorSnapshot = {
       title: "Investor Snapshot",
-      body: `💰 Investor Snapshot\n\n${yieldLine}\n\n${feeLine}\n\n${riskLine}`,
+      body: bulletLines([
+        yieldLine,
+        feeLine,
+        riskLine,
+        "Investor angle: buy for cash flow and defensible positioning, not for a hype-driven flip.",
+      ]),
     };
   }
 
-  // Build Handling Objections
-  const objectionBody = objectionScripts(watchouts, research, input);
+  const objectionBody = conciseObjectionNotes(watchouts, research, input);
 
   // Price certainty label for pricing posture
   const dataCompPct = Math.round(analytics.dataCompleteness * 100);
@@ -487,15 +516,28 @@ function buildContentSections(
     },
     {
       title: "Market Positioning",
-      body: `${analytics.pricingTrend}. Position the property against nearby alternatives by separating source-backed facts from buyer perception: official/listing signals support the core value story, community/user signals show what should be clarified before a serious viewing or offer, and current listing signals show how active alternatives may frame buyer expectations. ${comparableSignalText}`,
+      body: bulletLines([
+        `${analytics.pricingTrend}.`,
+        "Position the property against nearby alternatives, not against generic market averages.",
+        "Separate source-backed facts from buyer perception before a serious viewing or offer.",
+        `Current listing signals: ${comparableSignalText}`,
+      ]),
     },
     {
       title: "Strengths to Lead With",
-      body: `Lead with source-backed advantages, not exaggerated claims. Official/listing signals indicate: ${officialText}${developerContext}`,
+      body: bulletLines([
+        `Official/listing signals: ${officialText}`,
+        developerContext || undefined,
+        "Lead with verified advantages, not exaggerated claims.",
+      ]),
     },
     {
       title: "Watchouts and Buyer Questions",
-      body: `${communityText}${communityQuote} ${watchoutDetails} Keep phrasing neutral: present these as points to clarify rather than defects unless verified directly.`,
+      body: bulletLines([
+        `Community/user signals: ${communityText}${communityQuote}`,
+        watchoutDetails,
+        "Keep phrasing neutral and present these as points to clarify, not defects.",
+      ]),
     },
     {
       title: "Handling Objections",
@@ -504,23 +546,45 @@ function buildContentSections(
     {
       title: "Pricing Posture",
       body: hasTargetAskingPrice(input)
-        ? `${analytics.pricingTrend}. Data Completeness: ${dataCompPct}% (${research.sources.length} sources). Price Certainty: ${priceCertLabel}${priceCertNote}. Use a measured pricing posture: explain the asking position with current listing signals, avoid overclaiming scarcity or exact valuation, and leave room to respond if buyer feedback clusters around the watchouts.${pricingPostureExtra}`
-        : `${analytics.pricingTrend}. Data Completeness: ${dataCompPct}% (${research.sources.length} sources). Price Certainty: ${priceCertLabel}${priceCertNote}. Frame pricing around active ${input.propertyName} listings and similar units in the area rather than a specific unit ask. Use the cited listing range as directional market context, avoid overclaiming exact valuation, and leave room to respond if buyer feedback clusters around the watchouts.${pricingPostureExtra}`,
+        ? bulletLines([
+            analytics.pricingTrend,
+            `Data completeness: ${dataCompPct}% (${research.sources.length} sources).`,
+            `Price certainty: ${priceCertLabel}${priceCertNote}.`,
+            "Use a measured pricing posture and avoid overclaiming exact valuation.",
+            "Leave room to respond if buyer feedback clusters around the watchouts.",
+            pricingPostureExtra || undefined,
+          ])
+        : bulletLines([
+            analytics.pricingTrend,
+            `Data completeness: ${dataCompPct}% (${research.sources.length} sources).`,
+            `Price certainty: ${priceCertLabel}${priceCertNote}.`,
+            `Frame pricing around active ${input.propertyName} listings and similar units in the area.`,
+            "Use the cited listing range as directional market context, not as a valuation.",
+            pricingPostureExtra || undefined,
+          ]),
     },
     {
       title: "Recommended Listing Narrative",
-      body: `Use a client-safe narrative: highlight the verified lifestyle and location strengths first, then acknowledge practical buyer questions transparently. The tone should be balanced, evidence-led, and reassuring rather than hard-sell or defensive.`,
+      body: bulletLines([
+        "Lead with verified lifestyle and location strengths.",
+        "Acknowledge practical buyer questions transparently.",
+        "Keep the tone balanced, evidence-led, and reassuring.",
+      ]),
     },
     {
       title: "Recent Transaction History",
       body: research.transactedPrices && research.transactedPrices.length > 0
-        ? `Found ${research.transactedPrices.length} recent price record${research.transactedPrices.length === 1 ? "" : "s"}: ${research.transactedPrices.map((tx) => {
-            const source = tx.sourceName ? ` via ${tx.sourceName}` : "";
-            const date = tx.transactedDate ? ` (${tx.transactedDate})` : "";
-            const fallback = tx.isAskingFallback ? " [asking price]" : "";
-            return `RM ${tx.priceRm.toLocaleString("en-MY", { maximumFractionDigits: 0 })}${date}${fallback}${source}`;
-          }).join("; ")}. These provide directional context for pricing discussions.`
-        : "No recent transaction data was available for this development. The pricing analysis relies on current asking prices from active listings. Treat these as directional market context, not a valuation of a specific unit.",
+        ? bulletLines([
+            `Found ${research.transactedPrices.length} recent price record${research.transactedPrices.length === 1 ? "" : "s"}.`,
+            ...research.transactedPrices.map((tx) => {
+              const source = tx.sourceName ? ` via ${tx.sourceName}` : "";
+              const date = tx.transactedDate ? ` (${tx.transactedDate})` : "";
+              const fallback = tx.isAskingFallback ? " [asking price]" : "";
+              return `RM ${tx.priceRm.toLocaleString("en-MY", { maximumFractionDigits: 0 })}${date}${fallback}${source}.`;
+            }),
+            "Treat these as directional context for pricing discussions.",
+          ])
+        : "No recent transaction data was available, so the pricing analysis relies on current asking prices from active listings.",
     },
     {
       title: "Nearby Facilities & Infrastructure",
@@ -529,22 +593,31 @@ function buildContentSections(
             const facilityLines = analytics.neighborhoodVibe.amenities.map((a) => {
               const rating = a.rating ? ` (${a.rating.toFixed(1)}★)` : "";
               const distance = a.distance ? ` — ${a.distance}` : "";
-              return `${a.name}${rating}${distance}`;
-            }).join(", ");
+              return `${a.type}: ${a.name}${rating}${distance}`;
+            });
             const infraLines = analytics.upcomingInfrastructure && analytics.upcomingInfrastructure.length > 0
-              ? ` Upcoming infrastructure: ${analytics.upcomingInfrastructure.map((i) => {
+              ? analytics.upcomingInfrastructure.map((i) => {
                   const year = i.completionYear ? ` (by ${i.completionYear})` : "";
                   const dist = i.distanceKm ? ` ~${i.distanceKm}km` : "";
-                  return `${i.name}${dist}${year}`;
-                }).join(", ")}.`
-              : "";
-            return `Nearby facilities include: ${facilityLines}.${infraLines} This neighborhood context helps buyers gauge daily convenience and future accessibility.`;
+                  return `Infrastructure: ${i.name}${dist}${year}.`;
+                })
+              : [];
+            return bulletLines([
+              ...facilityLines,
+              ...infraLines,
+              "This neighborhood context helps buyers gauge daily convenience and future accessibility.",
+            ]);
           })()
-        : "Neighborhood facility and infrastructure data is currently limited. Verify nearby essentials (schools, hospitals, transit) before presenting to clients.",
+        : "Neighborhood facility and infrastructure data is currently limited. Verify nearby essentials before presenting.",
     },
     {
       title: "Next Steps",
-      body: `Before publishing, verify current asking price, tenure, unit facts, photos, facilities, maintenance details, active competing listings, and any recurring community concerns. Prepare answers for the watchouts, update listing copy with only source-backed claims, and refresh the report when new official, community, or listing evidence appears.`,
+      body: bulletLines([
+        "Verify the current asking price, tenure, unit facts, photos, and facilities.",
+        "Confirm maintenance details, competing listings, and recurring community concerns.",
+        "Prepare concise answers for the watchouts before you publish.",
+        "Refresh the report when new official, community, or listing evidence appears.",
+      ]),
     },
   ];
 

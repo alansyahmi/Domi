@@ -289,6 +289,34 @@ describe("Tavily report research provider", () => {
     expect(fetchMock).toHaveBeenCalled();
   });
 
+  it("adds locality fallback variants for taman-style place names", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        answer: "Taman Rimbunan Hijau has searchable market information.",
+        results: [
+          {
+            title: "Tmn Rimbunan Hijau condo for sale",
+            url: "https://example.com/tmn-rimbunan-hijau",
+            content: "Taman Rimbunan Hijau / Tmn Rimbunan Hijau listing.",
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = createTavilyResearchProvider({
+      TAVILY_API_KEY: "tvly-test",
+    });
+    await provider.research({ propertyName: "Taman Rimbunan Hijau", listingIntent: "sale" });
+
+    const queries = fetchMock.mock.calls
+      .filter((call) => call[0] === "https://api.tavily.com/search")
+      .map((call) => JSON.parse(call[1].body).query as string);
+
+    expect(queries.some((query) => query.includes('"Tmn Rimbunan Hijau"') || query.includes('"Rimbunan Hijau"'))).toBe(true);
+  });
+
   it("defaults Tavily searches to five results for grounded reports", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -513,6 +541,51 @@ describe("Tavily report research provider", () => {
       bedrooms: 3,
       bathrooms: 2,
       listingIntent: "sale",
+    });
+  });
+
+  it("parses loose Facebook-style asking prices from post text", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, init: { body: string }) => {
+      if (url === "https://api.tavily.com/extract") {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ results: [], failed_results: [] }),
+        });
+      }
+      const body = JSON.parse(init.body);
+      const query: string = body.query ?? "";
+      if (query.includes("facebook.com") || query.includes("Rimbunan Hijau")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            answer: "Facebook listing.",
+            results: [
+              {
+                title: "HOUSE FOR SALE !! TAMAN RIMBUNAN HIJAU",
+                url: "https://www.facebook.com/groups/KKProperties/posts/2073079953622991",
+                content: "HOUSE FOR SALE !! TAMAN RIMBUNAN HIJAU Jalan UMS RM 1.4M negotiable 2600 sqft 5b 5b",
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ answer: "Generic.", results: [] }) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = createTavilyResearchProvider({
+      TAVILY_API_KEY: "tvly-test",
+    });
+    const result = await provider.research({ propertyName: "Taman Rimbunan Hijau", listingIntent: "sale" });
+
+    expect(result.comparableListings).toHaveLength(1);
+    expect(result.comparableListings?.[0]).toMatchObject({
+      title: "HOUSE FOR SALE !! TAMAN RIMBUNAN HIJAU",
+      askingPriceRm: 1400000,
+      builtUpSqft: 2600,
+      bedrooms: 5,
+      bathrooms: 5,
+      priceNote: "Price inferred from post text.",
     });
   });
 
