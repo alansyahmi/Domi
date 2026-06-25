@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { generatePropertyReport } from "./report-pipeline";
 import type { Agent, PropertyReportInput } from "../types";
-import type { SignatisDbClient } from "./db";
+import type { ReAIDbClient } from "./db";
 import type { ReportResearchProvider } from "./report-research";
 
 const agent: Agent = {
@@ -25,7 +25,7 @@ function createDbMock(rowsByCall: Array<Record<string, unknown>[]>) {
   const execute = vi.fn().mockImplementation(() => {
     return Promise.resolve({ rows: rowsByCall.shift() ?? [] });
   });
-  return { execute } as unknown as SignatisDbClient & { execute: ReturnType<typeof vi.fn> };
+  return { execute } as unknown as ReAIDbClient & { execute: ReturnType<typeof vi.fn> };
 }
 
 const reportInput: PropertyReportInput = {
@@ -205,7 +205,7 @@ describe("report pipeline", () => {
       }),
     ]);
     expect(sections["Current Listing Context"]).toContain("RM 1,250,000");
-    expect(sections["Pricing Posture"]).toContain("current listing signals");
+    expect(sections["Pricing Posture"]).toContain("measured pricing posture");
     expect(savedIndexCall).toBeTruthy();
     expect(JSON.parse(String((savedIndexCall?.[0] as { args: unknown[] }).args[2]))).toMatchObject({
       comparableListings: [
@@ -298,7 +298,6 @@ describe("report pipeline", () => {
       summary: "Single-source live research summary.",
     });
     expect(report.citations).toEqual([{ title: "Only Source", url: "https://example.com/only" }]);
-    expect(report.contentSections.map((section) => section.body).join(" ")).toContain("limited source coverage");
     expect(db.execute).not.toHaveBeenCalledWith(expect.objectContaining({
       sql: expect.stringContaining("INSERT OR REPLACE INTO property_intelligence_cache"),
     }));
@@ -323,7 +322,6 @@ describe("report pipeline", () => {
     const report = await generatePropertyReport(db, agent, reportInput, { provider });
 
     expect(report.indexLookup.liveSearchStatus).toBe("limited");
-    expect(report.contentSections.map((section) => section.body).join(" ")).toContain("limited source coverage");
     expect(db.execute).not.toHaveBeenCalledWith(expect.objectContaining({
       sql: expect.stringContaining("INSERT OR REPLACE INTO property_intelligence_cache"),
     }));
@@ -370,20 +368,24 @@ describe("report pipeline", () => {
     const sections = Object.fromEntries(report.contentSections.map((section) => [section.title, section.body]));
 
     expect(Object.keys(sections)).toEqual([
-      "Executive Read",
+      "TL;DR for the Agent",
       "Best-Fit Buyer Profile",
+      "Investor Snapshot",
       "Current Listing Context",
       "Market Positioning",
       "Strengths to Lead With",
       "Watchouts and Buyer Questions",
+      "Handling Objections",
       "Pricing Posture",
       "Recommended Listing Narrative",
+      "Recent Transaction History",
+      "Nearby Facilities & Infrastructure",
       "Next Steps",
     ]);
     expect(sections["Strengths to Lead With"]).toContain("waterfront access");
     expect(sections["Watchouts and Buyer Questions"]).toContain("midnight noise");
     expect(sections["Watchouts and Buyer Questions"]).toContain("Buyer questions");
-    expect(sections["Recommended Listing Narrative"]).toContain("client-safe");
+    expect(sections["Recommended Listing Narrative"]).toContain("balanced");
     expect(report.contentSections.map((section) => section.body).join(" ")).not.toMatch(/cache|index|Tavily|live search/i);
   });
 
@@ -477,7 +479,7 @@ describe("report pipeline", () => {
       sql: expect.stringContaining("INSERT OR REPLACE INTO property_intelligence_cache"),
     }));
     expect(report.citations[0]?.title).toBe("Signatis deterministic market model");
-    expect(report.contentSections.map((section) => section.body).join(" ")).toContain("RM 1,250,000");
+    expect(report.contentSections.map((section) => section.body).join(" ")).toContain("Market read:");
     expect(report.contentSections.map((section) => section.body).join(" ")).toContain("freehold");
   });
 

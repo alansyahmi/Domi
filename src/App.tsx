@@ -16,13 +16,18 @@ import {
   sendLeadMessageApi,
   saveWhatsAppCredentialsApi,
   deleteWhatsAppCredentialsApi,
+  connectTelegramApi,
+  disconnectTelegramApi,
+  setLeadTelegramChatIdApi,
   sendReportApi,
   injectDemoLeadApi,
+  deletePropertyCacheApi,
   type BootstrapData,
 } from "./lib/api";
+
 import Layout from "./components/Layout";
 import DashboardPage from "./pages/DashboardPage";
-import LeadManagementPage from "./pages/LeadManagementPage";
+import OmniboxPage from "./pages/OmniboxPage";
 import LegalSupportPage from "./pages/LegalSupportPage";
 import ReportGeneratorPage from "./pages/ReportGeneratorPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -81,16 +86,18 @@ function buildLocalReport(input: PropertyReportInput, agentId: string): Property
       sentiment: randomSentiment,
       pricingTrend: draft.marketSignal,
       confidenceScore: Math.min(clampConfidence(confidenceVariation), 0.92),
+      dataCompleteness: 0.72,
+      priceCertainty: 0.30,
       freshnessDays: 0,
     },
     citations: [
       {
-        title: "Signatis refreshed market intelligence",
-        url: "https://signatis.app/research/refreshed-market-model",
+        title: "re:AI refreshed market intelligence",
+        url: "https://re-ai.app/research/refreshed-market-model",
       },
       {
         title: `${normalized.propertyName} — refreshed listing signals`,
-        url: `https://signatis.app/research/${propertyKey}`,
+        url: `https://re-ai.app/research/${propertyKey}`,
         sourceType: "comparable_listing",
       },
     ],
@@ -154,7 +161,7 @@ function SignatisWorkspace({
     })
       .then(setData)
       .catch((loadError: unknown) => {
-        setError(loadError instanceof Error ? loadError.message : "Unable to load Signatis.");
+        setError(loadError instanceof Error ? loadError.message : "Unable to load re:AI.");
       });
   }, [authMode, retryCount]);
 
@@ -174,7 +181,7 @@ function SignatisWorkspace({
   }, [data]);
 
   async function createReport(input: PropertyReportInput): Promise<PropertyReport> {
-    if (!data) throw new Error("Signatis is still loading.");
+    if (!data) throw new Error("re:AI is still loading.");
     const report = data.demoMode
       ? buildLocalReport(input, data.settings.agent.id)
       : await createReportApi(input);
@@ -191,7 +198,7 @@ function SignatisWorkspace({
   }
 
   async function sendReport(reportId: string, leadId: string): Promise<void> {
-    if (!data) throw new Error("Signatis is still loading.");
+    if (!data) throw new Error("re:AI is still loading.");
     if (data.demoMode) {
       console.log(`[Demo] Sending report ${reportId} to lead ${leadId}`);
       // Simulate demo mode send
@@ -299,6 +306,47 @@ function SignatisWorkspace({
     setNotice("WhatsApp Business API disconnected.");
   }
 
+  async function connectTelegram(botToken: string): Promise<{ botName?: string }> {
+    if (!data) return {};
+    const result = await connectTelegramApi(botToken);
+    if (!result.success) throw new Error(result.error ?? "Failed to connect Telegram bot.");
+    setData({
+      ...data,
+      settings: {
+        ...data.settings,
+        integrations: [
+          ...data.settings.integrations.filter((i) => i.id !== "telegram"),
+          { id: "telegram", agentId: data.settings.agent.id, name: "Telegram Bot", description: `@${result.botName ?? "bot"}`, status: "connected" }
+        ],
+      },
+    });
+    setNotice("Telegram bot connected.");
+    return { botName: result.botName };
+  }
+
+  async function disconnectTelegram(): Promise<void> {
+    if (!data) return;
+    await disconnectTelegramApi();
+    setData({
+      ...data,
+      settings: {
+        ...data.settings,
+        integrations: data.settings.integrations.filter((i) => i.id !== "telegram"),
+      },
+    });
+    setNotice("Telegram bot disconnected.");
+  }
+
+  async function setLeadTelegramChatId(leadId: string, chatId: string): Promise<void> {
+    if (!data) return;
+    const result = await setLeadTelegramChatIdApi(leadId, chatId);
+    if (!result.success) throw new Error(result.error ?? "Failed to save Telegram chat ID.");
+    setData({
+      ...data,
+      leads: data.leads.map((l) => l.id === leadId ? { ...l, telegramChatId: chatId || undefined } : l),
+    });
+  }
+
   async function submitSupport(input: Pick<SupportRequest, "name" | "category" | "subject" | "message">): Promise<void> {
     if (!data) return;
     if (!data.demoMode) {
@@ -317,7 +365,7 @@ function SignatisWorkspace({
     message?: string;
     preferredChannel?: string;
   }): Promise<Lead> {
-    if (!data) throw new Error("Signatis is still loading.");
+    if (!data) throw new Error("re:AI is still loading.");
     let lead: Lead;
     if (data.demoMode) {
       const id = `lead_local_${Date.now()}`;
@@ -426,6 +474,26 @@ function SignatisWorkspace({
     setNotice(`Prospect ${lead.name} deleted.`);
   }
 
+  async function deletePropertyCache(propertyName: string): Promise<void> {
+    if (!data) return;
+    const propertyKey = buildReportPropertyKey({ propertyName });
+
+    if (!data.demoMode) {
+      await deletePropertyCacheApi(propertyKey, propertyName);
+    }
+
+    setData({
+      ...data,
+      reports: data.reports.filter(
+        (r) =>
+          r.propertyKey !== propertyKey &&
+          r.propertyName?.toLowerCase() !== propertyName.toLowerCase()
+      ),
+    });
+    setNotice("Property cache and associated reports removed.");
+  }
+
+
   async function getLeadEvents(leadId: string): Promise<LeadEvent[]> {
     if (!data) return [];
     if (data.demoMode) {
@@ -533,8 +601,8 @@ function SignatisWorkspace({
     return (
       <main className="min-h-screen grid place-items-center p-6">
         <section className="card max-w-xl p-8 text-center">
-          <h1 className="section-title">Signatis could not start</h1>
-          <p className="mt-4 text-slate-600">{error}</p>
+          <h1 className="section-title">re:AI could not start</h1>
+          <p className="mt-4" style={{ color: "rgba(247,247,244,0.6)" }}>{error}</p>
           <button
             className="primary-button mt-6"
             onClick={() => setRetryCount((prev) => prev + 1)}
@@ -549,12 +617,12 @@ function SignatisWorkspace({
 
   if (!data || !dashboard) {
     return (
-      <main className="min-h-screen grid place-items-center bg-[#f7f9fb]">
-        <div className="card p-10 text-center landing-card-shadow border border-slate-200/80 max-w-sm w-full mx-4 animate-pulse">
+      <main className="min-h-screen grid place-items-center bg-[#1a1a1a]">
+        <div className="card p-10 text-center landing-card-shadow border border-white/10 max-w-sm w-full mx-4 animate-pulse">
           <div className="hci-loader-container">
-            <div className="hci-loader-logo">S</div>
+            <div className="hci-loader-logo">re</div>
             <div>
-              <p className="text-slate-600 font-bold m-0">Loading Signatis workspace...</p>
+              <p className="font-bold m-0" style={{ color: "rgba(247,247,244,0.6)" }}>Loading re:AI workspace...</p>
               <div className="hci-loading-bar" />
             </div>
           </div>
@@ -567,21 +635,23 @@ function SignatisWorkspace({
     <Layout agent={data.settings.agent} demoMode={data.demoMode} notice={notice} onLogout={logout}>
       <div className="route-transition" key={location.pathname}>
         <Routes>
-          <Route path="/dashboard" element={<DashboardPage dashboard={dashboard} onInjectDemoLead={handleInjectDemoLead} />} />
+          <Route path="/dashboard" element={<DashboardPage dashboard={dashboard} demoMode={data.demoMode} onInjectDemoLead={handleInjectDemoLead} />} />
           <Route
             path="/report-generator"
-            element={<ReportGeneratorPage reports={data.reports} leads={data.leads} onCreateReport={createReport} onSendReport={sendReport} />}
+            element={<ReportGeneratorPage demoMode={data.demoMode} reports={data.reports} leads={data.leads} onCreateReport={createReport} onSendReport={sendReport} onDeletePropertyCache={deletePropertyCache} />}
           />
           <Route
             path="/leads"
             element={
-              <LeadManagementPage 
-                leads={data.leads} 
-                onCreateLead={createLead} 
-                onDeleteLead={deleteLead} 
+              <OmniboxPage
+                demoMode={data.demoMode}
+                leads={data.leads}
+                onCreateLead={createLead}
+                onDeleteLead={deleteLead}
                 onGetLeadEvents={getLeadEvents}
                 onUpdateLeadStage={updateLeadStage}
                 onSendLeadMessage={sendLeadMessage}
+                onSetLeadTelegramChatId={setLeadTelegramChatId}
               />
             }
           />
@@ -596,6 +666,8 @@ function SignatisWorkspace({
                 onDisconnectIntegration={disconnectIntegration}
                 onSaveWhatsAppCredentials={saveWhatsAppCredentials}
                 onDeleteWhatsAppCredentials={deleteWhatsAppCredentials}
+                onConnectTelegram={connectTelegram}
+                onDisconnectTelegram={disconnectTelegram}
               />
             }
           />

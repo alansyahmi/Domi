@@ -8,7 +8,7 @@ const mockAgent = {
   phone: "+60 12-555 8472",
   plan: "Premium Agent",
   avatarInitials: "AA",
-  ingestionAddress: "inbound+aa@leads.signatis.app",
+  ingestionAddress: "inbound+aa@leads.re-ai.app",
 };
 
 const mockReport = {
@@ -99,7 +99,7 @@ vi.mock("../../src/server/auth", () => ({
 }));
 
 vi.mock("../../src/server/db", () => ({
-  createSignatisDb: () => dbMock,
+  createReAIDb: () => dbMock,
   ensureAgentWorkspace: vi.fn().mockResolvedValue(mockAgent),
   getDashboardData: vi.fn(),
   getIntegrations: vi.fn(),

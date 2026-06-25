@@ -6,7 +6,7 @@
   # These Vite variables are intentionally compiled into the browser bundle.
   # WorkOS redirect URI values are public URLs used by the auth flow.
   # Keep real server secrets out of this allowlist.
-  SECRETS_SCAN_OMIT_KEYS = "VITE_WORKOS_CLIENT_ID,VITE_WORKOS_REDIRECT_URI,VITE_SIGNATIS_AUTH_MODE,WORKOS_REDIRECT_URI,WORKOS_SIGN_OUT_REDIRECT_URI"
+  SECRETS_SCAN_OMIT_KEYS = "VITE_WORKOS_CLIENT_ID,VITE_WORKOS_REDIRECT_URI,VITE_RE_AI_AUTH_MODE,WORKOS_REDIRECT_URI,WORKOS_SIGN_OUT_REDIRECT_URI"
 
 [functions]
   directory = "netlify/functions"

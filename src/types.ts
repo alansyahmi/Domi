@@ -6,7 +6,7 @@ export type ListingIntent = "sale" | "rent" | "auction" | "valuation";
 export type PropertyTenure = "freehold" | "leasehold" | "unknown";
 export type ReportIndexLookupStatus = "fresh_hit" | "stale_hit" | "miss";
 export type ReportLiveSearchStatus = "not_needed" | "validated" | "limited" | "failed";
-export type ReportCitationSourceType = "official" | "community" | "comparable_listing" | "model" | "other";
+export type ReportCitationSourceType = "official" | "community" | "comparable_listing" | "transaction" | "neighborhood" | "model" | "other";
 
 export type PreferredChannel = "whatsapp" | "telegram" | "messenger" | "instagram" | "email" | "phone";
 
@@ -48,8 +48,109 @@ export interface Lead {
   tier: "Hot" | "Warm" | "Cold";
   stage: LeadStage;
   preferredChannel: PreferredChannel;
+  telegramChatId?: string;
+  listingId?: string;
   lastContactedAt?: string;
   createdAt: string;
+}
+
+// ── Omnibox (Omni-Inbox) ────────────────────────────────────────────────
+export type ConversationChannel = "whatsapp" | "messenger" | "telegram" | "instagram";
+export type MessageDirection = "inbound" | "outbound";
+export type MessageAuthor = "lead" | "agent" | "auto";
+export type MessageKind = "text" | "menu" | "menu_reply" | "system";
+export type LeadRole = "buyer" | "seller" | "tenant" | "landlord" | "unknown";
+export type UrgencyTier = "alpha" | "beta" | "passive";
+export type ListingStatus = "active" | "pending" | "closed";
+export type ConversationStatus = "open" | "snoozed" | "closed";
+
+export interface Listing {
+  id: string;
+  agentId: string;
+  propertyKey: string;
+  title: string;
+  address: string;
+  propertyType: string;
+  listingIntent: ListingIntent;
+  askingPriceRm: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  builtUpSqft?: number;
+  area?: string;
+  portalRefs: Record<string, string>;
+  status: ListingStatus;
+  createdAt: string;
+}
+
+export interface Conversation {
+  id: string;
+  agentId: string;
+  leadId?: string;
+  listingId?: string;
+  channel: ConversationChannel;
+  externalId: string;
+  contactName: string;
+  contactHandle: string;
+  status: ConversationStatus;
+  unreadCount: number;
+  lastMessageAt?: string;
+  lastMessagePreview: string;
+  createdAt: string;
+}
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  agentId: string;
+  direction: MessageDirection;
+  author: MessageAuthor;
+  body: string;
+  kind: MessageKind;
+  raw?: Record<string, unknown>;
+  sentAt: string;
+}
+
+export interface LeadXaiFactor {
+  label: string;
+  detail: string;
+  weight: number;
+}
+
+export interface LeadXai {
+  summary: string;
+  factors: LeadXaiFactor[];
+  sources: string[];
+}
+
+// ── Win-the-Listing (CMA pitch) ─────────────────────────────────────────
+export type PitchStage = "pitched" | "responded" | "won" | "lost";
+
+export interface ListingPitch {
+  id: string;
+  property: string;
+  ownerName: string;
+  recommendedRange: string;
+  reliability: string;
+  stage: PitchStage;
+  createdAt: string;
+}
+
+export interface LeadIntelligence {
+  leadId: string;
+  agentId: string;
+  role: LeadRole;
+  budgetMinRm?: number;
+  budgetMaxRm?: number;
+  lookingFor: string[];
+  dealbreakers: string[];
+  objections: string[];
+  urgencyTier: UrgencyTier;
+  matchPct?: number;
+  matchedListingId?: string;
+  botProbability: number;
+  priorityPct: number;
+  xai: LeadXai;
+  updatedAt: string;
 }
 
 export interface LeadEvent {
@@ -161,17 +262,60 @@ export interface ReportComparableListing {
   sourceName?: string;
   url: string;
   askingPriceRm?: number;
+  priceNote?: string;
   builtUpSqft?: number;
   bedrooms?: number;
   bathrooms?: number;
   listingIntent?: ListingIntent;
   snippet?: string;
+  unitType?: string;
+  maintenanceFeePsf?: number;
+}
+
+export interface ReportTransactedPrice {
+  priceRm: number;
+  transactedDate?: string;
+  unitType?: string;
+  builtUpSqft?: number;
+  sourceName?: string;
+  sourceUrl?: string;
+  isAskingFallback?: boolean;
+}
+
+export interface ReportUnitTypeVariation {
+  name: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  builtUpSqftMin?: number;
+  builtUpSqftMax?: number;
+  askingPriceRmMin?: number;
+  askingPriceRmMax?: number;
+  listingCount?: number;
+}
+
+export interface ReportDeveloperInfo {
+  developerName: string;
+  pastProjects?: string[];
+  upcomingProjects?: string[];
+  trackRecordSentiment?: Sentiment;
+  lastRefreshedAt?: string;
+}
+
+export interface ReportInfrastructureProject {
+  name: string;
+  type: "mrt" | "lrt" | "highway" | "bus_rapid_transit" | "other";
+  distanceKm?: number;
+  completionYear?: number;
+  status?: string;
+  sourceUrl?: string;
 }
 
 export interface ReportAnalytics {
   sentiment: Sentiment;
   pricingTrend: string;
   confidenceScore: number;
+  dataCompleteness: number;
+  priceCertainty: number;
   freshnessDays: number;
   neighborhoodVibe?: {
     score: number;
@@ -183,6 +327,15 @@ export interface ReportAnalytics {
       distance?: string;
     }>;
   };
+  medianPrice?: number;
+  medianPricePerSqft?: number;
+  transactedPrices?: ReportTransactedPrice[];
+  unitTypeVariations?: ReportUnitTypeVariation[];
+  developerTrackRecord?: ReportDeveloperInfo;
+  upcomingInfrastructure?: ReportInfrastructureProject[];
+  averageMaintenanceFeePsf?: number;
+  estimatedGrossYield?: number;
+  averageRentalPrice?: number;
 }
 
 export interface ReportIndexLookup {

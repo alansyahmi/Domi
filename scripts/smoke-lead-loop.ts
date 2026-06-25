@@ -10,9 +10,9 @@
 import inboundHandler from "../netlify/functions/inbound-email";
 import trackHandler from "../netlify/functions/track";
 import { getRuntimeEnv } from "../src/server/runtime-env";
-import { createSignatisDb, ensureSchema, getLeads, getLeadEvents } from "../src/server/db";
+import { createReAIDb, ensureSchema, getLeads, getLeadEvents } from "../src/server/db";
 
-const INGESTION = "inbound+smoke1@leads.signatis.app";
+const INGESTION = "inbound+smoke1@leads.re-ai.app";
 const AGENT_ID = "agent_smoketest";
 
 function assert(cond: unknown, msg: string): asserts cond {
@@ -30,7 +30,7 @@ async function main() {
   if (!env.TURSO_DATABASE_URL || !env.TURSO_AUTH_TOKEN) {
     throw new Error("Missing Turso credentials in .env.local");
   }
-  const db = createSignatisDb(env);
+  const db = createReAIDb(env);
   await ensureSchema(db);
 
   // --- Setup: isolated throwaway agent -----------------------------------
@@ -40,7 +40,7 @@ async function main() {
   await db.execute({
     sql: `INSERT INTO agents (id, workos_user_id, full_name, email, phone, plan, avatar_initials, ingestion_address)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [AGENT_ID, "smoke_user", "Smoke Agent", "smoke@signatis.app", "012", "Free", "SA", INGESTION],
+    args: [AGENT_ID, "smoke_user", "Smoke Agent", "smoke@re-ai.app", "012", "Free", "SA", INGESTION],
   });
   console.log(`\n── Setup: agent ${AGENT_ID} (${INGESTION}) ──\n`);
 
@@ -82,7 +82,7 @@ async function main() {
     const unknownReq = new Request("http://localhost/inbound-email", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ to: "inbound+nobody@leads.signatis.app", from: "x@y.com", subject: "hi", text: "a@b.com 0123" }),
+      body: JSON.stringify({ to: "inbound+nobody@leads.re-ai.app", from: "x@y.com", subject: "hi", text: "a@b.com 0123" }),
     });
     const unknownRes = await inboundHandler(unknownReq, {} as never);
     const unknownJson = (await unknownRes.json()) as { skipped?: string };
@@ -94,11 +94,11 @@ async function main() {
 
     // --- 4. Tracking: click redirects + logs ----------------------------
     const clickRes = await trackHandler(
-      new Request(`http://localhost/t/c/${lead.id}?u=${encodeURIComponent("https://signatis.app/report/x")}`),
+      new Request(`http://localhost/t/c/${lead.id}?u=${encodeURIComponent("https://re-ai.app/report/x")}`),
       {} as never,
     );
     assert(clickRes.status === 302, "click redirects (302)");
-    assert(clickRes.headers.get("location") === "https://signatis.app/report/x", "click redirects to target url");
+    assert(clickRes.headers.get("location") === "https://re-ai.app/report/x", "click redirects to target url");
 
     const after = (await getLeads(db, AGENT_ID))[0];
     assert(after.emailOpens === lead.emailOpens + 1, `email_opens incremented (${after.emailOpens})`);

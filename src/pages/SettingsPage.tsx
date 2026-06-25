@@ -13,7 +13,7 @@ const AVAILABLE_PORTALS = [
       "Log into your PropertyGuru AgentNet account.",
       "Navigate to Settings > Lead Notifications / Routing.",
       "Select 'Add Forwarding Email'.",
-      "Paste your unique Signatis address and save.",
+      "Paste your unique re:AI address and save.",
     ],
   },
   {
@@ -26,7 +26,7 @@ const AVAILABLE_PORTALS = [
       "Log into your iProperty Agent Portal.",
       "Go to Account Profile > Notification Settings.",
       "Locate the Email Forwarding option for listings.",
-      "Add your unique Signatis address and save changes.",
+      "Add your unique re:AI address and save changes.",
     ],
   },
   {
@@ -39,7 +39,7 @@ const AVAILABLE_PORTALS = [
       "Open your Mudah.my Pro Niaga dashboard.",
       "Navigate to Account Settings > Lead Forwarding.",
       "Enable email inquiry forwarding.",
-      "Enter your unique Signatis address and save.",
+      "Enter your unique re:AI address and save.",
     ],
   },
   {
@@ -52,7 +52,7 @@ const AVAILABLE_PORTALS = [
       "Go to the EdgeProp Agent Dashboard.",
       "Navigate to Profile > Lead Settings.",
       "Select the custom parsing/email redirection field.",
-      "Paste your unique Signatis address and click save.",
+      "Paste your unique re:AI address and click save.",
     ],
   },
 ];
@@ -65,6 +65,8 @@ export default function SettingsPage({
   onDisconnectIntegration,
   onSaveWhatsAppCredentials,
   onDeleteWhatsAppCredentials,
+  onConnectTelegram,
+  onDisconnectTelegram,
 }: {
   agent: Agent;
   integrations: Integration[];
@@ -73,6 +75,8 @@ export default function SettingsPage({
   onDisconnectIntegration: (id: string) => Promise<void>;
   onSaveWhatsAppCredentials?: (phoneNumberId: string, accessToken: string) => Promise<void>;
   onDeleteWhatsAppCredentials?: () => Promise<void>;
+  onConnectTelegram?: (botToken: string) => Promise<{ botName?: string }>;
+  onDisconnectTelegram?: () => Promise<void>;
 }) {
   const [form, setForm] = useState({
     fullName: agent.fullName || "",
@@ -91,6 +95,42 @@ export default function SettingsPage({
     accessToken: "",
   });
   const [isSavingWhatsApp, setIsSavingWhatsApp] = useState(false);
+
+  const telegramConnected = integrations.some((i) => i.id === "telegram" && i.status === "connected");
+  const telegramIntegration = integrations.find((i) => i.id === "telegram");
+  const [telegramToken, setTelegramToken] = useState("");
+  const [isSavingTelegram, setIsSavingTelegram] = useState(false);
+  const [telegramError, setTelegramError] = useState<string | null>(null);
+  const [telegramSuccess, setTelegramSuccess] = useState<string | null>(null);
+
+  async function handleConnectTelegram(e: React.FormEvent) {
+    e.preventDefault();
+    if (!onConnectTelegram) return;
+    setIsSavingTelegram(true);
+    setTelegramError(null);
+    setTelegramSuccess(null);
+    try {
+      const result = await onConnectTelegram(telegramToken);
+      setTelegramToken("");
+      setTelegramSuccess(`Bot @${result.botName ?? "bot"} connected successfully!`);
+    } catch (err) {
+      setTelegramError(err instanceof Error ? err.message : "Failed to connect.");
+    } finally {
+      setIsSavingTelegram(false);
+    }
+  }
+
+  async function handleDisconnectTelegram() {
+    if (!onDisconnectTelegram) return;
+    setTelegramError(null);
+    setTelegramSuccess(null);
+    try {
+      await onDisconnectTelegram();
+    } catch (err) {
+      setTelegramError(err instanceof Error ? err.message : "Failed to disconnect.");
+    }
+  }
+
   const [promptSelectAccount, setPromptSelectAccount] = useState(() => {
     if (typeof window === "undefined") return true;
     const stored = localStorage.getItem("prompt_select_account");
@@ -108,24 +148,12 @@ export default function SettingsPage({
   const [copyGlowType, setCopyGlowType] = useState<"success" | "fail">("success");
   const [copyGlowKey, setCopyGlowKey] = useState(0);
 
-  const [activeGlowButton, setActiveGlowButton] = useState<string | null>(null);
-
   // Animation timeout refs to handle rapid clicking and cleanup
   const successTimeoutRef = useRef<number | null>(null);
   const successDelayRef = useRef<number | null>(null);
   const copyTimeoutRef = useRef<number | null>(null);
   const copiedResetRef = useRef<number | null>(null);
-  const activeGlowTimerRef = useRef<number | null>(null);
   const simulatedFailureRef = useRef<number | null>(null);
-
-  function triggerButtonGlow(buttonId: string) {
-    if (activeGlowTimerRef.current) window.clearTimeout(activeGlowTimerRef.current);
-
-    setActiveGlowButton(buttonId);
-    activeGlowTimerRef.current = window.setTimeout(() => {
-      setActiveGlowButton(null);
-    }, 1200);
-  }
 
   function triggerProfileGlow(type: "success" | "fail") {
     if (successTimeoutRef.current) window.clearTimeout(successTimeoutRef.current);
@@ -160,14 +188,12 @@ export default function SettingsPage({
       if (successDelayRef.current) window.clearTimeout(successDelayRef.current);
       if (copyTimeoutRef.current) window.clearTimeout(copyTimeoutRef.current);
       if (copiedResetRef.current) window.clearTimeout(copiedResetRef.current);
-      if (activeGlowTimerRef.current) window.clearTimeout(activeGlowTimerRef.current);
       if (simulatedFailureRef.current) window.clearTimeout(simulatedFailureRef.current);
     };
   }, []);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    triggerButtonGlow("save-profile");
     setIsSaving(true);
     try {
       await onSave(form);
@@ -181,7 +207,6 @@ export default function SettingsPage({
   }
 
   function submitFail() {
-    triggerButtonGlow("simulate-profile-failure");
     setIsFailing(true);
     if (simulatedFailureRef.current) window.clearTimeout(simulatedFailureRef.current);
 
@@ -192,7 +217,6 @@ export default function SettingsPage({
   }
 
   async function copyAddress() {
-    triggerButtonGlow("copy-ingestion-address");
     if (copiedResetRef.current) window.clearTimeout(copiedResetRef.current);
 
     try {
@@ -213,13 +237,10 @@ export default function SettingsPage({
   }
 
   function mockCopyFail() {
-    triggerButtonGlow("mock-copy-failure");
     triggerCopyGlow("fail");
   }
 
   async function connectPortal(portal: (typeof AVAILABLE_PORTALS)[number]) {
-    triggerButtonGlow(`connect-${portal.id}`);
-
     try {
       await onConnectIntegration(portal.id, portal.name, portal.description);
     } catch (error) {
@@ -228,8 +249,6 @@ export default function SettingsPage({
   }
 
   async function disconnectPortal(integrationId: string) {
-    triggerButtonGlow(`disconnect-${integrationId}`);
-
     try {
       await onDisconnectIntegration(integrationId);
     } catch (error) {
@@ -272,7 +291,7 @@ export default function SettingsPage({
         <div className="grid gap-8 content-start">
           <form className="card p-7 relative success-glow-container" onSubmit={(event) => void submit(event)}>
             {showSuccessGlow && <div key={successGlowKey} className={`success-border-glow ease-in-out animate ${glowType === "fail" ? "fail" : ""}`} />}
-            <h2 className="m-0 text-3xl font-extrabold border-b border-slate-200 pb-5">Profile Information</h2>
+            <h2 className="m-0 text-3xl font-extrabold border-b border-[#2d2d2d] pb-5">Profile Information</h2>
             <div className="mt-6 grid gap-5">
               <label className="form-field">
                 <span className="form-label">Full Name</span>
@@ -312,7 +331,7 @@ export default function SettingsPage({
                 <span className="form-label">Agency / Brokerage Name</span>
                 <input
                   className="input"
-                  placeholder="e.g. Signatis Realty"
+                  placeholder="e.g. re:AI Realty"
                   value={form.agencyName}
                   onChange={(event) => setForm({ ...form, agencyName: event.target.value })}
                 />
@@ -355,16 +374,16 @@ export default function SettingsPage({
                   onChange={(event) => setForm({ ...form, bio: event.target.value })}
                 />
               </label>
-              <div className="flex flex-col sm:flex-row gap-3 mt-2">
+              <div className="card-seam-footer">
                 <button
-                  className={`primary-button flex-1 glow-on-hover rainbow ${isSaving ? "saving" : ""} ${activeGlowButton === "save-profile" ? "active-glow" : ""}`}
+                  className={`primary-button ${isSaving ? "saving" : ""}`}
                   type="submit"
                   disabled={isSaving || isFailing}
                 >
                   <span>Save Changes</span>
                 </button>
                 <button
-                  className={`secondary-button flex-1 border-red-300 text-red-600 glow-on-hover rainbow ${isFailing ? "saving" : ""} ${activeGlowButton === "simulate-profile-failure" ? "active-glow" : ""}`}
+                  className="secondary-button btn-danger"
                   type="button"
                   onClick={submitFail}
                   disabled={isSaving || isFailing}
@@ -376,7 +395,7 @@ export default function SettingsPage({
           </form>
 
           <section className="card p-7">
-            <h2 className="m-0 text-3xl font-extrabold border-b border-slate-200 pb-5">Security & Login</h2>
+            <h2 className="m-0 text-3xl font-extrabold border-b border-[#2d2d2d] pb-5">Security & Login</h2>
             <div className="mt-6 flex flex-col gap-4">
               <label className="flex items-start gap-3.5 cursor-pointer group">
                 <input
@@ -402,11 +421,11 @@ export default function SettingsPage({
           </section>
 
           <section className="card p-7">
-            <h2 className="m-0 text-3xl font-extrabold border-b border-slate-200 pb-5">Subscription Plan</h2>
-            <div className="mt-6 rounded-md border border-slate-300 bg-slate-100 p-5">
+            <h2 className="m-0 text-3xl font-extrabold border-b border-[#2d2d2d] pb-5">Subscription Plan</h2>
+            <div className="mt-6 rounded-md border border-[#2d2d2d] bg-slate-100 p-5">
               <div className="flex items-center justify-between gap-4">
                 <span className="eyebrow">Current Plan</span>
-                <span className="status-chip bg-[#ffd45a] text-[#574500]">Active</span>
+                <span className="status-chip bg-[#1e1e1e] text-white">Active</span>
               </div>
               <h3 className="mt-3 text-2xl font-extrabold">{agent.plan}</h3>
               <p className="text-slate-700">RM 499.00 / month</p>
@@ -419,18 +438,20 @@ export default function SettingsPage({
                 ))}
               </ul>
             </div>
-            <button
-              className={`secondary-button w-full mt-5 glow-on-hover rainbow ${activeGlowButton === "manage-billing" ? "active-glow" : ""}`}
-              type="button"
-              onClick={() => triggerButtonGlow("manage-billing")}
-            >
-              <span>Manage Billing</span>
-            </button>
+            <div className="card-seam-footer">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => {}}
+              >
+                <span>Manage Billing</span>
+              </button>
+            </div>
           </section>
         </div>
 
         <section className="card overflow-hidden">
-          <div className="p-7 border-b border-slate-200 flex items-start justify-between gap-6">
+          <div className="p-7 border-b border-[#2d2d2d] flex items-start justify-between gap-6">
             <div>
               <h2 className="m-0 text-3xl font-extrabold">Lead Ingestion Pipeline</h2>
               <p className="mt-2 text-slate-700">Automate lead capture via secure email forwarding.</p>
@@ -443,11 +464,11 @@ export default function SettingsPage({
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex flex-1 flex-col sm:flex-row relative success-glow-container rounded-md">
                 {showCopyGlow && <div key={copyGlowKey} className={`success-border-glow animate ${copyGlowType === "fail" ? "fail" : ""}`} />}
-                <code className="flex-1 border border-slate-300 bg-slate-100 rounded-t-md sm:rounded-l-md sm:rounded-r-none px-4 py-4 overflow-x-auto">
+                <code className="flex-1 border border-[#2d2d2d] bg-slate-100 rounded-t-md sm:rounded-l-md sm:rounded-r-none px-4 py-4 overflow-x-auto">
                   {agent.ingestionAddress}
                 </code>
                 <button
-                  className={`primary-button rounded-t-none sm:rounded-l-none sm:rounded-r-md glow-on-hover rainbow ${activeGlowButton === "copy-ingestion-address" ? "active-glow" : ""}`}
+                  className="primary-button rounded-t-none sm:rounded-l-none sm:rounded-r-md"
                   onClick={() => void copyAddress()}
                 >
                   <span>
@@ -457,7 +478,7 @@ export default function SettingsPage({
                 </button>
               </div>
               <button
-                className={`secondary-button border-red-300 text-red-600 glow-on-hover rainbow ${activeGlowButton === "mock-copy-failure" ? "active-glow" : ""}`}
+                className="secondary-button btn-danger"
                 onClick={() => void mockCopyFail()}
               >
                 <span>Mock Fail</span>
@@ -466,16 +487,16 @@ export default function SettingsPage({
 
             {/* Dynamic Setup Instructions for connected portals */}
             <div className="mt-8">
-              <h3 className="m-0 text-2xl font-extrabold border-b border-slate-200 pb-4">Setup Instructions</h3>
+              <h3 className="m-0 text-2xl font-extrabold border-b border-[#2d2d2d] pb-4">Setup Instructions</h3>
               {connectedPortals.length === 0 ? (
-                <div className="mt-5 rounded-md border border-dashed border-slate-300 p-8 text-center bg-slate-50">
-                  <p className="m-0 text-slate-600">No lead ingestion portals connected yet.</p>
+                <div className="mt-5 rounded-md border border-dashed border-[#2d2d2d] p-8 text-center bg-[#121212]">
+                  <p className="m-0 text-slate-300">No lead ingestion portals connected yet.</p>
                   <p className="mt-2 text-sm text-slate-500">Connect a portal below to view its forwarding setup instructions.</p>
                 </div>
               ) : (
                 <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {connectedPortals.map((portal) => (
-                    <article key={portal.id} className="rounded-md border border-slate-300 bg-slate-50 p-6">
+                    <article key={portal.id} className="rounded-md border border-[#2d2d2d] bg-[#121212] p-6">
                       <div className="flex items-center gap-4">
                         <div
                           className="brand-mark !w-10 !h-10 !rounded-sm flex items-center justify-center font-black text-white text-xl"
@@ -498,9 +519,9 @@ export default function SettingsPage({
 
             {/* Available Lead Sources to Add */}
             <div className="mt-8">
-              <h3 className="m-0 text-2xl font-extrabold border-b border-slate-200 pb-4">Messaging Integrations</h3>
+              <h3 className="m-0 text-2xl font-extrabold border-b border-[#2d2d2d] pb-4">Messaging Integrations</h3>
               <div className="mt-5">
-                <article className="rounded-md border border-slate-200 bg-white p-6">
+                <article className="rounded-md border border-[#2d2d2d] bg-[#1e1e1e] p-6">
                   <div className="flex items-center gap-4 border-b border-slate-100 pb-4 mb-4">
                     <div className="flex items-center justify-center font-black text-white text-xl rounded-sm w-10 h-10 bg-emerald-500">
                       W
@@ -514,7 +535,7 @@ export default function SettingsPage({
                     <label className="form-field">
                       <span className="form-label text-sm text-slate-700 font-bold">Phone Number ID</span>
                       <input
-                        className="input bg-slate-50 border-slate-200"
+                        className="input bg-[#121212] border-[#2d2d2d]"
                         placeholder="e.g. 102345678901234"
                         value={whatsappForm.phoneNumberId}
                         onChange={(e) => setWhatsappForm({ ...whatsappForm, phoneNumberId: e.target.value })}
@@ -525,7 +546,7 @@ export default function SettingsPage({
                       <span className="form-label text-sm text-slate-700 font-bold">Permanent Access Token</span>
                       <input
                         type="password"
-                        className="input bg-slate-50 border-slate-200"
+                        className="input bg-[#121212] border-[#2d2d2d]"
                         placeholder="EAAB..."
                         value={whatsappForm.accessToken}
                         onChange={(e) => setWhatsappForm({ ...whatsappForm, accessToken: e.target.value })}
@@ -536,7 +557,7 @@ export default function SettingsPage({
                       {onDeleteWhatsAppCredentials && (
                         <button
                           type="button"
-                          className="px-4 py-2 text-red-600 font-semibold hover:bg-red-50 rounded-md transition-colors"
+                          className="secondary-button btn-danger"
                           onClick={() => void onDeleteWhatsAppCredentials()}
                         >
                           Disconnect
@@ -544,7 +565,7 @@ export default function SettingsPage({
                       )}
                       <button
                         type="submit"
-                        className="primary-button bg-emerald-600 hover:bg-emerald-700 !py-2 !px-6"
+                        className="primary-button btn-success"
                         disabled={isSavingWhatsApp}
                       >
                         {isSavingWhatsApp ? "Saving..." : "Connect WhatsApp"}
@@ -552,15 +573,71 @@ export default function SettingsPage({
                     </div>
                   </form>
                 </article>
+
+                {/* ── Telegram Bot ── */}
+                <article className="rounded-xl border border-[#2d2d2d] p-6 bg-[#1e1e1e]">
+                  <div className="flex items-center gap-4 mb-5">
+                    <div className="avatar small flex items-center justify-center font-black text-white text-lg rounded-sm !w-10 !h-10" style={{ background: "#229ED9" }}>
+                      T
+                    </div>
+                    <div>
+                      <h4 className="m-0 text-xl font-extrabold text-slate-800">Telegram Bot</h4>
+                      <p className="m-0 text-sm text-slate-500">Send outreach messages directly to leads via a Telegram bot.</p>
+                    </div>
+                    {telegramConnected && (
+                      <span className="ml-auto text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: "rgba(74,222,128,0.1)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)" }}>
+                        Connected{telegramIntegration?.description ? ` · ${telegramIntegration.description}` : ""}
+                      </span>
+                    )}
+                  </div>
+
+                  {telegramConnected ? (
+                    <div className="flex flex-col gap-3">
+                      <p className="text-sm text-slate-400 m-0">Your Telegram bot is active. Leads with a Telegram chat ID will receive messages via the bot when you click <strong>Re-engage</strong>.</p>
+                      <div className="flex gap-3 pt-1">
+                        <button className="primary-button btn-danger" onClick={() => void handleDisconnectTelegram()}>
+                          Disconnect Bot
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <form className="grid gap-4" onSubmit={(e) => void handleConnectTelegram(e)}>
+                      <div className="rounded-lg px-4 py-3 text-sm" style={{ background: "rgba(34,158,217,0.07)", border: "1px solid rgba(34,158,217,0.15)", color: "rgba(247,247,244,0.7)" }}>
+                        <strong style={{ color: "#229ED9" }}>Setup:</strong> Open Telegram → search <strong>@BotFather</strong> → send <code>/newbot</code> → copy the token below.
+                      </div>
+                      <label className="form-field">
+                        <span className="form-label text-sm text-slate-700 font-bold">Bot Token</span>
+                        <input
+                          className="input bg-[#121212] border-[#2d2d2d]"
+                          placeholder="123456789:ABCdefGHI..."
+                          value={telegramToken}
+                          onChange={(e) => setTelegramToken(e.target.value)}
+                          required
+                        />
+                      </label>
+                      {telegramError && (
+                        <p className="text-xs text-red-400 m-0 px-3 py-2 rounded-lg" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.15)" }}>{telegramError}</p>
+                      )}
+                      {telegramSuccess && (
+                        <p className="text-xs m-0 px-3 py-2 rounded-lg" style={{ color: "#4ade80", background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.15)" }}>{telegramSuccess}</p>
+                      )}
+                      <div className="flex justify-end gap-3 mt-2">
+                        <button type="submit" className="primary-button btn-success" disabled={isSavingTelegram}>
+                          {isSavingTelegram ? "Verifying..." : "Connect Bot"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </article>
               </div>
 
-              <h3 className="m-0 text-2xl font-extrabold border-b border-slate-200 pb-4 mt-10">Available Lead Sources</h3>
+              <h3 className="m-0 text-2xl font-extrabold border-b border-[#2d2d2d] pb-4 mt-10">Available Lead Sources</h3>
               {availablePortalsToConnect.length === 0 ? (
                 <p className="mt-4 text-slate-500 text-sm">All available portals are connected.</p>
               ) : (
                 <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                   {availablePortalsToConnect.map((portal) => (
-                    <article key={portal.id} className="flex items-center gap-4 rounded-md border border-slate-200 p-4 bg-white">
+                    <article key={portal.id} className="flex items-center gap-4 rounded-md border border-[#2d2d2d] p-4 bg-[#1e1e1e]">
                       <div
                         className="avatar small flex items-center justify-center font-black text-white text-lg rounded-sm !w-10 !h-10"
                         style={{ backgroundColor: portal.color }}
@@ -572,7 +649,7 @@ export default function SettingsPage({
                         <p className="m-0 text-xs text-slate-500 truncate">{portal.description}</p>
                       </div>
                       <button
-                        className={`secondary-button !py-1.5 !px-3 text-xs glow-on-hover rainbow ${activeGlowButton === `connect-${portal.id}` ? "active-glow" : ""}`}
+                        className="secondary-button btn-sm"
                         onClick={() => void connectPortal(portal)}
                       >
                         <span>Connect</span>
@@ -585,7 +662,7 @@ export default function SettingsPage({
 
             {/* Active Integrations list */}
             <div className="mt-8">
-              <h3 className="m-0 text-2xl font-extrabold border-b border-slate-200 pb-4">Active Integrations</h3>
+              <h3 className="m-0 text-2xl font-extrabold border-b border-[#2d2d2d] pb-4">Active Integrations</h3>
               <div className="mt-5 grid gap-4">
                 {integrations.length === 0 ? (
                   <p className="mt-4 text-slate-500 text-sm">No active integrations connected.</p>
@@ -593,7 +670,7 @@ export default function SettingsPage({
                   integrations.map((integration) => {
                     const portal = AVAILABLE_PORTALS.find((p) => p.id === integration.id);
                     return (
-                      <article key={integration.id} className="flex items-center gap-4 rounded-md border border-slate-200 p-4">
+                      <article key={integration.id} className="flex items-center gap-4 rounded-md border border-[#2d2d2d] p-4">
                         {portal ? (
                           <div
                             className="avatar small flex items-center justify-center font-black text-white text-lg rounded-sm !w-10 !h-10"
@@ -608,11 +685,11 @@ export default function SettingsPage({
                         )}
                         <div className="min-w-0 flex-1">
                           <h3 className="m-0 font-extrabold">{integration.name}</h3>
-                          <p className="m-0 text-sm text-slate-600">{integration.description}</p>
+                          <p className="m-0 text-sm text-slate-300">{integration.description}</p>
                         </div>
                         <span className="status-chip status-ready">Connected</span>
                         <button
-                          className={`icon-button text-red-600 hover:bg-red-50 glow-on-hover rainbow ${activeGlowButton === `disconnect-${integration.id}` ? "active-glow" : ""}`}
+                          className="icon-button btn-danger"
                           onClick={() => void disconnectPortal(integration.id)}
                           aria-label={`Remove ${integration.name}`}
                         >

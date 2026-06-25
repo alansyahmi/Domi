@@ -1,6 +1,9 @@
-import { BadgeDollarSign, ChevronDown, Home, Link, MapPin, NotebookPen, RefreshCw, Ruler, Sparkles } from "lucide-react";
+import { BadgeDollarSign, ChevronDown, Clock, Home, Link, MapPin, NotebookPen, RefreshCw, Ruler, Sparkles, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { validateReportInput } from "../../domain/reports";
+import ReportWorkflowStatus from "./ReportWorkflowStatus";
+
+import { matchesPropertyName, validateReportInput } from "../../domain/reports";
+import { formatDateTime } from "../../lib/format";
 import type { PropertyReport, PropertyReportInput } from "../../types";
 
 const initialInput: PropertyReportInput = {
@@ -30,16 +33,35 @@ export default function ReportInputPanel({
   onCreateReport,
   onReportCreated,
   onGeneratingChange,
+  onGenerationStart,
+  cachedReports,
+  onDeletePropertyCache,
+  generating,
+  startTime,
 }: {
   onCreateReport: (input: PropertyReportInput) => Promise<PropertyReport>;
   onReportCreated: (report: PropertyReport) => void;
   onGeneratingChange: (generating: boolean) => void;
+  onGenerationStart?: (startTime: number) => void;
+  cachedReports?: PropertyReport[];
+  onDeletePropertyCache: (propertyName: string) => Promise<void>;
+  generating: boolean;
+  startTime?: number;
 }) {
   const [input, setInput] = useState<PropertyReportInput>(initialInput);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Filter cached reports matching current property name input
+  const suggestions = (cachedReports ?? [])
+    .filter((report) => {
+      if (!input.propertyName?.trim()) return false;
+      return matchesPropertyName(input.propertyName, report.propertyName) || matchesPropertyName(input.propertyName, report.address);
+    })
+    .slice(0, 5);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -53,6 +75,7 @@ export default function ReportInputPanel({
     setSaving(true);
     setSubmitError(null);
     onGeneratingChange(true);
+    onGenerationStart?.(Date.now());
     try {
       const report = await onCreateReport(input);
       onReportCreated(report);
@@ -76,6 +99,7 @@ export default function ReportInputPanel({
     setSaving(true);
     setSubmitError(null);
     onGeneratingChange(true);
+    onGenerationStart?.(Date.now());
     try {
       const report = await onCreateReport({ ...input, bypassCache: true });
       onReportCreated(report);
@@ -87,6 +111,25 @@ export default function ReportInputPanel({
       onGeneratingChange(false);
     }
   }
+
+  async function removeCache() {
+    if (!input.propertyName?.trim()) return;
+    const confirmed = window.confirm(`Are you sure you want to remove all cache and report data for "${input.propertyName}"?`);
+    if (!confirmed) return;
+
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      await onDeletePropertyCache(input.propertyName);
+      setInput(initialInput);
+      setErrors({});
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Unable to remove cache.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
 
   return (
     <form className="card report-input-panel p-6 md:p-8" onSubmit={(event) => void submit(event)}>
@@ -111,9 +154,45 @@ export default function ReportInputPanel({
                 placeholder="The Estate KL"
                 value={input.propertyName ?? ""}
                 onChange={(event) => setInput({ ...input, propertyName: event.target.value })}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               />
             </span>
             {errors.propertyName ? <span className="text-sm text-red-600">{errors.propertyName}</span> : null}
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="suggestions-dropdown" role="listbox" aria-label="Previously analyzed properties">
+                {suggestions.map((report) => (
+                  <button
+                    key={report.id}
+                    className="suggestions-dropdown-item"
+                    role="option"
+                    type="button"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      setInput({
+                        ...input,
+                        propertyName: report.propertyName,
+                        address: report.address || undefined,
+                        propertyType: report.propertyType || undefined,
+                        sqft: report.sqft || undefined,
+                        bedrooms: report.bedrooms || undefined,
+                        bathrooms: report.bathrooms || undefined,
+                        yearBuilt: report.yearBuilt || undefined,
+                      });
+                      setShowSuggestions(false);
+                    }}
+                  >
+                    <span className="suggestions-dropdown-item-name">
+                      <Clock size={14} aria-hidden="true" />
+                      {report.propertyName}
+                    </span>
+                    <span className="suggestions-dropdown-item-meta">
+                      {report.cacheStatus === "hit" ? "Cached" : report.cacheStatus === "refreshed" ? "Refreshed" : "Generated"} — {formatDateTime(report.generatedAt)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </label>
         </div>
 
@@ -288,6 +367,23 @@ export default function ReportInputPanel({
         ) : null}
 
         <div className="flex justify-end gap-3 border-t border-slate-200 pt-6">
+          {input.propertyName?.trim() && (
+            <button
+              className="secondary-button btn-danger px-3 flex items-center justify-center"
+              style={{
+                minWidth: "auto",
+                background: "rgba(239, 68, 68, 0.15)",
+                border: "1px solid rgba(239, 68, 68, 0.4)",
+                color: "#fca5a5"
+              }}
+              title="Remove Cache & Reports for this property"
+              disabled={saving}
+              onClick={() => void removeCache()}
+              type="button"
+            >
+              <Trash2 size={18} aria-hidden="true" />
+            </button>
+          )}
           <button className="secondary-button min-w-40" disabled={saving} onClick={() => void refreshData()} type="button">
             <RefreshCw size={18} aria-hidden="true" />
             {saving ? "Refreshing..." : "Refresh Data"}
@@ -296,7 +392,12 @@ export default function ReportInputPanel({
             {saving ? "Generating" : "Generate Report"}
           </button>
         </div>
-        {submitError ? <div className="card border-red-200 bg-red-50 px-4 py-3 text-red-700">{submitError}</div> : null}
+        {submitError ? <div className="px-4 py-3 rounded-lg" style={{ background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.3)", color: "#fca5a5" }}>{submitError}</div> : null}
+        {generating && (
+          <div className="mt-6 border-t border-slate-200 pt-6">
+            <ReportWorkflowStatus active={generating} startTime={startTime} />
+          </div>
+        )}
       </div>
     </form>
   );

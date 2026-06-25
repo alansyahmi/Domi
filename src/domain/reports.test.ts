@@ -189,4 +189,10 @@ describe("property reports", () => {
     expect(matchesPropertyName("Likas Vue", "FOR SALE Likas Square Apartment", true)).toBe(false);
     expect(conflictsWithPropertyName("Likas Vue", "Likas Square apartment in Likas")).toBe(true);
   });
+
+  it("matches abbreviated Malaysian place names in non-strict mode", () => {
+    expect(matchesPropertyName("Taman Rimbunan Hijau", "Tmn Rimbunan Hijau condo for sale")).toBe(true);
+    expect(matchesPropertyName("Taman Rimbunan Hijau", "Rimbunan Hijau residence in Kepong")).toBe(true);
+    expect(matchesPropertyName("Taman Rimbunan Hijau", "Taman Seri Hijau condo")).toBe(false);
+  });
 });

@@ -8,9 +8,7 @@ import {
   Home,
   LogOut,
   Plus,
-  Search,
   Settings,
-  PenLine,
   Users,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -19,8 +17,8 @@ import type { Agent } from "../types";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: Gauge },
-  { to: "/report-generator", label: "Report Generator", icon: Home },
-  { to: "/leads", label: "Lead Management", icon: Users },
+  { to: "/report-generator", label: "Reporter", icon: Home },
+  { to: "/leads", label: "Omnibox", icon: Users },
   { to: "/settings", label: "Settings", icon: Settings },
   { to: "/legal-support", label: "Legal & Support", icon: Gavel },
 ];
@@ -84,13 +82,11 @@ export default function Layout({ agent, children, demoMode, notice, onLogout }: 
         <div className="topbar-container">
           {/* Left: Brand logo & motto */}
           <Link to="/dashboard" className="brand-group">
-            <div className="brand-mark">
-              <PenLine size={24} aria-hidden="true" />
-            </div>
-            <div className="brand-info">
-              <span className="brand-name">Signatis</span>
-              <span className="brand-plan">Signatis Tabulis</span>
-            </div>
+            <span className="brand-name brand-name-button">
+              <span>re</span>
+              <span className="brand-colon">:</span>
+              <span>AI</span>
+            </span>
           </Link>
 
           {/* Center: Navigation Links (Desktop) */}
@@ -117,13 +113,8 @@ export default function Layout({ agent, children, demoMode, notice, onLogout }: 
             ))}
           </nav>
 
-          {/* Right: Actions, Search, Avatar */}
+          {/* Right: Actions, Avatar */}
           <div className="topbar-actions">
-            <div className="search-container">
-              <Search size={18} className="search-icon" aria-hidden="true" />
-              <span className="search-placeholder">Search...</span>
-            </div>
-
             <button className="icon-button" aria-label="Notifications">
               <Bell size={20} aria-hidden="true" />
             </button>
@@ -147,7 +138,7 @@ export default function Layout({ agent, children, demoMode, notice, onLogout }: 
 
       {notice ? (
         <div className="mx-auto max-w-368 px-4 md:px-10 pt-4">
-          <div className="card border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">{notice}</div>
+          <div className="px-4 py-3 rounded-lg" style={{ background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.3)", color: "#6ee7b7" }}>{notice}</div>
         </div>
       ) : null}
 

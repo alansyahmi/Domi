@@ -1,7 +1,7 @@
 import type { Config } from "@netlify/functions";
 import { verifyOtpCode } from "../../src/server/otp-store";
 import {
-  createSignatisDb,
+  createReAIDb,
   findAgentByEmail,
   createOtpAgent,
 } from "../../src/server/db";
@@ -48,13 +48,13 @@ export default async (req: Request) => {
   // Look up or create agent (requires Turso DB)
   let agent: { id: string; workosUserId: string; email: string; fullName: string } | null = null;
   try {
-    const db = createSignatisDb(runtimeEnv);
+    const db = createReAIDb(runtimeEnv);
     const found = await findAgentByEmail(db, email);
     if (found) {
       agent = found;
     } else {
       // New user — extract name from email (the part before @)
-      const firstName = email.split("@")[0]?.replace(/[._]/g, " ") || "Signatis";
+      const firstName = email.split("@")[0]?.replace(/[._]/g, " ") || "re:AI";
       agent = await createOtpAgent(db, email, firstName);
     }
   } catch (err) {
@@ -67,7 +67,7 @@ export default async (req: Request) => {
       id: `agent_${devId.replace(/[^a-zA-Z0-9]/g, "").slice(-12)}`,
       workosUserId: devId,
       email,
-      fullName: email.split("@")[0]?.replace(/[._]/g, " ") || "Signatis Agent",
+      fullName: email.split("@")[0]?.replace(/[._]/g, " ") || "re:AI Agent",
     };
   }
 

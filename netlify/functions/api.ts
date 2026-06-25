@@ -1,7 +1,7 @@
 import type { Config } from "@netlify/functions";
 import { createCsrfToken, requireSession, type SessionResult } from "../../src/server/auth";
 import {
-  createSignatisDb,
+  createReAIDb,
   createSupportRequest,
   ensureAgentWorkspace,
   getAgentById,
@@ -18,15 +18,26 @@ import {
   deleteLead,
   getLeadEvents,
   updateLeadStage,
+  setLeadTelegramChatId,
   getCredentials,
   saveCredentials,
   deleteCredentials,
+  deletePropertyData,
+  seedOmniboxDemo,
+  getListings,
+  getConversations,
+  getMessages,
+  getLeadIntelligenceBatch,
+  markConversationRead,
+  assignLeadToListing,
 } from "../../src/server/db";
+
 import { getRuntimeEnv } from "../../src/server/runtime-env";
 import { validateReportInput } from "../../src/domain/reports";
 import { generatePropertyReport } from "../../src/server/report-pipeline";
 import { generateReportPdf } from "../../src/server/report-pdf";
 import { verifyWhatsAppCredentials, sendWhatsAppMessage } from "../../src/server/notifications/whatsapp";
+import { sendTelegramMessage, verifyTelegramToken } from "../../src/server/notifications/telegram";
 import { notifyAgentNewLead } from "../../src/server/notifications";
 import type { Agent, PropertyReportInput } from "../../src/types";
 
@@ -64,7 +75,7 @@ async function authenticatedContext(req: Request): Promise<
   | {
       ok: true;
       agent: Agent;
-      db: ReturnType<typeof createSignatisDb>;
+      db: ReturnType<typeof createReAIDb>;
       responseHeaders: Headers;
     }
   | { ok: false; response: Response }
@@ -88,7 +99,7 @@ async function authenticatedContext(req: Request): Promise<
     responseHeaders.append("Set-Cookie", session.setCookie);
   }
 
-  const db = createSignatisDb(runtimeEnv);
+  const db = createReAIDb(runtimeEnv);
   let sessionUser = session.user;
 
   if (!sessionUser.email) {
@@ -111,8 +122,8 @@ async function authenticatedContext(req: Request): Promise<
       console.error("Error retrieving user details:", dbError);
       sessionUser = {
         id: sessionUser.id,
-        email: "agent@signatis.app",
-        firstName: "Signatis",
+        email: "agent@re-ai.app",
+        firstName: "re:AI",
         lastName: "Agent",
       };
     }
@@ -143,7 +154,7 @@ export default async (req: Request) => {
   const shareInquiryMatch = endpoint.match(/^reports\/share\/([^/]+)\/inquiry$/);
   if (shareInquiryMatch && req.method === "POST") {
     const runtimeEnv = getRuntimeEnv();
-    const db = createSignatisDb(runtimeEnv);
+    const db = createReAIDb(runtimeEnv);
     const report = await getReportByShareToken(db, shareInquiryMatch[1]);
     if (!report) {
       return json({ error: "Shared report not found." }, { status: 404 });
@@ -181,7 +192,7 @@ export default async (req: Request) => {
         lead,
         {
           eventLabel: "New lead from Report Shared Link",
-          assetUrl: `https://signatis.app/reports/share/${report.shareToken}`,
+          assetUrl: `https://re-ai.app/reports/share/${report.shareToken}`,
           prospectMessage: body.message,
         },
       ).catch((err) => console.error("[Notify] Failed:", err));
@@ -192,7 +203,7 @@ export default async (req: Request) => {
 
   if (shareMatch && req.method === "GET") {
     const runtimeEnv = getRuntimeEnv();
-    const db = createSignatisDb(runtimeEnv);
+    const db = createReAIDb(runtimeEnv);
     const report = await getReportByShareToken(db, shareMatch[1]);
     if (!report) {
       return json({ error: "Shared report not found." }, { status: 404 });
@@ -203,7 +214,7 @@ export default async (req: Request) => {
     }
 
     if (shareMatch[2] === "pdf") {
-      return pdf(generateReportPdf(report, agent), `${report.propertyKey || report.id}.pdf`);
+      return pdf(await generateReportPdf(report, agent), `${report.propertyKey || report.id}.pdf`);
     }
 
     return json({ report, agent });
@@ -225,6 +236,46 @@ export default async (req: Request) => {
 
     if (endpoint === "leads" && req.method === "GET") {
       return json({ leads: await getLeads(db, agent.id) }, { headers: responseHeaders });
+    }
+
+    // ── Omnibox (Omni-Inbox) ──────────────────────────────────────────────
+    if (endpoint === "omnibox" && req.method === "GET") {
+      const [listings, conversations, intelligence] = await Promise.all([
+        getListings(db, agent.id),
+        getConversations(db, agent.id),
+        getLeadIntelligenceBatch(db, agent.id),
+      ]);
+      return json({ listings, conversations, intelligence }, { headers: responseHeaders });
+    }
+
+    if (endpoint === "omnibox/seed" && req.method === "POST") {
+      const result = await seedOmniboxDemo(db, agent);
+      const [listings, conversations, intelligence, leads] = await Promise.all([
+        getListings(db, agent.id),
+        getConversations(db, agent.id),
+        getLeadIntelligenceBatch(db, agent.id),
+        getLeads(db, agent.id),
+      ]);
+      return json({ ...result, listings, conversations, intelligence, leads }, { headers: responseHeaders });
+    }
+
+    const conversationMessagesMatch = endpoint.match(/^conversations\/([^/]+)\/messages$/);
+    if (conversationMessagesMatch && req.method === "GET") {
+      const messages = await getMessages(db, agent.id, conversationMessagesMatch[1]);
+      return json({ messages }, { headers: responseHeaders });
+    }
+
+    const conversationReadMatch = endpoint.match(/^conversations\/([^/]+)\/read$/);
+    if (conversationReadMatch && req.method === "POST") {
+      await markConversationRead(db, agent.id, conversationReadMatch[1]);
+      return json({ success: true }, { headers: responseHeaders });
+    }
+
+    const leadListingMatch = endpoint.match(/^leads\/([^/]+)\/listing$/);
+    if (leadListingMatch && req.method === "PATCH") {
+      const body = await readJson<{ listingId?: string | null }>(req);
+      await assignLeadToListing(db, agent.id, leadListingMatch[1], body.listingId ?? null);
+      return json({ success: true }, { headers: responseHeaders });
     }
 
     if (endpoint === "leads/create" && req.method === "POST") {
@@ -299,6 +350,17 @@ export default async (req: Request) => {
       return json({ success: true }, { headers: responseHeaders });
     }
 
+    const propertyDeleteMatch = endpoint.match(/^properties\/delete-cache$/);
+    if (propertyDeleteMatch && req.method === "POST") {
+      const body = await readJson<{ propertyKey?: string; propertyName?: string }>(req);
+      if (!body.propertyKey || !body.propertyName) {
+        return json({ error: "propertyKey and propertyName are required." }, { status: 422, headers: responseHeaders });
+      }
+      await deletePropertyData(db, agent.id, body.propertyKey, body.propertyName);
+      return json({ success: true }, { headers: responseHeaders });
+    }
+
+
     const settingsMatch = endpoint.match(/^settings$/);
     if (settingsMatch && req.method === "POST") {
       const payload = await readJson<Omit<Agent, "id" | "plan" | "workosUserId" | "avatarInitials" | "ingestionAddress">>(req);
@@ -340,24 +402,41 @@ export default async (req: Request) => {
         return json({ error: "Lead not found." }, { status: 404, headers: responseHeaders });
       }
 
-      const creds = await getCredentials(db, agent.id, "whatsapp");
-      if (creds) {
-        const metadata = creds.metadata as { phoneNumberId?: string };
+      // Try Telegram first (if configured and lead has a chat_id)
+      const telegramCreds = await getCredentials(db, agent.id, "telegram");
+      const whatsappCreds = await getCredentials(db, agent.id, "whatsapp");
+      let channel = "simulated";
+
+      if (telegramCreds && lead.telegramChatId) {
+        const result = await sendTelegramMessage(telegramCreds.encryptedValue, lead.telegramChatId, body.text);
+        if (result.success) {
+          channel = "telegram";
+          console.log("[Telegram] Message sent successfully.");
+        } else {
+          console.warn("[Telegram] Failed to send:", result.error);
+        }
+      } else if (whatsappCreds) {
+        const metadata = whatsappCreds.metadata as { phoneNumberId?: string };
         const result = await sendWhatsAppMessage(
-          { phoneNumberId: metadata.phoneNumberId ?? "", accessToken: creds.encryptedValue },
+          { phoneNumberId: metadata.phoneNumberId ?? "", accessToken: whatsappCreds.encryptedValue },
           lead.phone,
           body.text
         );
-        if (!result.success) {
-          console.warn("[WhatsApp] Failed to send using credentials, falling back to simulation. Error:", result.error);
-          console.log("[Simulated WhatsApp] To:", lead.phone, "Msg:", body.text);
-        } else {
+        if (result.success) {
+          channel = "whatsapp";
           console.log("[WhatsApp] Message sent successfully via Meta API.");
+        } else {
+          console.warn("[WhatsApp] Failed to send:", result.error);
         }
       } else {
-        // Fallback simulation mode
-        console.log("[Simulated WhatsApp] To:", lead.phone, "Msg:", body.text);
+        console.log("[Simulated] Outreach to:", lead.phone, "Msg:", body.text);
       }
+
+      const eventLabel = channel === "telegram"
+        ? "Sent Telegram outreach message"
+        : channel === "whatsapp"
+          ? "Sent WhatsApp outreach message"
+          : "Outreach simulated (no messaging channel configured)";
 
       // Log event
       await db.execute({
@@ -366,8 +445,8 @@ export default async (req: Request) => {
           `event_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
           leadId,
           agent.id,
-          "whatsapp_outreach",
-          "Sent WhatsApp outreach message",
+          channel === "telegram" ? "telegram_outreach" : "whatsapp_outreach",
+          eventLabel,
           new Date().toISOString(),
         ],
       });
@@ -377,6 +456,16 @@ export default async (req: Request) => {
         await updateLeadStage(db, agent.id, leadId, "contacted");
       }
 
+      return json({ success: true }, { headers: responseHeaders });
+    }
+
+    const leadTelegramMatch = endpoint.match(/^leads\/([^/]+)\/telegram-chat-id$/);
+    if (leadTelegramMatch && req.method === "PATCH") {
+      const body = await readJson<{ chatId?: string }>(req);
+      if (body.chatId === undefined) {
+        return json({ error: "chatId is required." }, { status: 422, headers: responseHeaders });
+      }
+      await setLeadTelegramChatId(db, agent.id, leadTelegramMatch[1], body.chatId);
       return json({ success: true }, { headers: responseHeaders });
     }
 
@@ -410,7 +499,7 @@ export default async (req: Request) => {
       if (!report) {
         return json({ error: "Report not found." }, { status: 404, headers: responseHeaders });
       }
-      const pdfResponse = pdf(generateReportPdf(report, agent), `${report.propertyKey || report.id}.pdf`);
+      const pdfResponse = pdf(await generateReportPdf(report, agent), `${report.propertyKey || report.id}.pdf`);
       responseHeaders.forEach((value, key) => pdfResponse.headers.append(key, value));
       return pdfResponse;
     }
@@ -508,7 +597,53 @@ export default async (req: Request) => {
       const result = await sendWhatsAppMessage(
         { phoneNumberId: metadata.phoneNumberId ?? "", accessToken: creds.encryptedValue },
         agent.whatsappNumber || agent.phone,
-        "✅ Signatis WhatsApp integration is working! You'll receive lead notifications here.",
+        "✅ re:AI WhatsApp integration is working! You'll receive lead notifications here.",
+      );
+      if (!result.success) {
+        return json({ error: result.error ?? "Failed to send test message." }, { status: 500, headers: responseHeaders });
+      }
+      return json({ success: true, messageId: result.messageId }, { headers: responseHeaders });
+    }
+
+    // ── Telegram Integration ──────────────────────────────────
+
+    if (endpoint === "integrations/telegram/status" && req.method === "GET") {
+      const creds = await getCredentials(db, agent.id, "telegram");
+      const metadata = creds?.metadata as { botName?: string } | undefined;
+      return json({ connected: creds !== null, botName: metadata?.botName }, { headers: responseHeaders });
+    }
+
+    if (endpoint === "integrations/telegram/connect" && req.method === "POST") {
+      const body = await readJson<{ botToken?: string }>(req);
+      if (!body.botToken?.trim()) {
+        return json({ error: "Bot token is required." }, { status: 422, headers: responseHeaders });
+      }
+      const verifyResult = await verifyTelegramToken(body.botToken);
+      if (!verifyResult.valid) {
+        return json({ error: verifyResult.error ?? "Invalid bot token." }, { status: 400, headers: responseHeaders });
+      }
+      await saveCredentials(db, agent.id, "telegram", body.botToken, { botName: verifyResult.botName });
+      return json({ success: true, botName: verifyResult.botName }, { headers: responseHeaders });
+    }
+
+    if (endpoint === "integrations/telegram/disconnect" && req.method === "POST") {
+      await deleteCredentials(db, agent.id, "telegram");
+      return json({ success: true }, { headers: responseHeaders });
+    }
+
+    if (endpoint === "integrations/telegram/test" && req.method === "POST") {
+      const body = await readJson<{ chatId?: string }>(req);
+      if (!body.chatId?.trim()) {
+        return json({ error: "A chat_id is required for the test." }, { status: 422, headers: responseHeaders });
+      }
+      const creds = await getCredentials(db, agent.id, "telegram");
+      if (!creds) {
+        return json({ error: "Telegram bot not connected." }, { status: 400, headers: responseHeaders });
+      }
+      const result = await sendTelegramMessage(
+        creds.encryptedValue,
+        body.chatId,
+        "✅ re:AI Telegram integration is working! You'll receive lead notifications here.",
       );
       if (!result.success) {
         return json({ error: result.error ?? "Failed to send test message." }, { status: 500, headers: responseHeaders });

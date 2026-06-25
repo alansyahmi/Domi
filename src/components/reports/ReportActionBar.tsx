@@ -23,6 +23,7 @@ export default function ReportActionBar({
   const [showSuccess, setShowSuccess] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [reviewed, setReviewed] = useState(false);
 
   const localOnly = report.id.startsWith("report_local_") || report.shareToken.startsWith("shr_local_") || report.shareToken.startsWith("shr_demo_");
   const sharePath = buildSharedReportUrl(report.shareToken);
@@ -66,22 +67,22 @@ export default function ReportActionBar({
         <option value="">Select prospect...</option>
         {leads.map(lead => <option key={lead.id} value={lead.id}>{lead.name} ({lead.email})</option>)}
       </select>
-      <button 
-        className="primary-button py-1.5 px-3 text-sm flex gap-1 items-center"
+      <button
+        className="primary-button btn-sm"
         onClick={() => void handleSend()}
         disabled={!selectedLeadId || isSending}
       >
         {isSending ? "Sending..." : <><Send size={14} /> Send</>}
       </button>
-      <button 
-        className="ghost-button px-2 py-1.5 text-slate-400 hover:text-slate-600 text-sm"
+      <button
+        className="ghost-button"
         onClick={() => setShowSendModal(false)}
       >
         Cancel
       </button>
     </div>
   ) : (
-    <button className="primary-button" onClick={() => setShowSendModal(true)} type="button">
+    <button className="primary-button" onClick={() => setShowSendModal(true)} type="button" disabled={!reviewed} title={!reviewed ? "Confirm you've reviewed the report first" : undefined}>
       <Mail size={18} aria-hidden="true" />
       {localOnly ? "Email to Prospect (Demo)" : "Email to Prospect"}
     </button>
@@ -89,7 +90,23 @@ export default function ReportActionBar({
 
   return (
     <>
-      <div className="report-actions flex-wrap gap-3">
+      <label
+        className="flex items-start gap-2.5 mb-3 cursor-pointer select-none"
+        style={{ fontSize: "0.85rem", color: "rgba(247,247,244,0.78)" }}
+      >
+        <input
+          type="checkbox"
+          checked={reviewed}
+          onChange={(e) => setReviewed(e.target.checked)}
+          style={{ marginTop: "0.15rem", width: "1rem", height: "1rem", accentColor: "#fbbf24", flexShrink: 0 }}
+        />
+        <span>
+          I've reviewed this report and take responsibility for what's shared with a client.
+          {!reviewed && <span style={{ color: "rgba(247,247,244,0.45)" }}> Sharing is locked until you confirm.</span>}
+        </span>
+      </label>
+
+      <div className="report-actions flex-wrap gap-3" style={!reviewed ? { opacity: 0.55, pointerEvents: "none" } : undefined} aria-disabled={!reviewed}>
         {localOnly ? (
           <>
             <button className="secondary-button" disabled type="button">
@@ -123,11 +140,11 @@ export default function ReportActionBar({
 
       {showSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
-            <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center mb-5 text-emerald-600">
+          <div className="rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 flex flex-col items-center text-center animate-in zoom-in-95 duration-200" style={{ background: "#2a2a2a" }}>
+            <div className="h-16 w-16 rounded-full flex items-center justify-center mb-5" style={{ background: "rgba(5, 150, 105, 0.15)", color: "#6ee7b7" }}>
               <Check size={32} strokeWidth={3} />
             </div>
-            <h3 className="text-xl font-extrabold text-slate-900 mb-2">Report Sent!</h3>
+            <h3 className="text-xl font-extrabold mb-2" style={{ color: "rgba(247,247,244,0.92)" }}>Report Sent!</h3>
             <p className="text-slate-600 mb-8 leading-relaxed">
               The property report was successfully delivered to your prospect. They'll be able to view it instantly.
             </p>

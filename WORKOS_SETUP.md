@@ -1,4 +1,4 @@
-# WorkOS Setup for Signatis
+# WorkOS Setup for re:AI
 
 The app already has the WorkOS login flow wired up through Netlify Functions:
 
@@ -10,12 +10,12 @@ The app already has the WorkOS login flow wired up through Netlify Functions:
 
 In the WorkOS dashboard:
 
-1. Create or open the app for Signatis.
+1. Create or open the app for re:AI.
 2. Enable AuthKit.
 3. Add the production callback URL:
-   - `https://signatis.netlify.app/callback`
+   - `https://re-ai.app/callback`
 4. Add the sign-out return URL:
-   - `https://signatis.netlify.app/login`
+   - `https://re-ai.app/login`
 
 If you also use a custom domain, add the matching callback and sign-out URLs for that domain too.
 
@@ -31,7 +31,7 @@ Add these variables in Netlify Site Settings > Environment Variables:
 - `WORKOS_SIGN_OUT_REDIRECT_URI`
 - `VITE_WORKOS_CLIENT_ID`
 - `VITE_WORKOS_REDIRECT_URI`
-- `VITE_SIGNATIS_AUTH_MODE`
+- `VITE_RE_AI_AUTH_MODE`
 - `WORKOS_COOKIE_PASSWORD`
 - `CSRF_SECRET`
 - `TURSO_DATABASE_URL`
@@ -40,14 +40,14 @@ Add these variables in Netlify Site Settings > Environment Variables:
 Recommended values:
 
 - `WORKOS_REDIRECT_URI` should be the absolute callback URL, for example:
-  - `https://signatis.netlify.app/callback`
+  - `https://re-ai.app/callback`
 - `WORKOS_SIGN_OUT_REDIRECT_URI` should be the post-logout landing page, for example:
-  - `https://signatis.netlify.app/login`
+  - `https://re-ai.app/login`
 - `VITE_WORKOS_CLIENT_ID` should match `WORKOS_CLIENT_ID` so the browser AuthKit provider and the server-side functions stay in sync.
-- `VITE_WORKOS_REDIRECT_URI` should be the browser SDK redirect URL. AuthKit will process the callback there, then Signatis returns users to `/dashboard` via `state.returnTo`:
+- `VITE_WORKOS_REDIRECT_URI` should be the browser SDK redirect URL. AuthKit will process the callback there, then re:AI returns users to `/dashboard` via `state.returnTo`:
   - local: `http://127.0.0.1:58234`
-  - production: `https://signatis.netlify.app`
-- `VITE_SIGNATIS_AUTH_MODE` can be `demo` or `workos`. Local dev defaults to `demo`; production forces `workos`.
+  - production: `https://re-ai.app`
+- `VITE_RE_AI_AUTH_MODE` can be `demo` or `workos`. Local dev defaults to `demo`; production forces `workos`.
 - `WORKOS_COOKIE_PASSWORD` should be a long random secret at least 32 characters.
 - `CSRF_SECRET` should also be a long random secret at least 32 characters.
 
@@ -68,7 +68,7 @@ WORKOS_SIGN_OUT_REDIRECT_URI=http://127.0.0.1:58234/login
 WORKOS_COOKIE_PASSWORD=replace-with-a-long-random-string
 VITE_WORKOS_CLIENT_ID=...
 VITE_WORKOS_REDIRECT_URI=http://127.0.0.1:58234
-VITE_SIGNATIS_AUTH_MODE=demo
+VITE_RE_AI_AUTH_MODE=demo
 CSRF_SECRET=replace-with-a-long-random-string
 TURSO_DATABASE_URL=...
 TURSO_AUTH_TOKEN=...

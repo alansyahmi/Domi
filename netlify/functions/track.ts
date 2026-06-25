@@ -1,6 +1,6 @@
 import type { Config } from "@netlify/functions";
 import { getRuntimeEnv } from "../../src/server/runtime-env";
-import { createSignatisDb, recordLeadEngagement } from "../../src/server/db";
+import { createReAIDb, recordLeadEngagement } from "../../src/server/db";
 
 // 1x1 transparent GIF.
 const PIXEL = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
@@ -36,7 +36,7 @@ export default async (req: Request) => {
   if (kind === "o") {
     if (leadId) {
       try {
-        const db = createSignatisDb(env);
+        const db = createReAIDb(env);
         await recordLeadEngagement(db, leadId, "email_open");
       } catch (err) {
         console.error("[Track] open failed:", err);
@@ -47,7 +47,7 @@ export default async (req: Request) => {
 
   if (kind === "c") {
     const target = url.searchParams.get("u");
-    let destination = "https://signatis.app";
+    let destination = "https://re-ai.app";
     if (target) {
       try {
         const parsed = new URL(target);
@@ -61,7 +61,7 @@ export default async (req: Request) => {
     }
     if (leadId) {
       try {
-        const db = createSignatisDb(env);
+        const db = createReAIDb(env);
         await recordLeadEngagement(db, leadId, "link_click", `Clicked link to ${destination}`);
       } catch (err) {
         console.error("[Track] click failed:", err);

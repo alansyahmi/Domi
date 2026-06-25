@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateReportPdf } from "./report-pdf";
+import { buildReportPdfHtml, generateReportPdf } from "./report-pdf";
 import type { Agent, PropertyReport } from "../types";
 
 describe("report PDF generation", () => {
@@ -57,6 +57,8 @@ describe("report PDF generation", () => {
         sentiment: "positive",
         pricingTrend: "Stable premium demand",
         confidenceScore: 0.84,
+        dataCompleteness: 0.78,
+        priceCertainty: 0.45,
         freshnessDays: 0,
       },
       citations: [{ title: "Source", url: "https://example.com" }],
@@ -68,15 +70,16 @@ describe("report PDF generation", () => {
     return { agent, report };
   }
 
-  it("returns PDF bytes", () => {
+  it("returns PDF bytes", async () => {
     const { agent, report } = createReport();
 
-    const pdf = generateReportPdf(report, agent);
+    const pdf = await generateReportPdf(report, agent);
 
     expect(Buffer.from(pdf).subarray(0, 4).toString("utf8")).toBe("%PDF");
+    expect(buildReportPdfHtml(report, agent)).toContain("PDF v3");
   });
 
-  it("paginates long reports instead of clipping content", () => {
+  it("lays out long reports without dropping content", async () => {
     const longBody = Array.from({ length: 90 }, (_, index) =>
       `Grounded source note ${index + 1}: buyer feedback, official listing facts, community complaints, and advisory caveats should remain readable in the final PDF.`,
     ).join(" ");
@@ -94,28 +97,29 @@ describe("report PDF generation", () => {
       })),
     });
 
-    const pdfText = Buffer.from(generateReportPdf(report, agent)).toString("utf8");
+    const html = buildReportPdfHtml(report, agent);
+    const pdf = await generateReportPdf(report, agent);
 
-    expect((pdfText.match(/\/Type \/Page \/Parent/g) ?? []).length).toBeGreaterThan(1);
-    expect(pdfText).toContain("Community watchouts");
-    expect(pdfText).toContain("Page 2");
+    expect(Buffer.from(pdf).subarray(0, 4).toString("utf8")).toBe("%PDF");
+    expect(html).toContain("Community watchouts");
+    expect(html).toContain("Detailed Assessment");
   });
 
   it("renders client-facing advisory sections without internal workflow wording", () => {
     const { agent, report } = createReport({
       contentSections: [
-        { title: "Executive Read", body: "Balanced market review for client-facing discussion." },
+        { title: "TL;DR for the Agent", body: "Balanced market review for client-facing discussion." },
         { title: "Best-Fit Buyer Profile", body: "Likely suitable for city convenience buyers." },
         { title: "Watchouts and Buyer Questions", body: "Ask about noise, parking, and maintenance expectations." },
         { title: "Recommended Listing Narrative", body: "Use a client-safe narrative around convenience and source-backed caveats." },
       ],
     });
-    const pdfText = Buffer.from(generateReportPdf(report, agent)).toString("utf8");
+    const html = buildReportPdfHtml(report, agent);
 
-    expect(pdfText).toContain("Best-Fit Buyer Profile");
-    expect(pdfText).toContain("Watchouts and Buyer Questions");
-    expect(pdfText).toContain("Recommended Listing Narrative");
-    expect(pdfText).not.toMatch(/cache|index|Tavily|live search/i);
+    expect(html).toContain("Best-Fit Buyer Profile");
+    expect(html).toContain("Watchouts and Buyer Questions");
+    expect(html).toContain("Recommended Listing Narrative");
+    expect(html).not.toMatch(/cache|Tavily|live search/i);
   });
 
   it("renders directional current listing context", () => {
@@ -146,12 +150,13 @@ describe("report PDF generation", () => {
         },
       ],
     });
-    const pdfText = Buffer.from(generateReportPdf(report, agent)).toString("utf8");
+    const html = buildReportPdfHtml(report, agent);
 
-    expect(pdfText).toContain("Current Listing Context");
-    expect(pdfText).toContain("CURRENT LISTING");
-    expect(pdfText).toContain("directional asking");
-    expect(pdfText).toContain("context");
-    expect(pdfText).not.toMatch(/Tavily|live search|cache|index/i);
+    expect(html).toContain("Current Listing Context");
+    expect(html).toContain("Comparable Properties in Area");
+    expect(html).toContain("CURRENT LISTING");
+    expect(html).toContain("directional asking");
+    expect(html).toContain("context");
+    expect(html).not.toMatch(/Tavily|live search|cache/i);
   });
 });

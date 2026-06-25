@@ -1,14 +1,24 @@
 import { demoAgent, demoDashboard, demoIntegrations, demoLeads, demoReports } from "../data/demo";
 import type {
   Agent,
+  Conversation,
   DashboardData,
   Integration,
   Lead,
   LeadEvent,
+  LeadIntelligence,
+  Listing,
+  Message,
   PropertyReport,
   PropertyReportInput,
   SupportRequest,
 } from "../types";
+
+export interface OmniboxData {
+  listings: Listing[];
+  conversations: Conversation[];
+  intelligence: LeadIntelligence[];
+}
 
 export interface BootstrapData {
   dashboard: DashboardData;
@@ -249,6 +259,35 @@ export async function sendLeadMessageApi(leadId: string, text: string): Promise<
   });
 }
 
+// ── Omnibox (Omni-Inbox) ──────────────────────────────────────────────────
+export async function getOmniboxApi(): Promise<OmniboxData> {
+  return await apiJson<OmniboxData>("/api/omnibox");
+}
+
+export async function seedOmniboxApi(): Promise<OmniboxData & { seeded: boolean; leads: Lead[] }> {
+  return await apiJson<OmniboxData & { seeded: boolean; leads: Lead[] }>("/api/omnibox/seed", {
+    method: "POST",
+  });
+}
+
+export async function getConversationMessagesApi(conversationId: string): Promise<Message[]> {
+  const result = await apiJson<{ messages: Message[] }>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`);
+  return result.messages;
+}
+
+export async function markConversationReadApi(conversationId: string): Promise<{ success: boolean }> {
+  return await apiJson<{ success: boolean }>(`/api/conversations/${encodeURIComponent(conversationId)}/read`, {
+    method: "POST",
+  });
+}
+
+export async function assignLeadListingApi(leadId: string, listingId: string | null): Promise<{ success: boolean }> {
+  return await apiJson<{ success: boolean }>(`/api/leads/${encodeURIComponent(leadId)}/listing`, {
+    method: "PATCH",
+    body: JSON.stringify({ listingId }),
+  });
+}
+
 export async function saveWhatsAppCredentialsApi(
   phoneNumberId: string,
   accessToken: string
@@ -265,6 +304,42 @@ export async function deleteWhatsAppCredentialsApi(): Promise<{ success: boolean
   });
 }
 
+export async function setLeadTelegramChatIdApi(
+  leadId: string,
+  chatId: string,
+): Promise<{ success: boolean; error?: string }> {
+  return await apiJson<{ success: boolean; error?: string }>(`/api/leads/${leadId}/telegram-chat-id`, {
+    method: "PATCH",
+    body: JSON.stringify({ chatId }),
+  });
+}
+
+export async function connectTelegramApi(
+  botToken: string,
+): Promise<{ success: boolean; botName?: string; error?: string }> {
+  return await apiJson<{ success: boolean; botName?: string; error?: string }>(`/api/integrations/telegram/connect`, {
+    method: "POST",
+    body: JSON.stringify({ botToken }),
+  });
+}
+
+export async function disconnectTelegramApi(): Promise<{ success: boolean }> {
+  return await apiJson<{ success: boolean }>(`/api/integrations/telegram/disconnect`, {
+    method: "POST",
+  });
+}
+
+export async function testTelegramApi(chatId: string): Promise<{ success: boolean; error?: string }> {
+  return await apiJson<{ success: boolean; error?: string }>(`/api/integrations/telegram/test`, {
+    method: "POST",
+    body: JSON.stringify({ chatId }),
+  });
+}
+
+export async function getTelegramStatusApi(): Promise<{ connected: boolean; botName?: string }> {
+  return await apiJson<{ connected: boolean; botName?: string }>(`/api/integrations/telegram/status`);
+}
+
 export async function sendReportApi(
   reportId: string,
   leadId: string,
@@ -274,3 +349,14 @@ export async function sendReportApi(
     body: JSON.stringify({ reportId, leadId }),
   });
 }
+
+export async function deletePropertyCacheApi(
+  propertyKey: string,
+  propertyName: string,
+): Promise<{ success: boolean }> {
+  return await apiJson<{ success: boolean }>("/api/properties/delete-cache", {
+    method: "POST",
+    body: JSON.stringify({ propertyKey, propertyName }),
+  });
+}
+

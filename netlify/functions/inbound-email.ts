@@ -1,6 +1,6 @@
 import type { Config } from "@netlify/functions";
 import { getRuntimeEnv } from "../../src/server/runtime-env";
-import { createSignatisDb, createLead, getAgentByIngestionAddress } from "../../src/server/db";
+import { createReAIDb, createLead, getAgentByIngestionAddress } from "../../src/server/db";
 import { extractEmailAddress, type InboundEmail } from "../../src/server/lead-email-parser";
 import { parseEmailForLead } from "../../src/server/emailParser";
 import { notifyAgentNewLead } from "../../src/server/notifications";
@@ -77,7 +77,7 @@ export default async (req: Request) => {
     return json({ error: "No recipient address." }, { status: 400 });
   }
 
-  const db = createSignatisDb(env);
+  const db = createReAIDb(env);
   const agent = await getAgentByIngestionAddress(db, ingestionAddress);
   if (!agent) {
     // Unknown inbox — ack with 200 so the provider does not retry forever.
