@@ -278,6 +278,86 @@ function calculateMedian(sorted: number[]): number {
   return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
+// ── Report trust model ─────────────────────────────────────────────────────
+// A single, honest reliability read so the UI never shows "97% confidence"
+// next to "Low certainty". The headline can't exceed what the weakest critical
+// signal (price certainty, data completeness, source count) supports.
+export type ReportReliabilityLabel = "High" | "Moderate" | "Directional" | "Insufficient";
+
+export interface ReportTrust {
+  label: ReportReliabilityLabel;
+  score: number; // reconciled 0–100 headline
+  blurb: string;
+  limitations: string[];
+  sourceCount: number;
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+}
+
+export function deriveReportTrust(report: {
+  analytics: {
+    confidenceScore: number;
+    dataCompleteness: number;
+    priceCertainty: number;
+    freshnessDays: number;
+    transactedPrices?: unknown[];
+  };
+  citations?: unknown[];
+  comparableListings?: unknown[];
+}): ReportTrust {
+  const a = report.analytics;
+  const sourceCount = report.citations?.length ?? 0;
+  const compCount = report.comparableListings?.length ?? 0;
+  const transactedCount = a.transactedPrices?.length ?? 0;
+  const askingsOnly = transactedCount === 0;
+
+  const conf = clamp01(a.confidenceScore);
+  const cert = clamp01(a.priceCertainty);
+  const comp = clamp01(a.dataCompleteness);
+
+  // Reconcile: price is the crux of a property report, so certainty caps hardest.
+  const reconciled = Math.min(conf, 0.45 + 0.55 * cert, 0.4 + 0.6 * comp);
+  const score = Math.round(reconciled * 100);
+
+  let label: ReportReliabilityLabel;
+  if (sourceCount < 2 || comp < 0.3) label = "Insufficient";
+  else if (cert >= 0.6 && comp >= 0.6 && sourceCount >= 5) label = "High";
+  else if (cert >= 0.35) label = "Moderate";
+  else label = "Directional";
+
+  const limitations: string[] = [];
+  if (askingsOnly || cert < 0.35) {
+    limitations.push("Pricing is directional — based on current asking prices, not transacted (NAPIC) comparables.");
+  }
+  if (compCount === 0) {
+    limitations.push("No direct comparables found for this property yet.");
+  } else if (compCount < 3) {
+    limitations.push(`Limited comparables — only ${compCount} similar listing${compCount === 1 ? "" : "s"} found.`);
+  }
+  if (comp < 0.5) {
+    limitations.push("Some property details are incomplete; figures may shift as data fills in.");
+  }
+  if (a.freshnessDays > 30) {
+    limitations.push(`Some sources may be up to ${a.freshnessDays} days old.`);
+  }
+  if (sourceCount < 2) {
+    limitations.push("Backed by fewer than 2 independent sources — treat as a starting point, not a valuation.");
+  }
+
+  const blurb =
+    label === "High"
+      ? "Well-supported by transacted comparables and multiple sources."
+      : label === "Moderate"
+        ? "Reasonably supported; verify the key figures before relying on them."
+        : label === "Directional"
+          ? "Directional guide only — confirm pricing against transacted data before advising a client."
+          : "Not enough data for a reliable read yet — gather more before sharing.";
+
+  return { label, score, blurb, limitations, sourceCount };
+}
+
 export function calculateMarketPricingStats(report: {
   inputSnapshot: { askingPriceRm?: number; sqft?: number; listingIntent?: string };
   comparableListings?: Array<{ askingPriceRm?: number; builtUpSqft?: number; listingIntent?: string; maintenanceFeePsf?: number }>;

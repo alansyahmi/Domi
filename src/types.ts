@@ -49,8 +49,108 @@ export interface Lead {
   stage: LeadStage;
   preferredChannel: PreferredChannel;
   telegramChatId?: string;
+  listingId?: string;
   lastContactedAt?: string;
   createdAt: string;
+}
+
+// ── Omnibox (Omni-Inbox) ────────────────────────────────────────────────
+export type ConversationChannel = "whatsapp" | "messenger" | "telegram" | "instagram";
+export type MessageDirection = "inbound" | "outbound";
+export type MessageAuthor = "lead" | "agent" | "auto";
+export type MessageKind = "text" | "menu" | "menu_reply" | "system";
+export type LeadRole = "buyer" | "seller" | "tenant" | "landlord" | "unknown";
+export type UrgencyTier = "alpha" | "beta" | "passive";
+export type ListingStatus = "active" | "pending" | "closed";
+export type ConversationStatus = "open" | "snoozed" | "closed";
+
+export interface Listing {
+  id: string;
+  agentId: string;
+  propertyKey: string;
+  title: string;
+  address: string;
+  propertyType: string;
+  listingIntent: ListingIntent;
+  askingPriceRm: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  builtUpSqft?: number;
+  area?: string;
+  portalRefs: Record<string, string>;
+  status: ListingStatus;
+  createdAt: string;
+}
+
+export interface Conversation {
+  id: string;
+  agentId: string;
+  leadId?: string;
+  listingId?: string;
+  channel: ConversationChannel;
+  externalId: string;
+  contactName: string;
+  contactHandle: string;
+  status: ConversationStatus;
+  unreadCount: number;
+  lastMessageAt?: string;
+  lastMessagePreview: string;
+  createdAt: string;
+}
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  agentId: string;
+  direction: MessageDirection;
+  author: MessageAuthor;
+  body: string;
+  kind: MessageKind;
+  raw?: Record<string, unknown>;
+  sentAt: string;
+}
+
+export interface LeadXaiFactor {
+  label: string;
+  detail: string;
+  weight: number;
+}
+
+export interface LeadXai {
+  summary: string;
+  factors: LeadXaiFactor[];
+  sources: string[];
+}
+
+// ── Win-the-Listing (CMA pitch) ─────────────────────────────────────────
+export type PitchStage = "pitched" | "responded" | "won" | "lost";
+
+export interface ListingPitch {
+  id: string;
+  property: string;
+  ownerName: string;
+  recommendedRange: string;
+  reliability: string;
+  stage: PitchStage;
+  createdAt: string;
+}
+
+export interface LeadIntelligence {
+  leadId: string;
+  agentId: string;
+  role: LeadRole;
+  budgetMinRm?: number;
+  budgetMaxRm?: number;
+  lookingFor: string[];
+  dealbreakers: string[];
+  objections: string[];
+  urgencyTier: UrgencyTier;
+  matchPct?: number;
+  matchedListingId?: string;
+  botProbability: number;
+  priorityPct: number;
+  xai: LeadXai;
+  updatedAt: string;
 }
 
 export interface LeadEvent {

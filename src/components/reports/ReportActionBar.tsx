@@ -23,6 +23,7 @@ export default function ReportActionBar({
   const [showSuccess, setShowSuccess] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [reviewed, setReviewed] = useState(false);
 
   const localOnly = report.id.startsWith("report_local_") || report.shareToken.startsWith("shr_local_") || report.shareToken.startsWith("shr_demo_");
   const sharePath = buildSharedReportUrl(report.shareToken);
@@ -81,7 +82,7 @@ export default function ReportActionBar({
       </button>
     </div>
   ) : (
-    <button className="primary-button" onClick={() => setShowSendModal(true)} type="button">
+    <button className="primary-button" onClick={() => setShowSendModal(true)} type="button" disabled={!reviewed} title={!reviewed ? "Confirm you've reviewed the report first" : undefined}>
       <Mail size={18} aria-hidden="true" />
       {localOnly ? "Email to Prospect (Demo)" : "Email to Prospect"}
     </button>
@@ -89,7 +90,23 @@ export default function ReportActionBar({
 
   return (
     <>
-      <div className="report-actions flex-wrap gap-3">
+      <label
+        className="flex items-start gap-2.5 mb-3 cursor-pointer select-none"
+        style={{ fontSize: "0.85rem", color: "rgba(247,247,244,0.78)" }}
+      >
+        <input
+          type="checkbox"
+          checked={reviewed}
+          onChange={(e) => setReviewed(e.target.checked)}
+          style={{ marginTop: "0.15rem", width: "1rem", height: "1rem", accentColor: "#fbbf24", flexShrink: 0 }}
+        />
+        <span>
+          I've reviewed this report and take responsibility for what's shared with a client.
+          {!reviewed && <span style={{ color: "rgba(247,247,244,0.45)" }}> Sharing is locked until you confirm.</span>}
+        </span>
+      </label>
+
+      <div className="report-actions flex-wrap gap-3" style={!reviewed ? { opacity: 0.55, pointerEvents: "none" } : undefined} aria-disabled={!reviewed}>
         {localOnly ? (
           <>
             <button className="secondary-button" disabled type="button">

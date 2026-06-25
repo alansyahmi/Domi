@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, TrendingUp, UserPlus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { formatDateTime, initials } from "../lib/format";
 import type { DashboardData, PropertyReport } from "../types";
 import { ChannelContactButton } from "../components/leads/ChannelContactButton";
+import RoiLedgerBanner from "../components/RoiLedgerBanner";
+import { computeRoiLedger } from "../domain/roi";
+import { demoConversations, demoLeadIntelligence, demoListings, demoMessages, demoPitches } from "../data/demo";
 
 function AnimatedNumber({ value }: { value: number | string }) {
   const [displayValue, setDisplayValue] = useState(0);
@@ -41,11 +44,37 @@ function ReportStatus({ report }: { report: PropertyReport }) {
 
 export default function DashboardPage({
   dashboard,
+  demoMode,
   onInjectDemoLead
 }: {
   dashboard: DashboardData;
+  demoMode?: boolean;
   onInjectDemoLead?: () => void;
 }) {
+  const ledger = useMemo(
+    () =>
+      computeRoiLedger(
+        demoMode
+          ? {
+              pitches: demoPitches,
+              conversations: demoConversations,
+              messagesByConversation: demoMessages,
+              intelligence: demoLeadIntelligence,
+              listings: demoListings,
+              reportsCount: dashboard.totals.reportsGenerated,
+            }
+          : {
+              pitches: [],
+              conversations: [],
+              messagesByConversation: {},
+              intelligence: dashboard.highIntentLeads.map(() => ({ priorityPct: 100 })),
+              listings: [],
+              reportsCount: dashboard.totals.reportsGenerated,
+            },
+      ),
+    [demoMode, dashboard],
+  );
+
   const avgEngagement = dashboard.highIntentLeads.length > 0
     ? Math.round(
       dashboard.highIntentLeads.reduce(
@@ -76,6 +105,9 @@ export default function DashboardPage({
         <span />
         <span />
       </div>
+
+      {/* ── ROI / attribution ledger ── */}
+      <RoiLedgerBanner ledger={ledger} />
 
       {/* ── Stats cards ── */}
       <div className="reai-hero-stats" style={{ marginTop: 0 }}>
@@ -141,7 +173,7 @@ export default function DashboardPage({
                 style={{
                   padding: "1rem 1.25rem",
                   borderRadius: "1.2rem",
-                  borderLeft: "4px solid #ffd45a",
+                  border: "1px solid rgba(255,212,90,0.18)",
                 }}
               >
                 <div className="avatar">{initials(lead.name)}</div>

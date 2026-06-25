@@ -27,7 +27,7 @@ import {
 
 import Layout from "./components/Layout";
 import DashboardPage from "./pages/DashboardPage";
-import LeadManagementPage from "./pages/LeadManagementPage";
+import OmniboxPage from "./pages/OmniboxPage";
 import LegalSupportPage from "./pages/LegalSupportPage";
 import ReportGeneratorPage from "./pages/ReportGeneratorPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -635,18 +635,19 @@ function SignatisWorkspace({
     <Layout agent={data.settings.agent} demoMode={data.demoMode} notice={notice} onLogout={logout}>
       <div className="route-transition" key={location.pathname}>
         <Routes>
-          <Route path="/dashboard" element={<DashboardPage dashboard={dashboard} onInjectDemoLead={handleInjectDemoLead} />} />
+          <Route path="/dashboard" element={<DashboardPage dashboard={dashboard} demoMode={data.demoMode} onInjectDemoLead={handleInjectDemoLead} />} />
           <Route
             path="/report-generator"
-            element={<ReportGeneratorPage reports={data.reports} leads={data.leads} onCreateReport={createReport} onSendReport={sendReport} onDeletePropertyCache={deletePropertyCache} />}
+            element={<ReportGeneratorPage demoMode={data.demoMode} reports={data.reports} leads={data.leads} onCreateReport={createReport} onSendReport={sendReport} onDeletePropertyCache={deletePropertyCache} />}
           />
           <Route
             path="/leads"
             element={
-              <LeadManagementPage 
-                leads={data.leads} 
-                onCreateLead={createLead} 
-                onDeleteLead={deleteLead} 
+              <OmniboxPage
+                demoMode={data.demoMode}
+                leads={data.leads}
+                onCreateLead={createLead}
+                onDeleteLead={deleteLead}
                 onGetLeadEvents={getLeadEvents}
                 onUpdateLeadStage={updateLeadStage}
                 onSendLeadMessage={sendLeadMessage}

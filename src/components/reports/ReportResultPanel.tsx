@@ -1,5 +1,6 @@
-import { BadgeDollarSign, BarChart3, Database, FileText, Gauge, KeyRound, MapPin, SearchCheck, ShieldCheck, Sparkles, Star, TrendingUp } from "lucide-react";
+import { AlertTriangle, BadgeDollarSign, BarChart3, Database, FileText, Gauge, KeyRound, MapPin, SearchCheck, ShieldCheck, Sparkles, Star, TrendingUp } from "lucide-react";
 import type { PropertyReport } from "../../types";
+import { deriveReportTrust } from "../../domain/reports";
 import ReportActionBar from "./ReportActionBar";
 import ReportCitationList from "./ReportCitationList";
 import ReportPricingPanel from "./ReportPricingPanel";
@@ -61,6 +62,7 @@ export default function ReportResultPanel({
   onSendReport?: (reportId: string, leadId: string) => Promise<void>;
 }) {
   const input = report.inputSnapshot;
+  const trust = deriveReportTrust(report);
 
   return (
     <section className="card report-result-panel p-6 md:p-8">
@@ -92,6 +94,28 @@ export default function ReportResultPanel({
         </div>
       </div>
 
+      {trust.limitations.length > 0 && (
+        <div
+          style={{
+            border: "1px solid rgba(245,158,11,0.3)",
+            background: "rgba(245,158,11,0.08)",
+            borderRadius: "0.75rem",
+            padding: "0.9rem 1.1rem",
+            margin: "1.25rem 0",
+          }}
+        >
+          <p className="m-0 mb-2 flex items-center gap-2 font-bold" style={{ color: "#fbbf24", fontSize: "0.82rem", letterSpacing: "0.03em" }}>
+            <AlertTriangle size={15} aria-hidden="true" />
+            {trust.label === "Insufficient" ? "Insufficient data to rely on" : "Read before you share"} — {trust.blurb}
+          </p>
+          <ul className="m-0 pl-5 space-y-1" style={{ fontSize: "0.85rem", color: "rgba(247,247,244,0.72)" }}>
+            {trust.limitations.map((limitation, i) => (
+              <li key={i}>{limitation}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="report-insight-grid">
         <article>
           <TrendingUp size={20} aria-hidden="true" />
@@ -115,8 +139,8 @@ export default function ReportResultPanel({
         </article>
         <article>
           <Gauge size={20} aria-hidden="true" />
-          <span>Confidence</span>
-          <strong>{Math.round(report.analytics.confidenceScore * 100)}%</strong>
+          <span>Reliability</span>
+          <strong>{trust.label} · {trust.score}%</strong>
         </article>
         <article>
           <Database size={20} aria-hidden="true" />

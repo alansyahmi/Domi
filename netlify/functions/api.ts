@@ -23,6 +23,13 @@ import {
   saveCredentials,
   deleteCredentials,
   deletePropertyData,
+  seedOmniboxDemo,
+  getListings,
+  getConversations,
+  getMessages,
+  getLeadIntelligenceBatch,
+  markConversationRead,
+  assignLeadToListing,
 } from "../../src/server/db";
 
 import { getRuntimeEnv } from "../../src/server/runtime-env";
@@ -229,6 +236,46 @@ export default async (req: Request) => {
 
     if (endpoint === "leads" && req.method === "GET") {
       return json({ leads: await getLeads(db, agent.id) }, { headers: responseHeaders });
+    }
+
+    // ── Omnibox (Omni-Inbox) ──────────────────────────────────────────────
+    if (endpoint === "omnibox" && req.method === "GET") {
+      const [listings, conversations, intelligence] = await Promise.all([
+        getListings(db, agent.id),
+        getConversations(db, agent.id),
+        getLeadIntelligenceBatch(db, agent.id),
+      ]);
+      return json({ listings, conversations, intelligence }, { headers: responseHeaders });
+    }
+
+    if (endpoint === "omnibox/seed" && req.method === "POST") {
+      const result = await seedOmniboxDemo(db, agent);
+      const [listings, conversations, intelligence, leads] = await Promise.all([
+        getListings(db, agent.id),
+        getConversations(db, agent.id),
+        getLeadIntelligenceBatch(db, agent.id),
+        getLeads(db, agent.id),
+      ]);
+      return json({ ...result, listings, conversations, intelligence, leads }, { headers: responseHeaders });
+    }
+
+    const conversationMessagesMatch = endpoint.match(/^conversations\/([^/]+)\/messages$/);
+    if (conversationMessagesMatch && req.method === "GET") {
+      const messages = await getMessages(db, agent.id, conversationMessagesMatch[1]);
+      return json({ messages }, { headers: responseHeaders });
+    }
+
+    const conversationReadMatch = endpoint.match(/^conversations\/([^/]+)\/read$/);
+    if (conversationReadMatch && req.method === "POST") {
+      await markConversationRead(db, agent.id, conversationReadMatch[1]);
+      return json({ success: true }, { headers: responseHeaders });
+    }
+
+    const leadListingMatch = endpoint.match(/^leads\/([^/]+)\/listing$/);
+    if (leadListingMatch && req.method === "PATCH") {
+      const body = await readJson<{ listingId?: string | null }>(req);
+      await assignLeadToListing(db, agent.id, leadListingMatch[1], body.listingId ?? null);
+      return json({ success: true }, { headers: responseHeaders });
     }
 
     if (endpoint === "leads/create" && req.method === "POST") {

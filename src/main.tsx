@@ -15,6 +15,23 @@ function Root() {
   const [authMode, setAuthMode] = useState<SignatisAuthMode | null>(null);
 
   useEffect(() => {
+    // Explicit demo entry for pitches/demos — independent of backend state or login.
+    //   ?demo=1  → force demo mode and remember it (persists across navigation)
+    //   ?demo=0  → clear the override and go back to the real (workos) flow
+    //   VITE_RE_AI_AUTH_MODE=demo → always demo (build-time override)
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("demo") === "0") localStorage.removeItem("reai_force_demo");
+    if (params.get("demo") === "1") localStorage.setItem("reai_force_demo", "1");
+
+    const forceDemo =
+      import.meta.env.VITE_RE_AI_AUTH_MODE === "demo" ||
+      localStorage.getItem("reai_force_demo") === "1";
+
+    if (forceDemo) {
+      setAuthMode("demo");
+      return;
+    }
+
     fetchAuthConfig()
       .then(resolveAuthModeFromConfig)
       .then(setAuthMode)

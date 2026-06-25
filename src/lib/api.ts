@@ -1,14 +1,24 @@
 import { demoAgent, demoDashboard, demoIntegrations, demoLeads, demoReports } from "../data/demo";
 import type {
   Agent,
+  Conversation,
   DashboardData,
   Integration,
   Lead,
   LeadEvent,
+  LeadIntelligence,
+  Listing,
+  Message,
   PropertyReport,
   PropertyReportInput,
   SupportRequest,
 } from "../types";
+
+export interface OmniboxData {
+  listings: Listing[];
+  conversations: Conversation[];
+  intelligence: LeadIntelligence[];
+}
 
 export interface BootstrapData {
   dashboard: DashboardData;
@@ -246,6 +256,35 @@ export async function sendLeadMessageApi(leadId: string, text: string): Promise<
   return await apiJson<{ success: boolean; error?: string }>(`/api/leads/${leadId}/message`, {
     method: "POST",
     body: JSON.stringify({ text }),
+  });
+}
+
+// ── Omnibox (Omni-Inbox) ──────────────────────────────────────────────────
+export async function getOmniboxApi(): Promise<OmniboxData> {
+  return await apiJson<OmniboxData>("/api/omnibox");
+}
+
+export async function seedOmniboxApi(): Promise<OmniboxData & { seeded: boolean; leads: Lead[] }> {
+  return await apiJson<OmniboxData & { seeded: boolean; leads: Lead[] }>("/api/omnibox/seed", {
+    method: "POST",
+  });
+}
+
+export async function getConversationMessagesApi(conversationId: string): Promise<Message[]> {
+  const result = await apiJson<{ messages: Message[] }>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`);
+  return result.messages;
+}
+
+export async function markConversationReadApi(conversationId: string): Promise<{ success: boolean }> {
+  return await apiJson<{ success: boolean }>(`/api/conversations/${encodeURIComponent(conversationId)}/read`, {
+    method: "POST",
+  });
+}
+
+export async function assignLeadListingApi(leadId: string, listingId: string | null): Promise<{ success: boolean }> {
+  return await apiJson<{ success: boolean }>(`/api/leads/${encodeURIComponent(leadId)}/listing`, {
+    method: "PATCH",
+    body: JSON.stringify({ listingId }),
   });
 }
 
